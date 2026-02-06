@@ -1,212 +1,231 @@
 'use client'
 
+import Link from 'next/link'
+import { useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { useState } from 'react'
+import PayPalButton from '@/components/PayPalButton'
 
 const plans = [
     {
+        id: 'basic',
         name: 'Basic',
-        price: '$0',
-        period: '/month',
+        price: '9.99',
+        period: 'month',
         features: [
-            { text: 'Limited video previews', enabled: true },
-            { text: 'SD quality streaming', enabled: true },
-            { text: 'Basic search', enabled: true },
-            { text: 'Download access', enabled: false },
-            { text: 'Ad-free experience', enabled: false },
-            { text: 'HD/4K quality', enabled: false },
+            'HD Streaming',
+            '100+ Dance Videos',
+            'Mobile Access',
+            'New Weekly Content',
         ],
-        buttonText: 'Get Started',
-        buttonStyle: 'outline',
         popular: false,
-        accent: 'gray',
+        color: 'from-gray-600 to-gray-700',
     },
     {
+        id: 'vip',
         name: 'VIP',
-        price: '$19.99',
-        period: '/month',
+        price: '19.99',
+        period: 'month',
         features: [
-            { text: 'Unlimited video access', enabled: true },
-            { text: 'HD quality streaming', enabled: true },
-            { text: 'Download for offline', enabled: true },
-            { text: 'Ad-free experience', enabled: true },
-            { text: 'Priority support', enabled: true },
-            { text: '4K Ultra HD', enabled: false },
+            'Full HD Streaming',
+            '500+ Dance Videos',
+            'Download Access',
+            'Exclusive Content',
+            'Early Access',
+            'No Ads',
         ],
-        buttonText: 'Subscribe Now',
-        buttonStyle: 'gradient',
         popular: true,
-        accent: 'primary',
+        color: 'from-accent-primary to-cyan-400',
     },
     {
+        id: 'premium',
         name: 'Premium+',
-        price: '$49.99',
-        period: '/month',
+        price: '39.99',
+        period: 'month',
         features: [
-            { text: 'Everything in VIP', enabled: true },
-            { text: '4K Ultra HD quality', enabled: true },
-            { text: 'Early access content', enabled: true },
-            { text: 'Exclusive releases', enabled: true },
-            { text: 'Priority support 24/7', enabled: true },
-            { text: 'Creator chat access', enabled: true },
+            '4K Ultra HD',
+            'All Videos Access',
+            'Unlimited Downloads',
+            'Behind the Scenes',
+            'Creator Chat Access',
+            'Custom Playlists',
+            'Priority Support',
         ],
-        buttonText: 'Go Premium',
-        buttonStyle: 'secondary',
         popular: false,
-        accent: 'secondary',
+        color: 'from-accent-secondary to-purple-500',
     },
 ]
 
 const faqs = [
     {
-        question: 'Can I cancel my subscription anytime?',
-        answer: 'Yes! You can cancel your subscription at any time. Your access will continue until the end of your billing period.'
+        q: 'How do I cancel my subscription?',
+        a: 'You can cancel anytime from your account settings. Your access continues until the end of your billing period.',
     },
     {
-        question: 'What payment methods do you accept?',
-        answer: 'We accept all major credit cards, PayPal, and cryptocurrency (Bitcoin, Ethereum, USDT).'
+        q: 'Can I change my plan?',
+        a: 'Yes! Upgrade or downgrade anytime. Changes take effect on your next billing cycle.',
     },
     {
-        question: 'Can I download videos for offline viewing?',
-        answer: 'VIP and Premium+ members can download videos for offline viewing on any device.'
+        q: 'What payment methods do you accept?',
+        a: 'We accept PayPal, all major credit cards through PayPal, and cryptocurrency.',
     },
     {
-        question: 'Is there a free trial available?',
-        answer: 'New users can enjoy a 7-day free trial of VIP membership. No credit card required to start.'
+        q: 'Is there a free trial?',
+        a: 'New members get access to 10 free videos. VIP and Premium+ include a 7-day trial period.',
     },
 ]
 
 export default function MembershipPage() {
-    const [openFaq, setOpenFaq] = useState<number | null>(0)
+    const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+    const [showPayment, setShowPayment] = useState(false)
+
+    const handleSelectPlan = (planId: string) => {
+        setSelectedPlan(planId)
+        setShowPayment(true)
+    }
+
+    const handlePaymentSuccess = (subscriptionId: string) => {
+        alert(`🎉 Payment successful! Subscription ID: ${subscriptionId}`)
+        setShowPayment(false)
+        // TODO: Redirect to success page or update UI
+    }
+
+    const selectedPlanData = plans.find(p => p.id === selectedPlan)
 
     return (
-        <div className="min-h-screen bg-bg-primary">
+        <>
             <Header />
+            <main className="min-h-screen bg-bg-primary pt-32 pb-20">
+                <div className="max-w-6xl mx-auto px-6">
+                    {/* Header */}
+                    <div className="text-center mb-16">
+                        <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                            Choose Your <span className="text-accent-primary">VIP Access</span>
+                        </h1>
+                        <p className="text-text-secondary text-lg max-w-2xl mx-auto">
+                            Unlock premium dance content with exclusive access to the best streams and downloads.
+                        </p>
+                    </div>
 
-            {/* Spacer for fixed header */}
-            <div className="h-[72px]" />
-
-            {/* Hero */}
-            <section className="text-center py-16 px-6">
-                <h1 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">
-                    Choose Your Plan
-                </h1>
-                <p className="text-xl text-text-secondary max-w-xl mx-auto">
-                    Unlock unlimited access to premium content from top creators worldwide
-                </p>
-            </section>
-
-            {/* Pricing Cards */}
-            <section className="px-6 pb-16">
-                <div className="flex flex-col lg:flex-row justify-center gap-8 max-w-5xl mx-auto">
-                    {plans.map((plan, index) => (
-                        <div
-                            key={plan.name}
-                            className={`
-                relative bg-bg-secondary rounded-2xl p-8 w-full lg:w-[340px]
-                transition-transform hover:-translate-y-2
-                ${plan.popular ? 'glow-border scale-105 z-10' : 'border-2 border-text-secondary/30'}
-                ${plan.accent === 'secondary' ? 'border-accent-secondary shadow-[0_0_30px_rgba(255,0,255,0.2)]' : ''}
-              `}
-                        >
-                            {/* Popular Badge */}
-                            {plan.popular && (
-                                <span className="absolute -top-4 left-1/2 -translate-x-1/2 bg-accent-primary text-black px-5 py-2 rounded-full text-xs font-bold uppercase">
-                                    ⭐ Most Popular
-                                </span>
-                            )}
-
-                            <h3 className="text-2xl font-semibold mb-2">{plan.name}</h3>
-                            <div className="text-5xl font-bold mb-1">
-                                {plan.price}
-                                <span className="text-base text-text-secondary font-normal">{plan.period}</span>
-                            </div>
-
-                            {/* Features */}
-                            <ul className="my-8 space-y-4">
-                                {plan.features.map((feature, i) => (
-                                    <li
-                                        key={i}
-                                        className={`flex items-center gap-3 py-3 border-b border-white/10 ${!feature.enabled ? 'text-text-secondary line-through' : ''
-                                            }`}
-                                    >
-                                        <span className={feature.enabled ? 'text-accent-primary' : 'text-red-500'}>
-                                            {feature.enabled ? '✓' : '✗'}
-                                        </span>
-                                        {feature.text}
-                                    </li>
-                                ))}
-                            </ul>
-
-                            {/* Button */}
-                            <button
-                                className={`
-                  w-full py-4 rounded-full font-semibold text-base transition-all
-                  ${plan.buttonStyle === 'gradient'
-                                        ? 'gradient-button text-black animate-pulse-glow'
-                                        : plan.buttonStyle === 'secondary'
-                                            ? 'bg-accent-secondary text-white hover:shadow-[0_0_30px_rgba(255,0,255,0.5)]'
-                                            : 'border-2 border-text-secondary text-white hover:border-accent-primary hover:text-accent-primary'
-                                    }
-                `}
+                    {/* Pricing Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                        {plans.map((plan) => (
+                            <div
+                                key={plan.id}
+                                className={`relative rounded-2xl p-8 transition-all duration-300 hover:scale-105 ${plan.popular
+                                        ? 'bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border-2 border-accent-primary'
+                                        : 'bg-bg-secondary border border-white/10'
+                                    }`}
                             >
-                                {plan.buttonText}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </section>
+                                {plan.popular && (
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-accent-primary text-black text-sm font-bold rounded-full">
+                                        MOST POPULAR
+                                    </div>
+                                )}
 
-            {/* Payment Methods */}
-            <section className="text-center py-12 px-6">
-                <h3 className="text-xl text-text-secondary mb-8">Secure Payment Methods</h3>
-                <div className="flex justify-center gap-8 mb-6">
-                    <div className="w-20 h-12 bg-bg-secondary rounded-lg flex items-center justify-center text-2xl">
-                        💳
-                    </div>
-                    <div className="w-20 h-12 bg-[#003087] rounded-lg flex items-center justify-center text-white text-sm font-bold">
-                        PayPal
-                    </div>
-                    <div className="w-20 h-12 bg-bg-secondary rounded-lg flex items-center justify-center text-2xl">
-                        ₿
-                    </div>
-                    <div className="w-20 h-12 bg-bg-secondary rounded-lg flex items-center justify-center text-2xl">
-                        🔐
-                    </div>
-                </div>
-                <p className="text-sm text-text-secondary">
-                    🔒 Secure payment powered by <span className="text-accent-primary">PayPal</span> & Stripe
-                </p>
-            </section>
-
-            {/* FAQ */}
-            <section className="max-w-3xl mx-auto py-12 px-6">
-                <h2 className="text-3xl font-bold text-center mb-10">Frequently Asked Questions</h2>
-
-                <div className="space-y-4">
-                    {faqs.map((faq, index) => (
-                        <div key={index} className="bg-bg-secondary rounded-xl overflow-hidden">
-                            <button
-                                className="w-full px-6 py-5 flex justify-between items-center text-left hover:bg-bg-tertiary transition-colors"
-                                onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                            >
-                                <span className="font-medium">{faq.question}</span>
-                                <span className={`transition-transform ${openFaq === index ? 'rotate-180' : ''}`}>
-                                    ▼
-                                </span>
-                            </button>
-                            {openFaq === index && (
-                                <div className="px-6 pb-5 text-text-secondary">
-                                    {faq.answer}
+                                <div className="text-center mb-6">
+                                    <h3 className={`text-2xl font-bold mb-2 bg-gradient-to-r ${plan.color} bg-clip-text text-transparent`}>
+                                        {plan.name}
+                                    </h3>
+                                    <div className="flex items-end justify-center gap-1">
+                                        <span className="text-4xl font-bold">${plan.price}</span>
+                                        <span className="text-text-secondary mb-1">/{plan.period}</span>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </section>
 
+                                <ul className="space-y-3 mb-8">
+                                    {plan.features.map((feature, i) => (
+                                        <li key={i} className="flex items-center gap-2 text-text-secondary">
+                                            <span className="text-accent-primary">✓</span>
+                                            {feature}
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <button
+                                    onClick={() => handleSelectPlan(plan.id)}
+                                    className={`w-full py-3 rounded-full font-semibold transition-all ${plan.popular
+                                            ? 'gradient-button text-black'
+                                            : 'bg-white/10 hover:bg-white/20 text-white'
+                                        }`}
+                                >
+                                    Select {plan.name}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Payment Modal */}
+                    {showPayment && selectedPlanData && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                            <div className="bg-bg-secondary rounded-2xl p-8 max-w-md w-full mx-4 border border-white/10">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-bold">Complete Payment</h2>
+                                    <button
+                                        onClick={() => setShowPayment(false)}
+                                        className="text-text-secondary hover:text-white text-2xl"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+
+                                <div className="bg-bg-primary rounded-xl p-4 mb-6">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-text-secondary">Plan</span>
+                                        <span className="font-semibold">{selectedPlanData.name}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <span className="text-text-secondary">Price</span>
+                                        <span className="font-semibold text-accent-primary">${selectedPlanData.price}/month</span>
+                                    </div>
+                                </div>
+
+                                <PayPalButton
+                                    planId={selectedPlanData.id}
+                                    planName={selectedPlanData.name}
+                                    amount={selectedPlanData.price}
+                                    onSuccess={handlePaymentSuccess}
+                                    onError={(err) => console.error('Payment error:', err)}
+                                />
+
+                                <p className="text-xs text-text-secondary text-center mt-4">
+                                    By subscribing, you agree to our Terms of Service and Privacy Policy.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* FAQ Section */}
+                    <div className="max-w-3xl mx-auto">
+                        <h2 className="text-3xl font-bold text-center mb-10">
+                            Frequently Asked <span className="text-accent-primary">Questions</span>
+                        </h2>
+                        <div className="space-y-4">
+                            {faqs.map((faq, i) => (
+                                <div key={i} className="bg-bg-secondary rounded-xl p-6 border border-white/10">
+                                    <h3 className="font-semibold text-lg mb-2">{faq.q}</h3>
+                                    <p className="text-text-secondary">{faq.a}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* CTA */}
+                    <div className="text-center mt-16 p-10 rounded-2xl bg-gradient-to-r from-accent-primary/20 to-accent-secondary/20 border border-accent-primary/30">
+                        <h2 className="text-2xl font-bold mb-4">Still have questions?</h2>
+                        <p className="text-text-secondary mb-6">
+                            Our support team is here to help 24/7
+                        </p>
+                        <Link
+                            href="#"
+                            className="inline-block px-8 py-3 bg-white/10 hover:bg-white/20 rounded-full font-semibold transition-colors"
+                        >
+                            Contact Support
+                        </Link>
+                    </div>
+                </div>
+            </main>
             <Footer />
-        </div>
+        </>
     )
 }
