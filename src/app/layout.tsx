@@ -90,8 +90,8 @@ export default function RootLayout({
                 />
             </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
-                <GoogleAnalytics />
                 <SiteSettingsProvider>
+                    <GoogleAnalytics />
                     <AuthProvider>
                         <StreamerProvider>
                             {children}

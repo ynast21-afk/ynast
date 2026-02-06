@@ -19,6 +19,7 @@ type AdminTab =
     | 'users'
     | 'pricing'
     | 'navigation'
+    | 'settings'
 
 const gradientOptions = [
     { value: 'from-pink-900 to-purple-900', label: '핑크-퍼플' },
@@ -44,7 +45,7 @@ const colorPresets = [
 export default function AdminPage() {
     const { user, isLoading: authLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
-    const { settings, users, stats, updateTexts, updateTheme, updateBanner, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan } = useSiteSettings()
+    const { settings, users, stats, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
     const [deleteModal, setDeleteModal] = useState<{ type: 'streamer' | 'video', id: string, name: string } | null>(null)
@@ -64,6 +65,9 @@ export default function AdminPage() {
 
     // Pricing edit states
     const [pricingEdits, setPricingEdits] = useState(settings.pricing)
+
+    // Analytics edit states
+    const [analyticsEdits, setAnalyticsEdits] = useState(settings.analytics)
 
     // Handlers
     const handleAddStreamer = () => {
@@ -124,6 +128,11 @@ export default function AdminPage() {
         alert('✅ 가격 설정이 저장되었습니다!')
     }
 
+    const handleSaveAnalytics = () => {
+        updateAnalytics(analyticsEdits)
+        alert('✅ 설정이 저장되었습니다!')
+    }
+
     // 로딩 중
     if (authLoading) {
         return (
@@ -180,6 +189,7 @@ export default function AdminPage() {
         { id: 'users', icon: '👤', label: '사용자' },
         { id: 'pricing', icon: '💰', label: '멤버십 가격' },
         { id: 'navigation', icon: '🔗', label: '메뉴/링크' },
+        { id: 'settings', icon: '⚙️', label: '사이트 설정' },
     ]
 
     return (
@@ -230,8 +240,8 @@ export default function AdminPage() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${activeTab === tab.id
-                                            ? 'bg-accent-primary/20 text-accent-primary font-semibold'
-                                            : 'text-text-secondary hover:bg-white/5 hover:text-white'
+                                        ? 'bg-accent-primary/20 text-accent-primary font-semibold'
+                                        : 'text-text-secondary hover:bg-white/5 hover:text-white'
                                         }`}
                                 >
                                     <span className="text-lg">{tab.icon}</span>
@@ -891,6 +901,50 @@ export default function AdminPage() {
                                                 ))}
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ========== 설정 탭 ========== */}
+                            {activeTab === 'settings' && (
+                                <div>
+                                    <h1 className="text-2xl font-bold mb-6">⚙️ 사이트 설정</h1>
+                                    <div className="bg-bg-primary rounded-xl p-6 border border-white/10 mb-6">
+                                        <h3 className="font-semibold mb-4 text-accent-primary">📊 Google Analytics</h3>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="ga-enabled"
+                                                    checked={analyticsEdits.enabled}
+                                                    onChange={e => setAnalyticsEdits({ ...analyticsEdits, enabled: e.target.checked })}
+                                                    className="w-5 h-5 rounded border-white/20 bg-bg-secondary text-accent-primary focus:ring-accent-primary"
+                                                />
+                                                <label htmlFor="ga-enabled" className="text-sm cursor-pointer select-none">사용 설정</label>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm text-text-secondary mb-2">추적 ID (G-XXXXXXXXXX)</label>
+                                                <input
+                                                    type="text"
+                                                    value={analyticsEdits.googleAnalyticsId}
+                                                    onChange={e => setAnalyticsEdits({ ...analyticsEdits, googleAnalyticsId: e.target.value })}
+                                                    placeholder="G-ABC1234567"
+                                                    className="w-full px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary font-mono"
+                                                />
+                                                <p className="text-xs text-text-secondary mt-1">
+                                                    Google Analytics 대시보드에서 측정 ID를 확인하세요.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={handleSaveAnalytics}
+                                            className="px-6 py-3 bg-accent-primary text-black font-bold rounded-xl hover:opacity-90 transition-opacity"
+                                        >
+                                            설정 저장하기
+                                        </button>
                                     </div>
                                 </div>
                             )}

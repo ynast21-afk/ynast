@@ -1,19 +1,48 @@
 'use client'
 
+import { useEffect } from 'react'
 import Script from 'next/script'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 
-// Google Analytics 측정 ID - 환경변수로 관리
-const GA_TRACKING_ID = process.env.NEXT_PUBLIC_GA_ID || ''
+// ... (imports)
+
+declare global {
+    interface Window {
+        gtag: (command: string, targetId: string, config?: Record<string, unknown>) => void
+        dataLayer: unknown[]
+    }
+}
 
 export default function GoogleAnalytics() {
-    if (!GA_TRACKING_ID) return null
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+    const { settings } = useSiteSettings()
+    const { analytics } = settings
+
+    // 환경변수 또는 관리자 설정의 ID 사용
+    const gaId = analytics?.googleAnalyticsId || process.env.NEXT_PUBLIC_GA_ID
+    const isEnabled = analytics?.enabled ?? true
+
+    useEffect(() => {
+        if (pathname && gaId && isEnabled) {
+            const url = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '')
+
+            if (typeof window.gtag === 'function') {
+                window.gtag('config', gaId, {
+                    page_path: url,
+                })
+            }
+        }
+    }, [pathname, searchParams, gaId, isEnabled])
+
+    if (!gaId || !isEnabled) return null
 
     return (
         <>
-            {/* Google Analytics Script */}
             <Script
                 strategy="afterInteractive"
-                src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`}
+                src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
             />
             <Script
                 id="google-analytics"
@@ -23,7 +52,7 @@ export default function GoogleAnalytics() {
                         window.dataLayer = window.dataLayer || [];
                         function gtag(){dataLayer.push(arguments);}
                         gtag('js', new Date());
-                        gtag('config', '${GA_TRACKING_ID}', {
+                        gtag('config', '${gaId}', {
                             page_path: window.location.pathname,
                         });
                     `,
@@ -31,15 +60,6 @@ export default function GoogleAnalytics() {
             />
         </>
     )
-}
-
-// 페이지뷰 추적 함수 (SPA 네비게이션용)
-export const pageview = (url: string) => {
-    if (typeof window !== 'undefined' && GA_TRACKING_ID) {
-        window.gtag('config', GA_TRACKING_ID, {
-            page_path: url,
-        })
-    }
 }
 
 // 이벤트 추적 함수
@@ -54,18 +74,11 @@ export const event = ({
     label?: string
     value?: number
 }) => {
-    if (typeof window !== 'undefined' && GA_TRACKING_ID) {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
         window.gtag('event', action, {
             event_category: category,
             event_label: label,
             value: value,
         })
-    }
-}
-
-// TypeScript 타입 선언
-declare global {
-    interface Window {
-        gtag: (command: string, targetId: string, config?: Record<string, unknown>) => void
     }
 }

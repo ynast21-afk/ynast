@@ -38,6 +38,11 @@ export interface BannerSettings {
     dismissible: boolean
 }
 
+export interface AnalyticsSettings {
+    googleAnalyticsId: string
+    enabled: boolean
+}
+
 export interface PopupSettings {
     enabled: boolean
     title: string
@@ -101,6 +106,7 @@ export interface SiteSettings {
     texts: SiteTexts
     theme: ThemeSettings
     banner: BannerSettings
+    analytics: AnalyticsSettings
     popup: PopupSettings
     pricing: MembershipPricing
     navMenu: NavMenuItem[]
@@ -141,6 +147,11 @@ const defaultBanner: BannerSettings = {
     backgroundColor: '#00ff88',
     textColor: '#000000',
     dismissible: true,
+}
+
+const defaultAnalytics: AnalyticsSettings = {
+    googleAnalyticsId: '',
+    enabled: true,
 }
 
 const defaultPopup: PopupSettings = {
@@ -216,6 +227,8 @@ interface SiteSettingsContextType {
     updateTheme: (theme: Partial<ThemeSettings>) => void
     // Banner
     updateBanner: (banner: Partial<BannerSettings>) => void
+    // Analytics
+    updateAnalytics: (analytics: Partial<AnalyticsSettings>) => void
     // Popup
     updatePopup: (popup: Partial<PopupSettings>) => void
     // Pricing
@@ -245,6 +258,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         texts: defaultTexts,
         theme: defaultTheme,
         banner: defaultBanner,
+        analytics: defaultAnalytics,
         popup: defaultPopup,
         pricing: defaultPricing,
         navMenu: defaultNavMenu,
@@ -334,6 +348,10 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         setSettings(prev => ({ ...prev, banner: { ...prev.banner, ...newBanner } }))
     }
 
+    const updateAnalytics = (newAnalytics: Partial<AnalyticsSettings>) => {
+        setSettings(prev => ({ ...prev, analytics: { ...prev.analytics, ...newAnalytics } }))
+    }
+
     const updatePopup = (newPopup: Partial<PopupSettings>) => {
         setSettings(prev => ({ ...prev, popup: { ...prev.popup, ...newPopup } }))
     }
@@ -409,6 +427,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
                 updateTexts,
                 updateTheme,
                 updateBanner,
+                updateAnalytics,
                 updatePopup,
                 updatePricing,
                 updateNavMenu,
