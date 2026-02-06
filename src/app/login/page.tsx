@@ -5,6 +5,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
+// 관리자 이메일 확인용
+const ADMIN_EMAIL = 'ynast21@gmail.com'
+
 export default function LoginPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -27,7 +30,12 @@ export default function LoginPage() {
         const success = await login(email, password)
 
         if (success) {
-            router.push('/')
+            // 관리자면 /admin으로, 일반 유저면 /로 리다이렉트
+            if (email === ADMIN_EMAIL) {
+                router.push('/admin')
+            } else {
+                router.push('/')
+            }
         } else {
             setError('Invalid email or password')
         }

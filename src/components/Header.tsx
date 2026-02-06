@@ -174,9 +174,6 @@ export default function Header() {
                 <Link href="/contact" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                     ✉️ Contact
                 </Link>
-                <Link href="/admin" className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 ml-auto">
-                    🔧 Admin
-                </Link>
             </div>
 
             {/* Mobile Menu */}
