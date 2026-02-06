@@ -1,0 +1,118 @@
+'use client'
+
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+
+export type MembershipLevel = 'guest' | 'basic' | 'vip' | 'premium'
+
+export interface User {
+    id: string
+    email: string
+    name: string
+    membership: MembershipLevel
+    avatar?: string
+    subscriptionEnd?: string
+}
+
+interface AuthContextType {
+    user: User | null
+    isLoading: boolean
+    login: (email: string, password: string) => Promise<boolean>
+    signup: (email: string, password: string, name: string) => Promise<boolean>
+    logout: () => void
+    updateMembership: (level: MembershipLevel) => void
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+    const [user, setUser] = useState<User | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        // Check for saved session
+        const savedUser = localStorage.getItem('kstreamer_user')
+        if (savedUser) {
+            setUser(JSON.parse(savedUser))
+        }
+        setIsLoading(false)
+    }, [])
+
+    const login = async (email: string, password: string): Promise<boolean> => {
+        try {
+            // TODO: Replace with actual API call
+            // const response = await fetch('/api/auth/login', {
+            //   method: 'POST',
+            //   headers: { 'Content-Type': 'application/json' },
+            //   body: JSON.stringify({ email, password }),
+            // })
+            // const data = await response.json()
+
+            // For demo, simulate login
+            const mockUser: User = {
+                id: 'user_' + Date.now(),
+                email,
+                name: email.split('@')[0],
+                membership: 'guest',
+            }
+
+            setUser(mockUser)
+            localStorage.setItem('kstreamer_user', JSON.stringify(mockUser))
+            return true
+        } catch (error) {
+            console.error('Login failed:', error)
+            return false
+        }
+    }
+
+    const signup = async (email: string, password: string, name: string): Promise<boolean> => {
+        try {
+            // TODO: Replace with actual API call
+            // const response = await fetch('/api/auth/signup', {
+            //   method: 'POST',
+            //   headers: { 'Content-Type': 'application/json' },
+            //   body: JSON.stringify({ email, password, name }),
+            // })
+
+            const mockUser: User = {
+                id: 'user_' + Date.now(),
+                email,
+                name,
+                membership: 'guest',
+            }
+
+            setUser(mockUser)
+            localStorage.setItem('kstreamer_user', JSON.stringify(mockUser))
+            return true
+        } catch (error) {
+            console.error('Signup failed:', error)
+            return false
+        }
+    }
+
+    const logout = () => {
+        setUser(null)
+        localStorage.removeItem('kstreamer_user')
+    }
+
+    const updateMembership = (level: MembershipLevel) => {
+        if (user) {
+            const updatedUser = { ...user, membership: level }
+            setUser(updatedUser)
+            localStorage.setItem('kstreamer_user', JSON.stringify(updatedUser))
+        }
+    }
+
+    return (
+        <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateMembership }}>
+            {children}
+        </AuthContext.Provider>
+    )
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext)
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider')
+    }
+    return context
+}

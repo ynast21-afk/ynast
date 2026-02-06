@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
     title: 'kStreamer dance - Premium Dance Video Platform',
@@ -20,7 +21,9 @@ export default function RootLayout({
     return (
         <html lang="ko" className="dark">
             <body className="bg-bg-primary text-text-primary min-h-screen">
-                {children}
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
             </body>
         </html>
     )
