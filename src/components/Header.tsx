@@ -36,7 +36,7 @@ export default function Header() {
 
                 {/* Desktop Navigation */}
                 <nav className="hidden md:flex gap-8">
-                    <Link href="/" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                    <Link href="/videos" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                         Videos
                     </Link>
                     <Link href="/membership" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
