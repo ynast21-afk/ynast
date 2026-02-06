@@ -3,7 +3,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { WebSiteSchema, OrganizationSchema } from '@/components/JsonLd'
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://ynast.vercel.app'
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
 
 export const viewport: Viewport = {
     width: 'device-width',
