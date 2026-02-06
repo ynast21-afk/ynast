@@ -29,7 +29,7 @@ export default function ContactPage() {
         setIsSubmitting(true)
 
         // mailto 링크로 이메일 열기
-        const mailtoLink = `mailto:contact@kdance.xyz?subject=${encodeURIComponent(
+        const mailtoLink = `mailto:ynast21@gmail.com?subject=${encodeURIComponent(
             subjects.find(s => s.value === formData.subject)?.label || 'Contact'
         )}&body=${encodeURIComponent(
             `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`
@@ -172,8 +172,8 @@ export default function ContactPage() {
                     {/* Direct Email */}
                     <p className="text-center text-text-secondary mt-8">
                         You can also email us directly at{' '}
-                        <a href="mailto:contact@kdance.xyz" className="text-accent-primary hover:underline">
-                            contact@kdance.xyz
+                        <a href="mailto:ynast21@gmail.com" className="text-accent-primary hover:underline">
+                            ynast21@gmail.com
                         </a>
                     </p>
                 </div>
