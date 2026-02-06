@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useStreamers, Streamer, Video } from '@/contexts/StreamerContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 type AccessLevel = 'basic' | 'vip' | 'premium'
 
@@ -17,6 +18,7 @@ const gradientOptions = [
 ]
 
 export default function AdminPage() {
+    const { user, isLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
     const [activeTab, setActiveTab] = useState<'videos' | 'upload' | 'streamers' | 'stats'>('videos')
 
@@ -76,6 +78,63 @@ export default function AdminPage() {
             removeVideo(deleteModal.id)
         }
         setDeleteModal(null)
+    }
+
+    // 로딩 중
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-accent-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-text-secondary">로딩 중...</p>
+                </div>
+            </div>
+        )
+    }
+
+    // 로그인하지 않은 경우
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+                <div className="text-center max-w-md mx-4">
+                    <span className="text-6xl mb-4 block">🔒</span>
+                    <h1 className="text-2xl font-bold mb-4">로그인이 필요합니다</h1>
+                    <p className="text-text-secondary mb-6">
+                        관리자 페이지에 접근하려면 먼저 로그인해주세요.
+                    </p>
+                    <Link
+                        href="/login"
+                        className="inline-block gradient-button text-black px-8 py-3 rounded-lg font-semibold"
+                    >
+                        로그인하러 가기
+                    </Link>
+                </div>
+            </div>
+        )
+    }
+
+    // 관리자가 아닌 경우
+    if (!isAdmin) {
+        return (
+            <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+                <div className="text-center max-w-md mx-4">
+                    <span className="text-6xl mb-4 block">⛔</span>
+                    <h1 className="text-2xl font-bold mb-4 text-red-400">접근 권한 없음</h1>
+                    <p className="text-text-secondary mb-6">
+                        관리자만 이 페이지에 접근할 수 있습니다.
+                    </p>
+                    <p className="text-sm text-text-secondary mb-6">
+                        현재 로그인: <span className="text-white">{user.email}</span>
+                    </p>
+                    <Link
+                        href="/"
+                        className="inline-block gradient-button text-black px-8 py-3 rounded-lg font-semibold"
+                    >
+                        홈으로 돌아가기
+                    </Link>
+                </div>
+            </div>
+        )
     }
 
     return (

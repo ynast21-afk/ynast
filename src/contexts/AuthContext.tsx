@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
+// 관리자 이메일 설정 - 이 이메일로 로그인한 사용자만 /admin 접근 가능
+const ADMIN_EMAIL = 'ynast21@gmail.com'
+
 export type MembershipLevel = 'guest' | 'basic' | 'vip' | 'premium'
 
 export interface User {
@@ -16,6 +19,7 @@ export interface User {
 interface AuthContextType {
     user: User | null
     isLoading: boolean
+    isAdmin: boolean
     login: (email: string, password: string) => Promise<boolean>
     signup: (email: string, password: string, name: string) => Promise<boolean>
     logout: () => void
@@ -102,8 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    // 관리자 여부 확인
+    const isAdmin = user?.email === ADMIN_EMAIL
+
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateMembership }}>
+        <AuthContext.Provider value={{ user, isLoading, isAdmin, login, signup, logout, updateMembership }}>
             {children}
         </AuthContext.Provider>
     )
