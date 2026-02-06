@@ -42,8 +42,8 @@ export default function Header() {
                     <Link href="/membership" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                         Premium
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                        Creators
+                    <Link href="/actors" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                        Actors
                     </Link>
                     <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                         Community

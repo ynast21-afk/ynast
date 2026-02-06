@@ -2,75 +2,114 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-
-// Sample video data for management
-const sampleVideos = [
-    {
-        id: '1',
-        title: 'Cyberpunk City Night Walk 8K',
-        creator: 'NeonWalker',
-        size: '2.4 GB',
-        duration: '12:45',
-        uploadDate: '2026-02-05',
-        views: 1234,
-        access: { streaming: ['vip', 'premium'], download: ['premium'] },
-        status: 'published'
-    },
-    {
-        id: '2',
-        title: 'Digital Art Masterclass',
-        creator: 'ArtistPro',
-        size: '1.8 GB',
-        duration: '08:32',
-        uploadDate: '2026-02-04',
-        views: 3567,
-        access: { streaming: ['basic', 'vip', 'premium'], download: ['vip', 'premium'] },
-        status: 'published'
-    },
-    {
-        id: '3',
-        title: 'Synthwave Mix 2024',
-        creator: 'LofiGirl',
-        size: '850 MB',
-        duration: '15:20',
-        uploadDate: '2026-02-03',
-        views: 890,
-        access: { streaming: ['premium'], download: ['premium'] },
-        status: 'draft'
-    },
-]
+import { useStreamers, Streamer, Video } from '@/contexts/StreamerContext'
 
 type AccessLevel = 'basic' | 'vip' | 'premium'
 
-interface VideoAccess {
-    streaming: AccessLevel[]
-    download: AccessLevel[]
-}
+const gradientOptions = [
+    { value: 'from-pink-900 to-purple-900', label: '핑크-퍼플' },
+    { value: 'from-blue-900 to-indigo-900', label: '블루-인디고' },
+    { value: 'from-cyan-900 to-teal-900', label: '시안-틸' },
+    { value: 'from-amber-900 to-orange-900', label: '앰버-오렌지' },
+    { value: 'from-rose-900 to-pink-900', label: '로즈-핑크' },
+    { value: 'from-violet-900 to-purple-900', label: '바이올렛-퍼플' },
+    { value: 'from-emerald-900 to-green-900', label: '에메랄드-그린' },
+]
 
 export default function AdminPage() {
-    const [videos, setVideos] = useState(sampleVideos)
-    const [showUploadModal, setShowUploadModal] = useState(false)
-    const [editingVideo, setEditingVideo] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'videos' | 'upload' | 'stats'>('videos')
+    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
+    const [activeTab, setActiveTab] = useState<'videos' | 'upload' | 'streamers' | 'stats'>('videos')
 
-    const toggleAccess = (videoId: string, type: 'streaming' | 'download', level: AccessLevel) => {
-        setVideos(videos.map(video => {
-            if (video.id === videoId) {
-                const currentAccess = video.access[type]
-                const newAccess = currentAccess.includes(level)
-                    ? currentAccess.filter(l => l !== level)
-                    : [...currentAccess, level]
-                return {
-                    ...video,
-                    access: { ...video.access, [type]: newAccess }
-                }
-            }
-            return video
-        }))
+    // New streamer form
+    const [newStreamer, setNewStreamer] = useState({
+        name: '',
+        koreanName: '',
+        gradient: gradientOptions[0].value,
+    })
+
+    // New video form
+    const [newVideo, setNewVideo] = useState({
+        title: '',
+        streamerId: '',
+        duration: '',
+        isVip: true,
+    })
+
+    // Delete confirmation modal
+    const [deleteModal, setDeleteModal] = useState<{ type: 'streamer' | 'video', id: string, name: string } | null>(null)
+
+    const handleAddStreamer = () => {
+        if (!newStreamer.name.trim()) return
+        addStreamer({
+            name: newStreamer.name.trim(),
+            koreanName: newStreamer.koreanName.trim() || undefined,
+            gradient: newStreamer.gradient,
+        })
+        setNewStreamer({ name: '', koreanName: '', gradient: gradientOptions[0].value })
+    }
+
+    const handleAddVideo = () => {
+        if (!newVideo.title.trim() || !newVideo.streamerId || !newVideo.duration.trim()) return
+        const streamer = streamers.find(s => s.id === newVideo.streamerId)
+        if (!streamer) return
+
+        addVideo({
+            title: newVideo.title.trim(),
+            streamerId: newVideo.streamerId,
+            streamerName: streamer.name,
+            duration: newVideo.duration.trim(),
+            isVip: newVideo.isVip,
+            views: '0',
+            likes: '0',
+            gradient: streamer.gradient,
+            uploadedAt: 'Just now',
+        })
+        setNewVideo({ title: '', streamerId: '', duration: '', isVip: true })
+        setActiveTab('videos')
+    }
+
+    const handleConfirmDelete = () => {
+        if (!deleteModal) return
+        if (deleteModal.type === 'streamer') {
+            removeStreamer(deleteModal.id)
+        } else {
+            removeVideo(deleteModal.id)
+        }
+        setDeleteModal(null)
     }
 
     return (
         <div className="min-h-screen bg-bg-primary">
+            {/* Delete Confirmation Modal */}
+            {deleteModal && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+                    <div className="bg-bg-secondary rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10">
+                        <h3 className="text-xl font-bold mb-4 text-red-400">⚠️ 삭제 확인</h3>
+                        <p className="text-text-secondary mb-6">
+                            <span className="text-white font-semibold">"{deleteModal.name}"</span>
+                            {deleteModal.type === 'streamer'
+                                ? '를 삭제하시겠습니까? 해당 스트리머의 모든 비디오도 함께 삭제됩니다.'
+                                : '를 삭제하시겠습니까?'
+                            }
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleConfirmDelete}
+                                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors"
+                            >
+                                삭제
+                            </button>
+                            <button
+                                onClick={() => setDeleteModal(null)}
+                                className="flex-1 px-4 py-3 bg-bg-tertiary rounded-lg font-medium hover:bg-white/10 transition-colors"
+                            >
+                                취소
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Admin Header */}
             <header className="bg-bg-secondary border-b border-white/10 px-6 py-4">
                 <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -93,7 +132,7 @@ export default function AdminPage() {
 
             <div className="max-w-7xl mx-auto px-6 py-8">
                 {/* Tab Navigation */}
-                <div className="flex gap-4 mb-8">
+                <div className="flex gap-4 mb-8 flex-wrap">
                     <button
                         onClick={() => setActiveTab('videos')}
                         className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'videos'
@@ -113,6 +152,15 @@ export default function AdminPage() {
                         📤 영상 업로드
                     </button>
                     <button
+                        onClick={() => setActiveTab('streamers')}
+                        className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'streamers'
+                            ? 'bg-accent-primary text-black'
+                            : 'bg-bg-secondary hover:bg-bg-tertiary'
+                            }`}
+                    >
+                        👥 스트리머 관리
+                    </button>
+                    <button
                         onClick={() => setActiveTab('stats')}
                         className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'stats'
                             ? 'bg-accent-primary text-black'
@@ -127,7 +175,7 @@ export default function AdminPage() {
                 {activeTab === 'videos' && (
                     <div>
                         <div className="flex justify-between items-center mb-6">
-                            <h1 className="text-2xl font-bold">영상 관리</h1>
+                            <h1 className="text-2xl font-bold">영상 관리 ({videos.length}개)</h1>
                             <button
                                 onClick={() => setActiveTab('upload')}
                                 className="gradient-button text-black px-6 py-3 rounded-lg font-semibold"
@@ -136,108 +184,66 @@ export default function AdminPage() {
                             </button>
                         </div>
 
-                        {/* Video List */}
-                        <div className="space-y-4">
-                            {videos.map((video) => (
-                                <div
-                                    key={video.id}
-                                    className="bg-bg-secondary rounded-xl p-6 border border-white/10"
+                        {videos.length === 0 ? (
+                            <div className="text-center py-16 bg-bg-secondary rounded-xl">
+                                <span className="text-6xl mb-4 block">📹</span>
+                                <h3 className="text-xl font-bold mb-2">영상이 없습니다</h3>
+                                <p className="text-text-secondary mb-4">첫 번째 영상을 업로드해보세요!</p>
+                                <button
+                                    onClick={() => setActiveTab('upload')}
+                                    className="gradient-button text-black px-6 py-3 rounded-lg font-semibold"
                                 >
-                                    <div className="flex gap-6">
-                                        {/* Thumbnail Placeholder */}
-                                        <div className="w-48 h-28 bg-gradient-to-br from-purple-900 to-cyan-900 rounded-lg flex-shrink-0 flex items-center justify-center">
-                                            <span className="text-4xl">🎬</span>
-                                        </div>
-
-                                        {/* Video Info */}
-                                        <div className="flex-1">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div>
-                                                    <h3 className="text-lg font-semibold">{video.title}</h3>
-                                                    <p className="text-sm text-text-secondary">@{video.creator}</p>
-                                                </div>
-                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${video.status === 'published'
-                                                    ? 'bg-green-500/20 text-green-400'
-                                                    : 'bg-yellow-500/20 text-yellow-400'
-                                                    }`}>
-                                                    {video.status === 'published' ? '게시됨' : '초안'}
-                                                </span>
+                                    영상 업로드하기
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {videos.map((video) => (
+                                    <div
+                                        key={video.id}
+                                        className="bg-bg-secondary rounded-xl p-6 border border-white/10"
+                                    >
+                                        <div className="flex gap-6">
+                                            {/* Thumbnail */}
+                                            <div className={`w-48 h-28 bg-gradient-to-br ${video.gradient} rounded-lg flex-shrink-0 flex items-center justify-center`}>
+                                                {video.isVip && (
+                                                    <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-black text-xs font-bold rounded">
+                                                        VIP
+                                                    </span>
+                                                )}
                                             </div>
 
-                                            <div className="flex gap-6 text-sm text-text-secondary mb-4">
-                                                <span>⏱ {video.duration}</span>
-                                                <span>💾 {video.size}</span>
-                                                <span>👁 {video.views.toLocaleString()} views</span>
-                                                <span>📅 {video.uploadDate}</span>
-                                            </div>
-
-                                            {/* Access Control */}
-                                            <div className="bg-bg-tertiary rounded-lg p-4">
-                                                <h4 className="text-sm font-semibold mb-3">🔐 접근 권한 설정</h4>
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    {/* Streaming Access */}
-                                                    <div>
-                                                        <p className="text-xs text-text-secondary mb-2">📺 스트리밍 허용</p>
-                                                        <div className="flex gap-2">
-                                                            {(['basic', 'vip', 'premium'] as AccessLevel[]).map((level) => (
-                                                                <button
-                                                                    key={level}
-                                                                    onClick={() => toggleAccess(video.id, 'streaming', level)}
-                                                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${video.access.streaming.includes(level)
-                                                                        ? level === 'premium'
-                                                                            ? 'bg-accent-secondary text-white'
-                                                                            : level === 'vip'
-                                                                                ? 'bg-accent-primary text-black'
-                                                                                : 'bg-blue-500 text-white'
-                                                                        : 'bg-bg-secondary text-text-secondary border border-white/20'
-                                                                        }`}
-                                                                >
-                                                                    {level.toUpperCase()}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Download Access */}
-                                                    <div>
-                                                        <p className="text-xs text-text-secondary mb-2">📥 다운로드 허용</p>
-                                                        <div className="flex gap-2">
-                                                            {(['basic', 'vip', 'premium'] as AccessLevel[]).map((level) => (
-                                                                <button
-                                                                    key={level}
-                                                                    onClick={() => toggleAccess(video.id, 'download', level)}
-                                                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${video.access.download.includes(level)
-                                                                        ? level === 'premium'
-                                                                            ? 'bg-accent-secondary text-white'
-                                                                            : level === 'vip'
-                                                                                ? 'bg-accent-primary text-black'
-                                                                                : 'bg-blue-500 text-white'
-                                                                        : 'bg-bg-secondary text-text-secondary border border-white/20'
-                                                                        }`}
-                                                                >
-                                                                    {level.toUpperCase()}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                            {/* Video Info */}
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-semibold mb-1">{video.title}</h3>
+                                                <Link
+                                                    href={`/actors/${video.streamerId}`}
+                                                    className="text-sm text-accent-primary hover:underline"
+                                                >
+                                                    @{video.streamerName}
+                                                </Link>
+                                                <div className="flex gap-6 text-sm text-text-secondary mt-2">
+                                                    <span>⏱ {video.duration}</span>
+                                                    <span>👁 {video.views} views</span>
+                                                    <span>❤️ {video.likes} likes</span>
+                                                    <span>📅 {video.uploadedAt}</span>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Actions */}
-                                        <div className="flex flex-col gap-2">
-                                            <button className="px-4 py-2 bg-bg-tertiary rounded-lg text-sm hover:bg-white/10 transition-colors">
-                                                ✏️ 수정
-                                            </button>
-                                            <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-colors">
-                                                🗑️ 삭제
-                                            </button>
+                                            {/* Actions */}
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => setDeleteModal({ type: 'video', id: video.id, name: video.title })}
+                                                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-colors"
+                                                >
+                                                    🗑️ 삭제
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -247,114 +253,181 @@ export default function AdminPage() {
                         <h1 className="text-2xl font-bold mb-6">새 영상 업로드</h1>
 
                         <div className="bg-bg-secondary rounded-xl p-8 border border-white/10">
-                            {/* Drag & Drop Zone */}
-                            <div className="border-2 border-dashed border-accent-primary/50 rounded-xl p-12 text-center mb-8 hover:border-accent-primary hover:bg-accent-primary/5 transition-all cursor-pointer">
-                                <div className="text-6xl mb-4">📤</div>
-                                <h3 className="text-xl font-semibold mb-2">영상 파일을 드래그하거나 클릭하세요</h3>
-                                <p className="text-text-secondary mb-4">MP4, MOV, AVI, MKV 지원 • 최대 10GB</p>
-                                <input type="file" className="hidden" accept="video/*" />
-                                <button className="gradient-button text-black px-8 py-3 rounded-lg font-semibold">
-                                    파일 선택
-                                </button>
-                            </div>
-
-                            {/* Video Details Form */}
                             <div className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-medium mb-2">영상 제목 *</label>
                                     <input
                                         type="text"
-                                        placeholder="영상 제목을 입력하세요"
+                                        value={newVideo.title}
+                                        onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+                                        placeholder="예: 2026-02-06_Dance Cover - NewJeans"
                                         className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-accent-primary transition-colors"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">설명</label>
-                                    <textarea
-                                        placeholder="영상에 대한 설명을 입력하세요"
-                                        rows={4}
-                                        className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-accent-primary transition-colors resize-none"
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">크리에이터</label>
+                                        <label className="block text-sm font-medium mb-2">스트리머 선택 *</label>
+                                        <select
+                                            value={newVideo.streamerId}
+                                            onChange={(e) => setNewVideo({ ...newVideo, streamerId: e.target.value })}
+                                            className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-accent-primary transition-colors"
+                                        >
+                                            <option value="">스트리머를 선택하세요</option>
+                                            {streamers.map((streamer) => (
+                                                <option key={streamer.id} value={streamer.id}>
+                                                    {streamer.name} {streamer.koreanName && `(${streamer.koreanName})`}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {streamers.length === 0 && (
+                                            <p className="text-yellow-400 text-sm mt-2">
+                                                ⚠️ 스트리머가 없습니다. 먼저 스트리머를 등록해주세요.
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">재생 시간 *</label>
                                         <input
                                             type="text"
-                                            placeholder="크리에이터 이름"
+                                            value={newVideo.duration}
+                                            onChange={(e) => setNewVideo({ ...newVideo, duration: e.target.value })}
+                                            placeholder="예: 21:36"
                                             className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-accent-primary transition-colors"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">카테고리</label>
-                                        <select className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-accent-primary transition-colors">
-                                            <option>선택하세요</option>
-                                            <option>Music</option>
-                                            <option>Dance</option>
-                                            <option>Gaming</option>
-                                            <option>Tech</option>
-                                            <option>Lifestyle</option>
-                                        </select>
-                                    </div>
                                 </div>
 
-                                {/* Access Control */}
-                                <div className="bg-bg-tertiary rounded-lg p-6">
-                                    <h4 className="font-semibold mb-4">🔐 접근 권한 설정</h4>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <p className="text-sm text-text-secondary mb-3">📺 스트리밍 허용 등급</p>
-                                            <div className="space-y-2">
-                                                {['Basic (무료)', 'VIP', 'Premium+'].map((level) => (
-                                                    <label key={level} className="flex items-center gap-3 cursor-pointer">
-                                                        <input type="checkbox" className="w-4 h-4 accent-accent-primary" />
-                                                        <span>{level}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-text-secondary mb-3">📥 다운로드 허용 등급</p>
-                                            <div className="space-y-2">
-                                                {['Basic (무료)', 'VIP', 'Premium+'].map((level) => (
-                                                    <label key={level} className="flex items-center gap-3 cursor-pointer">
-                                                        <input type="checkbox" className="w-4 h-4 accent-accent-primary" />
-                                                        <span>{level}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Thumbnail */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">썸네일 이미지</label>
-                                    <div className="flex gap-4">
-                                        <div className="w-48 h-28 bg-bg-tertiary border border-dashed border-white/30 rounded-lg flex items-center justify-center cursor-pointer hover:border-accent-primary transition-colors">
-                                            <span className="text-text-secondary">+ 업로드</span>
-                                        </div>
-                                        <p className="text-sm text-text-secondary">
-                                            권장 크기: 1280x720px<br />
-                                            지원 형식: JPG, PNG, WebP
-                                        </p>
-                                    </div>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={newVideo.isVip}
+                                            onChange={(e) => setNewVideo({ ...newVideo, isVip: e.target.checked })}
+                                            className="w-5 h-5 accent-accent-primary"
+                                        />
+                                        <span className="font-medium">VIP 전용 영상</span>
+                                    </label>
                                 </div>
 
-                                {/* Submit */}
                                 <div className="flex gap-4 pt-4">
-                                    <button className="gradient-button text-black px-8 py-3 rounded-lg font-semibold">
-                                        📤 업로드 및 게시
+                                    <button
+                                        onClick={handleAddVideo}
+                                        disabled={!newVideo.title || !newVideo.streamerId || !newVideo.duration}
+                                        className="gradient-button text-black px-8 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        📤 업로드
                                     </button>
-                                    <button className="px-8 py-3 bg-bg-tertiary rounded-lg font-semibold hover:bg-white/10 transition-colors">
-                                        💾 초안으로 저장
+                                    <button
+                                        onClick={() => setNewVideo({ title: '', streamerId: '', duration: '', isVip: true })}
+                                        className="px-8 py-3 bg-bg-tertiary rounded-lg font-semibold hover:bg-white/10 transition-colors"
+                                    >
+                                        초기화
                                     </button>
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* Streamers Management Tab */}
+                {activeTab === 'streamers' && (
+                    <div>
+                        <h1 className="text-2xl font-bold mb-6">👥 스트리머 관리 ({streamers.length}명)</h1>
+
+                        {/* Add New Streamer Form */}
+                        <div className="bg-bg-secondary rounded-xl p-6 border border-white/10 mb-8">
+                            <h3 className="font-semibold mb-4">➕ 새 스트리머 등록</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-sm text-text-secondary mb-1">영문 이름 *</label>
+                                    <input
+                                        type="text"
+                                        value={newStreamer.name}
+                                        onChange={(e) => setNewStreamer({ ...newStreamer, name: e.target.value })}
+                                        placeholder="golaniyuie0"
+                                        className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent-primary transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-text-secondary mb-1">한국어 이름</label>
+                                    <input
+                                        type="text"
+                                        value={newStreamer.koreanName}
+                                        onChange={(e) => setNewStreamer({ ...newStreamer, koreanName: e.target.value })}
+                                        placeholder="고라니"
+                                        className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent-primary transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-text-secondary mb-1">프로필 색상</label>
+                                    <select
+                                        value={newStreamer.gradient}
+                                        onChange={(e) => setNewStreamer({ ...newStreamer, gradient: e.target.value })}
+                                        className="w-full bg-bg-tertiary border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent-primary transition-colors"
+                                    >
+                                        {gradientOptions.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-end">
+                                    <button
+                                        onClick={handleAddStreamer}
+                                        disabled={!newStreamer.name.trim()}
+                                        className="w-full gradient-button text-black px-4 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        등록
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Streamers List */}
+                        {streamers.length === 0 ? (
+                            <div className="text-center py-16 bg-bg-secondary rounded-xl">
+                                <span className="text-6xl mb-4 block">👥</span>
+                                <h3 className="text-xl font-bold mb-2">스트리머가 없습니다</h3>
+                                <p className="text-text-secondary">위 폼에서 첫 번째 스트리머를 등록해보세요!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {streamers.map((streamer) => (
+                                    <div
+                                        key={streamer.id}
+                                        className="bg-bg-secondary rounded-xl p-4 border border-white/10 flex items-center gap-4"
+                                    >
+                                        {/* Profile */}
+                                        <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${streamer.gradient} flex items-center justify-center flex-shrink-0`}>
+                                            <span className="text-2xl">👤</span>
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold truncate">{streamer.name}</h3>
+                                            {streamer.koreanName && (
+                                                <p className="text-sm text-text-secondary">{streamer.koreanName}</p>
+                                            )}
+                                            <Link
+                                                href={`/actors/${streamer.id}`}
+                                                className="text-xs text-accent-primary hover:underline"
+                                            >
+                                                🎬 {streamer.videoCount}개 영상 보기
+                                            </Link>
+                                        </div>
+
+                                        {/* Delete Button */}
+                                        <button
+                                            onClick={() => setDeleteModal({ type: 'streamer', id: streamer.id, name: streamer.name })}
+                                            className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                                            title="스트리머 삭제"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -363,60 +436,53 @@ export default function AdminPage() {
                     <div>
                         <h1 className="text-2xl font-bold mb-6">📊 통계 대시보드</h1>
 
-                        {/* Stats Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                             <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
                                 <div className="text-3xl mb-2">🎬</div>
-                                <div className="text-3xl font-bold text-accent-primary">1,247</div>
+                                <div className="text-3xl font-bold text-accent-primary">{videos.length}</div>
                                 <div className="text-sm text-text-secondary">총 영상 수</div>
                             </div>
                             <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
                                 <div className="text-3xl mb-2">👥</div>
-                                <div className="text-3xl font-bold text-accent-primary">8,432</div>
-                                <div className="text-sm text-text-secondary">VIP 회원</div>
+                                <div className="text-3xl font-bold text-accent-primary">{streamers.length}</div>
+                                <div className="text-sm text-text-secondary">등록된 스트리머</div>
                             </div>
                             <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
-                                <div className="text-3xl mb-2">👁</div>
-                                <div className="text-3xl font-bold text-accent-primary">2.4M</div>
-                                <div className="text-sm text-text-secondary">총 조회수</div>
-                            </div>
-                            <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
-                                <div className="text-3xl mb-2">💰</div>
-                                <div className="text-3xl font-bold text-accent-secondary">$24,580</div>
-                                <div className="text-sm text-text-secondary">이번 달 수익</div>
-                            </div>
-                        </div>
-
-                        {/* Storage Usage */}
-                        <div className="bg-bg-secondary rounded-xl p-6 border border-white/10 mb-6">
-                            <h3 className="font-semibold mb-4">💾 스토리지 사용량</h3>
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1 h-4 bg-bg-tertiary rounded-full overflow-hidden">
-                                    <div className="w-[45%] h-full bg-gradient-to-r from-accent-primary to-accent-secondary" />
+                                <div className="text-3xl mb-2">🏆</div>
+                                <div className="text-3xl font-bold text-accent-primary">
+                                    {videos.filter(v => v.isVip).length}
                                 </div>
-                                <span className="text-sm">22.5 TB / 50 TB</span>
+                                <div className="text-sm text-text-secondary">VIP 영상</div>
+                            </div>
+                            <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
+                                <div className="text-3xl mb-2">🎯</div>
+                                <div className="text-3xl font-bold text-accent-secondary">
+                                    {streamers.length > 0
+                                        ? Math.round(videos.length / streamers.length * 10) / 10
+                                        : 0
+                                    }
+                                </div>
+                                <div className="text-sm text-text-secondary">평균 영상/스트리머</div>
                             </div>
                         </div>
 
-                        {/* Recent Activity */}
+                        {/* Top Streamers */}
                         <div className="bg-bg-secondary rounded-xl p-6 border border-white/10">
-                            <h3 className="font-semibold mb-4">📋 최근 활동</h3>
+                            <h3 className="font-semibold mb-4">🏆 인기 스트리머 TOP 5</h3>
                             <div className="space-y-3">
-                                <div className="flex items-center gap-4 py-2 border-b border-white/5">
-                                    <span className="text-accent-primary">📤</span>
-                                    <span className="flex-1">새 영상 업로드: "Cyberpunk City 8K"</span>
-                                    <span className="text-sm text-text-secondary">2시간 전</span>
-                                </div>
-                                <div className="flex items-center gap-4 py-2 border-b border-white/5">
-                                    <span className="text-green-400">👤</span>
-                                    <span className="flex-1">새 VIP 가입: user@example.com</span>
-                                    <span className="text-sm text-text-secondary">3시간 전</span>
-                                </div>
-                                <div className="flex items-center gap-4 py-2 border-b border-white/5">
-                                    <span className="text-yellow-400">⚙️</span>
-                                    <span className="flex-1">영상 권한 변경: "Dance Mix Vol.3"</span>
-                                    <span className="text-sm text-text-secondary">5시간 전</span>
-                                </div>
+                                {[...streamers]
+                                    .sort((a, b) => b.videoCount - a.videoCount)
+                                    .slice(0, 5)
+                                    .map((streamer, index) => (
+                                        <div key={streamer.id} className="flex items-center gap-4 py-2 border-b border-white/5">
+                                            <span className="w-8 text-center font-bold text-accent-primary">#{index + 1}</span>
+                                            <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${streamer.gradient} flex items-center justify-center`}>
+                                                <span>👤</span>
+                                            </div>
+                                            <span className="flex-1">{streamer.name}</span>
+                                            <span className="text-text-secondary">{streamer.videoCount}개 영상</span>
+                                        </div>
+                                    ))}
                             </div>
                         </div>
                     </div>

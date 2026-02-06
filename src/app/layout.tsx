@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { StreamerProvider } from '@/contexts/StreamerContext'
 import { WebSiteSchema, OrganizationSchema } from '@/components/JsonLd'
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
@@ -88,7 +89,9 @@ export default function RootLayout({
             </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
                 <AuthProvider>
-                    {children}
+                    <StreamerProvider>
+                        {children}
+                    </StreamerProvider>
                 </AuthProvider>
             </body>
         </html>
