@@ -1,63 +1,14 @@
 'use client'
 
-import Link from 'next/link'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import PayPalButton from '@/components/PayPalButton'
+import { useAuth, MembershipLevel } from '@/contexts/AuthContext'
+import { useSiteSettings } from '@/contexts/SiteSettingsContext'
+import { PayPalScriptProvider } from '@paypal/react-paypal-js'
+import RealPayPalButton from '@/components/RealPayPalButton'
 
-// Note: metadata는 'use client' 컴포넌트에서 직접 export 불가
-// layout.tsx의 template 패턴으로 타이틀이 자동 적용됨
-
-const plans = [
-    {
-        id: 'basic',
-        name: 'Basic',
-        price: '9.99',
-        period: 'month',
-        features: [
-            'HD Streaming',
-            '100+ Dance Videos',
-            'Mobile Access',
-            'New Weekly Content',
-        ],
-        popular: false,
-        color: 'from-gray-600 to-gray-700',
-    },
-    {
-        id: 'vip',
-        name: 'VIP',
-        price: '19.99',
-        period: 'month',
-        features: [
-            'Full HD Streaming',
-            '500+ Dance Videos',
-            'Download Access',
-            'Exclusive Content',
-            'Early Access',
-            'No Ads',
-        ],
-        popular: true,
-        color: 'from-accent-primary to-cyan-400',
-    },
-    {
-        id: 'premium',
-        name: 'Premium+',
-        price: '39.99',
-        period: 'month',
-        features: [
-            '4K Ultra HD',
-            'All Videos Access',
-            'Unlimited Downloads',
-            'Behind the Scenes',
-            'Creator Chat Access',
-            'Custom Playlists',
-            'Priority Support',
-        ],
-        popular: false,
-        color: 'from-accent-secondary to-purple-500',
-    },
-]
+// Membership plans are now dynamically managed via SiteSettingsContext
 
 const faqs = [
     {
@@ -78,26 +29,89 @@ const faqs = [
     },
 ]
 
+// IMPORTANT: Replace this with your actual PayPal Sandbox Client ID
+const PAYPAL_CLIENT_ID = "test" // "test" uses a default sandbox account, but strictly rate limited
+
 export default function MembershipPage() {
+    const { settings } = useSiteSettings()
+    const { user, updateMembership } = useAuth()
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
     const [showPayment, setShowPayment] = useState(false)
 
-    const handleSelectPlan = (planId: string) => {
-        setSelectedPlan(planId)
+    // VIP Plan Data from Context
+    const vipPlan = settings.pricing.vip
+    const plan = {
+        id: 'vip',
+        name: vipPlan.title,
+        price: vipPlan.monthlyPrice.toString(),
+        period: 'month',
+        features: vipPlan.features,
+        popular: true,
+        color: 'from-accent-primary to-cyan-400',
+        description: vipPlan.description
+    }
+
+    const handleSelectPlan = () => {
+        if (!user) {
+            alert('Please login first to subscribe!')
+            window.location.href = '/login'
+            return
+        }
+        setSelectedPlan('vip')
         setShowPayment(true)
     }
 
-    const handlePaymentSuccess = (subscriptionId: string) => {
-        alert(`🎉 Payment successful! Subscription ID: ${subscriptionId}`)
+    const handlePaymentSuccess = (details: any) => {
+        console.log("Payment Success:", details)
+        alert(`Payment completed by ${details.payer.name.given_name}`)
+
+        if (updateMembership) {
+            updateMembership('vip')
+        }
         setShowPayment(false)
-        // TODO: Redirect to success page or update UI
+        setSelectedPlan(null)
     }
 
-    const selectedPlanData = plans.find(p => p.id === selectedPlan)
-
     return (
-        <>
+        <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID }}>
             <Header />
+
+            {/* Payment Modal */}
+            {showPayment && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-bg-secondary w-full max-w-md rounded-2xl p-6 border border-white/10 shadow-2xl relative">
+                        <button
+                            onClick={() => setShowPayment(false)}
+                            className="absolute top-4 right-4 text-white/50 hover:text-white"
+                        >
+                            ✕
+                        </button>
+
+                        <h2 className="text-2xl font-bold mb-2">Complete Payment</h2>
+                        <div className="bg-black/40 p-4 rounded-xl mb-6">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-text-secondary">Plan</span>
+                                <span className="font-bold">{plan.name}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-accent-primary font-bold text-lg">
+                                <span>Total</span>
+                                <span>${plan.price}/month</span>
+                            </div>
+                        </div>
+
+                        <RealPayPalButton
+                            price={plan.price}
+                            planName={plan.name}
+                            onSuccess={handlePaymentSuccess}
+                        />
+
+                        <p className="text-center text-xs text-white/30 mt-4">
+                            This is a generic Sandbox environment. Use a Sandbox Account to test.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <main className="min-h-screen bg-bg-primary pt-32 pb-20">
                 <div className="max-w-6xl mx-auto px-6">
                     {/* Header */}
@@ -106,129 +120,60 @@ export default function MembershipPage() {
                             Choose Your <span className="text-accent-primary">VIP Access</span>
                         </h1>
                         <p className="text-text-secondary text-lg max-w-2xl mx-auto">
-                            Unlock premium dance content with exclusive access to the best streams and downloads.
+                            {plan.description}
                         </p>
                     </div>
 
-                    {/* Pricing Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-                        {plans.map((plan) => (
-                            <div
-                                key={plan.id}
-                                className={`relative rounded-2xl p-8 transition-all duration-300 hover:scale-105 ${plan.popular
-                                    ? 'bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border-2 border-accent-primary'
-                                    : 'bg-bg-secondary border border-white/10'
-                                    }`}
+                    {/* Pricing Display - Single VIP Plan */}
+                    <div className="max-w-md mx-auto mb-16">
+                        <div className="relative rounded-2xl p-8 bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border-2 border-accent-primary transition-all duration-300 transform hover:scale-105 shadow-[0_0_30px_rgba(0,255,136,0.2)]">
+                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-accent-primary text-black text-sm font-bold rounded-full">
+                                RECOMMENDED
+                            </div>
+
+                            <div className="text-center mb-6">
+                                <h3 className={`text-3xl font-bold mb-2 bg-gradient-to-r ${plan.color} bg-clip-text text-transparent`}>
+                                    {plan.name}
+                                </h3>
+                                <div className="flex items-end justify-center gap-1">
+                                    <span className="text-5xl font-bold">${plan.price}</span>
+                                    <span className="text-text-secondary mb-1">/{plan.period}</span>
+                                </div>
+                            </div>
+
+                            <ul className="space-y-4 mb-8">
+                                {plan.features.map((feature: string, i: number) => (
+                                    <li key={i} className="flex items-center gap-3 text-lg text-white">
+                                        <span className="text-accent-primary font-bold text-xl">✓</span>
+                                        {feature}
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <button
+                                onClick={handleSelectPlan}
+                                className="w-full py-4 rounded-xl font-bold text-xl transition-all gradient-button text-black shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40"
                             >
-                                {plan.popular && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-accent-primary text-black text-sm font-bold rounded-full">
-                                        MOST POPULAR
-                                    </div>
-                                )}
-
-                                <div className="text-center mb-6">
-                                    <h3 className={`text-2xl font-bold mb-2 bg-gradient-to-r ${plan.color} bg-clip-text text-transparent`}>
-                                        {plan.name}
-                                    </h3>
-                                    <div className="flex items-end justify-center gap-1">
-                                        <span className="text-4xl font-bold">${plan.price}</span>
-                                        <span className="text-text-secondary mb-1">/{plan.period}</span>
-                                    </div>
-                                </div>
-
-                                <ul className="space-y-3 mb-8">
-                                    {plan.features.map((feature, i) => (
-                                        <li key={i} className="flex items-center gap-2 text-text-secondary">
-                                            <span className="text-accent-primary">✓</span>
-                                            {feature}
-                                        </li>
-                                    ))}
-                                </ul>
-
-                                <button
-                                    onClick={() => handleSelectPlan(plan.id)}
-                                    className={`w-full py-3 rounded-full font-semibold transition-all ${plan.popular
-                                        ? 'gradient-button text-black'
-                                        : 'bg-white/10 hover:bg-white/20 text-white'
-                                        }`}
-                                >
-                                    Select {plan.name}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Payment Modal */}
-                    {showPayment && selectedPlanData && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-                            <div className="bg-bg-secondary rounded-2xl p-8 max-w-md w-full mx-4 border border-white/10">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Complete Payment</h2>
-                                    <button
-                                        onClick={() => setShowPayment(false)}
-                                        className="text-text-secondary hover:text-white text-2xl"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-
-                                <div className="bg-bg-primary rounded-xl p-4 mb-6">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-text-secondary">Plan</span>
-                                        <span className="font-semibold">{selectedPlanData.name}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center mt-2">
-                                        <span className="text-text-secondary">Price</span>
-                                        <span className="font-semibold text-accent-primary">${selectedPlanData.price}/month</span>
-                                    </div>
-                                </div>
-
-                                <PayPalButton
-                                    planId={selectedPlanData.id}
-                                    planName={selectedPlanData.name}
-                                    amount={selectedPlanData.price}
-                                    onSuccess={handlePaymentSuccess}
-                                    onError={(err) => console.error('Payment error:', err)}
-                                />
-
-                                <p className="text-xs text-text-secondary text-center mt-4">
-                                    By subscribing, you agree to our Terms of Service and Privacy Policy.
-                                </p>
-                            </div>
+                                Get Started Now
+                            </button>
                         </div>
-                    )}
+                    </div>
 
                     {/* FAQ Section */}
                     <div className="max-w-3xl mx-auto">
-                        <h2 className="text-3xl font-bold text-center mb-10">
-                            Frequently Asked <span className="text-accent-primary">Questions</span>
-                        </h2>
+                        <h2 className="text-3xl font-bold mb-8 text-center">Frequently Asked Questions</h2>
                         <div className="space-y-4">
                             {faqs.map((faq, i) => (
-                                <div key={i} className="bg-bg-secondary rounded-xl p-6 border border-white/10">
-                                    <h3 className="font-semibold text-lg mb-2">{faq.q}</h3>
+                                <div key={i} className="bg-bg-secondary rounded-xl p-6 border border-white/5">
+                                    <h3 className="font-bold text-lg mb-2">{faq.q}</h3>
                                     <p className="text-text-secondary">{faq.a}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
-
-                    {/* CTA */}
-                    <div className="text-center mt-16 p-10 rounded-2xl bg-gradient-to-r from-accent-primary/20 to-accent-secondary/20 border border-accent-primary/30">
-                        <h2 className="text-2xl font-bold mb-4">Still have questions?</h2>
-                        <p className="text-text-secondary mb-6">
-                            Our support team is here to help 24/7
-                        </p>
-                        <Link
-                            href="#"
-                            className="inline-block px-8 py-3 bg-white/10 hover:bg-white/20 rounded-full font-semibold transition-colors"
-                        >
-                            Contact Support
-                        </Link>
-                    </div>
                 </div>
             </main>
             <Footer />
-        </>
+        </PayPalScriptProvider>
     )
 }

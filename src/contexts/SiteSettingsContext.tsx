@@ -53,20 +53,12 @@ export interface PopupSettings {
 }
 
 export interface MembershipPricing {
-    basic: {
-        monthlyPrice: number
-        yearlyPrice: number
-        features: string[]
-    }
     vip: {
+        title: string
         monthlyPrice: number
         yearlyPrice: number
         features: string[]
-    }
-    premium: {
-        monthlyPrice: number
-        yearlyPrice: number
-        features: string[]
+        description: string
     }
 }
 
@@ -164,38 +156,18 @@ const defaultPopup: PopupSettings = {
 }
 
 const defaultPricing: MembershipPricing = {
-    basic: {
-        monthlyPrice: 9.99,
-        yearlyPrice: 99.99,
-        features: [
-            'Access to basic videos',
-            'SD quality streaming',
-            'Monthly newsletter',
-            'Community access',
-        ],
-    },
     vip: {
+        title: 'VIP PLAN',
         monthlyPrice: 19.99,
         yearlyPrice: 199.99,
         features: [
-            'All Basic features',
-            'Access to VIP videos',
+            'Access to all VIP videos',
             'HD quality streaming',
             'Exclusive live streams',
             'Priority support',
+            'No ads',
         ],
-    },
-    premium: {
-        monthlyPrice: 29.99,
-        yearlyPrice: 299.99,
-        features: [
-            'All VIP features',
-            '4K quality streaming',
-            'Download videos offline',
-            'Early access to new content',
-            'Direct chat with streamers',
-            'Custom requests',
-        ],
+        description: 'The ultimate K-Dance experience',
     },
 }
 
@@ -213,6 +185,17 @@ const defaultSocialLinks: SocialLink[] = [
     { id: '4', platform: 'YouTube', url: 'https://youtube.com', visible: false },
 ]
 
+const defaultSettings: SiteSettings = {
+    texts: defaultTexts,
+    theme: defaultTheme,
+    banner: defaultBanner,
+    analytics: defaultAnalytics,
+    popup: defaultPopup,
+    pricing: defaultPricing,
+    navMenu: defaultNavMenu,
+    socialLinks: defaultSocialLinks,
+}
+
 // ========================================
 // Context
 // ========================================
@@ -221,29 +204,19 @@ interface SiteSettingsContextType {
     settings: SiteSettings
     users: User[]
     stats: SiteStats
-    // Texts
     updateTexts: (texts: Partial<SiteTexts>) => void
-    // Theme
     updateTheme: (theme: Partial<ThemeSettings>) => void
-    // Banner
     updateBanner: (banner: Partial<BannerSettings>) => void
-    // Analytics
     updateAnalytics: (analytics: Partial<AnalyticsSettings>) => void
-    // Popup
     updatePopup: (popup: Partial<PopupSettings>) => void
-    // Pricing
     updatePricing: (pricing: Partial<MembershipPricing>) => void
-    // Navigation
     updateNavMenu: (menu: NavMenuItem[]) => void
     toggleNavItem: (id: string) => void
-    // Social Links
     updateSocialLinks: (links: SocialLink[]) => void
     toggleSocialLink: (id: string) => void
-    // Users
     addUser: (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>) => void
     updateUserMembership: (userId: string, membership: User['membership']) => void
     toggleUserBan: (userId: string) => void
-    // Stats
     incrementVisit: () => void
 }
 
@@ -254,16 +227,7 @@ const SiteSettingsContext = createContext<SiteSettingsContextType | undefined>(u
 // ========================================
 
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
-    const [settings, setSettings] = useState<SiteSettings>({
-        texts: defaultTexts,
-        theme: defaultTheme,
-        banner: defaultBanner,
-        analytics: defaultAnalytics,
-        popup: defaultPopup,
-        pricing: defaultPricing,
-        navMenu: defaultNavMenu,
-        socialLinks: defaultSocialLinks,
-    })
+    const [settings, setSettings] = useState<SiteSettings>(defaultSettings)
 
     const [users, setUsers] = useState<User[]>([
         {
@@ -297,7 +261,20 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         const saved = localStorage.getItem('kstreamer_site_settings')
         if (saved) {
             try {
-                setSettings(JSON.parse(saved))
+                const parsed = JSON.parse(saved)
+                // 구조 변경 대응: 기본값과 안전하게 병합
+                setSettings(prev => ({
+                    ...defaultSettings,
+                    ...parsed,
+                    pricing: {
+                        ...defaultPricing,
+                        ...(parsed.pricing || {}),
+                        vip: {
+                            ...defaultPricing.vip,
+                            ...(parsed.pricing?.vip || {})
+                        }
+                    }
+                }))
             } catch (e) {
                 console.error('Failed to load settings:', e)
             }
@@ -386,7 +363,6 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         }))
     }
 
-    // User 관리
     const addUser = (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>) => {
         const newUser: User = {
             ...user,

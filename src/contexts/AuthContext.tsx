@@ -100,18 +100,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const updateMembership = (level: MembershipLevel) => {
-        if (user) {
-            const updatedUser = { ...user, membership: level }
-            setUser(updatedUser)
-            localStorage.setItem('kstreamer_user', JSON.stringify(updatedUser))
-        }
+        if (!user) return
+        const updatedUser = { ...user, membership: level }
+        setUser(updatedUser)
+        localStorage.setItem('kstreamer_user', JSON.stringify(updatedUser))
     }
 
     // 관리자 여부 확인
-    const isAdmin = user?.email === ADMIN_EMAIL
+    // const isAdmin = user?.email === ADMIN_EMAIL // This line is no longer needed as isAdmin is calculated inline
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, isAdmin, login, signup, logout, updateMembership }}>
+        <AuthContext.Provider value={{ user, isLoading, isAdmin: user?.email === ADMIN_EMAIL, login, signup, logout, updateMembership }}>
             {children}
         </AuthContext.Provider>
     )

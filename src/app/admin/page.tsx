@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useStreamers } from '@/contexts/StreamerContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -68,6 +68,15 @@ export default function AdminPage() {
 
     // Analytics edit states
     const [analyticsEdits, setAnalyticsEdits] = useState(settings.analytics)
+
+    // sync with settings when they load from context (e.g. from localStorage)
+    useEffect(() => {
+        setTextEdits(settings.texts)
+        setThemeEdits(settings.theme)
+        setBannerEdits(settings.banner)
+        setPricingEdits(settings.pricing)
+        setAnalyticsEdits(settings.analytics)
+    }, [settings])
 
     // Handlers
     const handleAddStreamer = () => {
@@ -765,92 +774,116 @@ export default function AdminPage() {
                             {/* ========== 멤버십 가격 탭 ========== */}
                             {activeTab === 'pricing' && (
                                 <div>
-                                    <h1 className="text-2xl font-bold mb-6">💰 멤버십 가격 설정</h1>
-                                    <div className="grid lg:grid-cols-3 gap-6">
-                                        {/* Basic */}
-                                        <div className="bg-bg-primary rounded-xl p-5 border border-white/10">
-                                            <h3 className="text-lg font-bold mb-4 text-blue-400">Basic</h3>
-                                            <div className="space-y-3">
+                                    <h1 className="text-2xl font-bold mb-6">💰 멤버십 플랜 설정 (VIP)</h1>
+                                    <div className="bg-bg-primary rounded-xl p-8 border border-white/10">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-accent-primary mb-2">VIP Membership Plan</h3>
+                                                <p className="text-text-secondary">단일 VIP 플랜을 구성하고 관리합니다.</p>
+                                            </div>
+                                            <div className="px-4 py-2 bg-accent-primary/20 text-accent-primary rounded-lg border border-accent-primary/30">
+                                                Active Plan
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6 max-w-3xl">
+                                            <div className="grid md:grid-cols-2 gap-6">
                                                 <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">월간 가격 ($)</label>
+                                                    <label className="block text-sm text-text-secondary mb-2">플랜 이름</label>
                                                     <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.basic.monthlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, basic: { ...pricingEdits.basic, monthlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
+                                                        type="text"
+                                                        value={pricingEdits.vip?.title || ''}
+                                                        onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, title: e.target.value } })}
+                                                        placeholder="예: VIP PLAN"
+                                                        className="w-full px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">연간 가격 ($)</label>
+                                                    <label className="block text-sm text-text-secondary mb-2">설명 (짧은 소개)</label>
                                                     <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.basic.yearlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, basic: { ...pricingEdits.basic, yearlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
+                                                        type="text"
+                                                        value={pricingEdits.vip?.description || ''}
+                                                        onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, description: e.target.value } })}
+                                                        placeholder="예: The ultimate K-Dance experience"
+                                                        className="w-full px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary"
                                                     />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid md:grid-cols-2 gap-6">
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">월간 가격 ($)</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-4 top-3.5 text-text-secondary">$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={pricingEdits.vip?.monthlyPrice || 0}
+                                                            onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, monthlyPrice: parseFloat(e.target.value) } })}
+                                                            className="w-full pl-8 pr-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary font-mono text-lg"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">연간 가격 ($)</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-4 top-3.5 text-text-secondary">$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={pricingEdits.vip?.yearlyPrice || 0}
+                                                            onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, yearlyPrice: parseFloat(e.target.value) } })}
+                                                            className="w-full pl-8 pr-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary font-mono text-lg"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-white/10 pt-6">
+                                                <label className="block text-sm text-text-secondary mb-4">제공 혜택 (Features)</label>
+                                                <div className="space-y-3">
+                                                    {(pricingEdits.vip?.features || []).map((feature, index) => (
+                                                        <div key={index} className="flex gap-3">
+                                                            <input
+                                                                type="text"
+                                                                value={feature}
+                                                                onChange={e => {
+                                                                    const newFeatures = [...(pricingEdits.vip?.features || [])]
+                                                                    newFeatures[index] = e.target.value
+                                                                    setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, features: newFeatures } })
+                                                                }}
+                                                                className="flex-1 px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent-primary"
+                                                            />
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newFeatures = (pricingEdits.vip?.features || []).filter((_, i) => i !== index)
+                                                                    setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, features: newFeatures } })
+                                                                }}
+                                                                className="px-4 py-3 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 hover:bg-red-500/20"
+                                                            >
+                                                                삭제
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <button
+                                                        onClick={() => {
+                                                            const newFeatures = [...(pricingEdits.vip?.features || []), 'New Feature']
+                                                            setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip!, features: newFeatures } })
+                                                        }}
+                                                        className="w-full py-3 border border-dashed border-white/20 rounded-xl text-text-secondary hover:text-white hover:border-white/40 transition-colors"
+                                                    >
+                                                        + 혜택 추가하기
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* VIP */}
-                                        <div className="bg-bg-primary rounded-xl p-5 border border-purple-500/30">
-                                            <h3 className="text-lg font-bold mb-4 text-purple-400">VIP</h3>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">월간 가격 ($)</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.vip.monthlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip, monthlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">연간 가격 ($)</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.vip.yearlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, vip: { ...pricingEdits.vip, yearlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Premium */}
-                                        <div className="bg-bg-primary rounded-xl p-5 border border-amber-500/30">
-                                            <h3 className="text-lg font-bold mb-4 text-amber-400">Premium</h3>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">월간 가격 ($)</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.premium.monthlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, premium: { ...pricingEdits.premium, monthlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm text-text-secondary mb-1">연간 가격 ($)</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={pricingEdits.premium.yearlyPrice}
-                                                        onChange={e => setPricingEdits({ ...pricingEdits, premium: { ...pricingEdits.premium, yearlyPrice: parseFloat(e.target.value) } })}
-                                                        className="w-full px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white"
-                                                    />
-                                                </div>
-                                            </div>
+                                        <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
+                                            <button onClick={handleSavePricing} className="gradient-button text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40 transform hover:-translate-y-1 transition-all">
+                                                💾 변경사항 적용하기
+                                            </button>
                                         </div>
                                     </div>
-                                    <button onClick={handleSavePricing} className="mt-6 gradient-button text-black px-8 py-3 rounded-xl font-semibold">
-                                        💾 가격 설정 저장
-                                    </button>
                                 </div>
                             )}
 
