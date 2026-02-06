@@ -52,7 +52,7 @@ export default function Footer() {
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
                                 FAQ
                             </Link>
-                            <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
+                            <Link href="/contact" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
                                 Contact
                             </Link>
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
