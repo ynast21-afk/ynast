@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
-// 관리자 이메일 설정 - 이 이메일로 로그인한 사용자만 /admin 접근 가능
+// 관리자 설정 - 이 이메일+비밀번호로 로그인한 사용자만 /admin 접근 가능
 const ADMIN_EMAIL = 'ynast21@gmail.com'
+const ADMIN_PASSWORD = 'dkf@741852'
 
 export type MembershipLevel = 'guest' | 'basic' | 'vip' | 'premium'
 
@@ -43,20 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async (email: string, password: string): Promise<boolean> => {
         try {
-            // TODO: Replace with actual API call
-            // const response = await fetch('/api/auth/login', {
-            //   method: 'POST',
-            //   headers: { 'Content-Type': 'application/json' },
-            //   body: JSON.stringify({ email, password }),
-            // })
-            // const data = await response.json()
+            // 관리자 이메일인 경우 비밀번호 검증
+            if (email === ADMIN_EMAIL) {
+                if (password !== ADMIN_PASSWORD) {
+                    console.error('관리자 비밀번호가 틀렸습니다.')
+                    return false
+                }
+            }
 
-            // For demo, simulate login
+            // 로그인 성공
             const mockUser: User = {
                 id: 'user_' + Date.now(),
                 email,
                 name: email.split('@')[0],
-                membership: 'guest',
+                membership: email === ADMIN_EMAIL ? 'premium' : 'guest',
             }
 
             setUser(mockUser)
