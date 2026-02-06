@@ -1,15 +1,70 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { WebSiteSchema, OrganizationSchema } from '@/components/JsonLd'
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://ynast.vercel.app'
+
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    themeColor: '#00FF88',
+}
 
 export const metadata: Metadata = {
-    title: 'kStreamer dance - Premium Dance Video Platform',
-    description: 'Discover the best premium dance video content. Your destination for exclusive streams and downloads.',
-    keywords: 'streaming, dance videos, membership, premium content, kpop dance',
+    metadataBase: new URL(BASE_URL),
+    title: {
+        default: 'kStreamer dance - Premium K-Pop Dance Video Platform',
+        template: '%s | kStreamer dance',
+    },
+    description: 'Discover the best premium K-Pop dance video content. Exclusive choreography tutorials, dance covers, and behind-the-scenes from top creators.',
+    keywords: ['kpop dance', 'dance tutorial', 'choreography', 'dance cover', 'premium dance videos', 'streaming', 'K-Pop', 'dance lessons'],
+    authors: [{ name: 'kStreamer Team' }],
+    creator: 'kStreamer',
+    publisher: 'kStreamer',
+    robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+            index: true,
+            follow: true,
+            'max-video-preview': -1,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+        },
+    },
     openGraph: {
-        title: 'kStreamer dance',
-        description: 'Premium Dance Video Platform',
         type: 'website',
+        locale: 'ko_KR',
+        url: BASE_URL,
+        siteName: 'kStreamer dance',
+        title: 'kStreamer dance - Premium K-Pop Dance Video Platform',
+        description: 'Exclusive K-Pop dance content from top creators worldwide',
+        images: [
+            {
+                url: '/og-image.png',
+                width: 1200,
+                height: 630,
+                alt: 'kStreamer dance - Premium Dance Platform',
+            },
+        ],
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'kStreamer dance - Premium K-Pop Dance Platform',
+        description: 'Exclusive K-Pop dance content from top creators worldwide',
+        images: ['/og-image.png'],
+        creator: '@kstreamer',
+    },
+    alternates: {
+        canonical: BASE_URL,
+    },
+    icons: {
+        icon: '/favicon.ico',
+        apple: '/apple-touch-icon.png',
+    },
+    verification: {
+        google: 'wGJ7vuuiccO4vwhlvig2jvTbD6JgHBJPXU-plfZ7IDg',
     },
 }
 
@@ -20,6 +75,17 @@ export default function RootLayout({
 }) {
     return (
         <html lang="ko" className="dark">
+            <head>
+                <WebSiteSchema
+                    name="kStreamer dance"
+                    url={BASE_URL}
+                    description="Premium K-Pop Dance Video Platform"
+                />
+                <OrganizationSchema
+                    name="kStreamer"
+                    url={BASE_URL}
+                />
+            </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
                 <AuthProvider>
                     {children}

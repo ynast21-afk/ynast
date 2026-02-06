@@ -6,6 +6,9 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import PayPalButton from '@/components/PayPalButton'
 
+// Note: metadata는 'use client' 컴포넌트에서 직접 export 불가
+// layout.tsx의 template 패턴으로 타이틀이 자동 적용됨
+
 const plans = [
     {
         id: 'basic',
@@ -113,8 +116,8 @@ export default function MembershipPage() {
                             <div
                                 key={plan.id}
                                 className={`relative rounded-2xl p-8 transition-all duration-300 hover:scale-105 ${plan.popular
-                                        ? 'bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border-2 border-accent-primary'
-                                        : 'bg-bg-secondary border border-white/10'
+                                    ? 'bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border-2 border-accent-primary'
+                                    : 'bg-bg-secondary border border-white/10'
                                     }`}
                             >
                                 {plan.popular && (
@@ -145,8 +148,8 @@ export default function MembershipPage() {
                                 <button
                                     onClick={() => handleSelectPlan(plan.id)}
                                     className={`w-full py-3 rounded-full font-semibold transition-all ${plan.popular
-                                            ? 'gradient-button text-black'
-                                            : 'bg-white/10 hover:bg-white/20 text-white'
+                                        ? 'gradient-button text-black'
+                                        : 'bg-white/10 hover:bg-white/20 text-white'
                                         }`}
                                 >
                                     Select {plan.name}
