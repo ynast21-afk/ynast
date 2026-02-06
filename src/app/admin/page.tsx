@@ -76,7 +76,7 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between max-w-7xl mx-auto">
                     <div className="flex items-center gap-4">
                         <Link href="/" className="text-2xl font-bold text-accent-primary">
-                            StreamVault
+                            kStreamer dance
                         </Link>
                         <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-semibold">
                             ADMIN
@@ -97,8 +97,8 @@ export default function AdminPage() {
                     <button
                         onClick={() => setActiveTab('videos')}
                         className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'videos'
-                                ? 'bg-accent-primary text-black'
-                                : 'bg-bg-secondary hover:bg-bg-tertiary'
+                            ? 'bg-accent-primary text-black'
+                            : 'bg-bg-secondary hover:bg-bg-tertiary'
                             }`}
                     >
                         📹 영상 관리
@@ -106,8 +106,8 @@ export default function AdminPage() {
                     <button
                         onClick={() => setActiveTab('upload')}
                         className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'upload'
-                                ? 'bg-accent-primary text-black'
-                                : 'bg-bg-secondary hover:bg-bg-tertiary'
+                            ? 'bg-accent-primary text-black'
+                            : 'bg-bg-secondary hover:bg-bg-tertiary'
                             }`}
                     >
                         📤 영상 업로드
@@ -115,8 +115,8 @@ export default function AdminPage() {
                     <button
                         onClick={() => setActiveTab('stats')}
                         className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'stats'
-                                ? 'bg-accent-primary text-black'
-                                : 'bg-bg-secondary hover:bg-bg-tertiary'
+                            ? 'bg-accent-primary text-black'
+                            : 'bg-bg-secondary hover:bg-bg-tertiary'
                             }`}
                     >
                         📊 통계
@@ -157,8 +157,8 @@ export default function AdminPage() {
                                                     <p className="text-sm text-text-secondary">@{video.creator}</p>
                                                 </div>
                                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${video.status === 'published'
-                                                        ? 'bg-green-500/20 text-green-400'
-                                                        : 'bg-yellow-500/20 text-yellow-400'
+                                                    ? 'bg-green-500/20 text-green-400'
+                                                    : 'bg-yellow-500/20 text-yellow-400'
                                                     }`}>
                                                     {video.status === 'published' ? '게시됨' : '초안'}
                                                 </span>
@@ -185,12 +185,12 @@ export default function AdminPage() {
                                                                     key={level}
                                                                     onClick={() => toggleAccess(video.id, 'streaming', level)}
                                                                     className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${video.access.streaming.includes(level)
-                                                                            ? level === 'premium'
-                                                                                ? 'bg-accent-secondary text-white'
-                                                                                : level === 'vip'
-                                                                                    ? 'bg-accent-primary text-black'
-                                                                                    : 'bg-blue-500 text-white'
-                                                                            : 'bg-bg-secondary text-text-secondary border border-white/20'
+                                                                        ? level === 'premium'
+                                                                            ? 'bg-accent-secondary text-white'
+                                                                            : level === 'vip'
+                                                                                ? 'bg-accent-primary text-black'
+                                                                                : 'bg-blue-500 text-white'
+                                                                        : 'bg-bg-secondary text-text-secondary border border-white/20'
                                                                         }`}
                                                                 >
                                                                     {level.toUpperCase()}
@@ -208,12 +208,12 @@ export default function AdminPage() {
                                                                     key={level}
                                                                     onClick={() => toggleAccess(video.id, 'download', level)}
                                                                     className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${video.access.download.includes(level)
-                                                                            ? level === 'premium'
-                                                                                ? 'bg-accent-secondary text-white'
-                                                                                : level === 'vip'
-                                                                                    ? 'bg-accent-primary text-black'
-                                                                                    : 'bg-blue-500 text-white'
-                                                                            : 'bg-bg-secondary text-text-secondary border border-white/20'
+                                                                        ? level === 'premium'
+                                                                            ? 'bg-accent-secondary text-white'
+                                                                            : level === 'vip'
+                                                                                ? 'bg-accent-primary text-black'
+                                                                                : 'bg-blue-500 text-white'
+                                                                        : 'bg-bg-secondary text-text-secondary border border-white/20'
                                                                         }`}
                                                                 >
                                                                     {level.toUpperCase()}

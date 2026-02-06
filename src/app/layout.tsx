@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-    title: 'StreamVault - Premium Video Platform',
-    description: 'Discover the best premium video content. Your destination for exclusive streams and downloads.',
-    keywords: 'streaming, videos, membership, premium content',
+    title: 'kStreamer dance - Premium Dance Video Platform',
+    description: 'Discover the best premium dance video content. Your destination for exclusive streams and downloads.',
+    keywords: 'streaming, dance videos, membership, premium content, kpop dance',
     openGraph: {
-        title: 'StreamVault',
-        description: 'Premium Video Platform',
+        title: 'kStreamer dance',
+        description: 'Premium Dance Video Platform',
         type: 'website',
     },
 }

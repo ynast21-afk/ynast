@@ -7,9 +7,9 @@ export default function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                     {/* Brand */}
                     <div className="md:col-span-1">
-                        <h3 className="text-2xl font-bold text-accent-primary mb-3">StreamVault</h3>
+                        <h3 className="text-2xl font-bold text-accent-primary mb-3">kStreamer dance</h3>
                         <p className="text-text-secondary text-sm">
-                            Discover the best premium video content. Your premium destination for exclusive streams and downloads.
+                            Discover the best premium dance video content. Your premium destination for exclusive streams and downloads.
                         </p>
                     </div>
 
@@ -64,7 +64,7 @@ export default function Footer() {
 
                 {/* Bottom */}
                 <div className="flex flex-col md:flex-row justify-between items-center mt-10 pt-6 border-t border-white/10 text-xs text-text-secondary">
-                    <span>© 2026 StreamVault. All rights reserved.</span>
+                    <span>© 2026 kStreamer dance. All rights reserved.</span>
                     <span>All models are 18 years of age or older</span>
                 </div>
             </div>

@@ -15,7 +15,7 @@ export default function Header() {
                     className="text-2xl font-bold text-accent-primary"
                     style={{ textShadow: '0 0 20px rgba(0, 255, 136, 0.5)' }}
                 >
-                    StreamVault
+                    kStreamer dance
                 </Link>
 
                 {/* Desktop Navigation */}
