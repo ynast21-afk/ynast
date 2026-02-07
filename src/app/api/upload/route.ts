@@ -139,11 +139,28 @@ export async function GET(request: NextRequest) {
 
         if (type === 'upload') {
             const uploadUrl = await getUploadUrl(auth)
+
+            // Fetch real bucket name to ensure consistency
+            let realBucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
+            try {
+                const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
+                    method: 'POST',
+                    headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
+                })
+                const bucketData = await bucketRes.json()
+                if (bucketData.buckets?.[0]?.bucketName) {
+                    realBucketName = bucketData.buckets[0].bucketName
+                }
+            } catch (e) {
+                console.error('Failed to fetch real bucket name:', e)
+            }
+
             return NextResponse.json({
                 uploadUrl: uploadUrl.uploadUrl,
                 authorizationToken: uploadUrl.authorizationToken,
                 downloadUrl: auth.downloadUrl,
-                bucketName: process.env.B2_BUCKET_NAME || 'yna-backup'
+                bucketName: realBucketName
             })
         }
 
@@ -184,10 +201,26 @@ export async function GET(request: NextRequest) {
 
         const result = await response.json()
 
+        // Fetch real bucket name for download/streaming too
+        let realBucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
+        try {
+            const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
+                method: 'POST',
+                headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
+            })
+            const bucketData = await bucketRes.json()
+            if (bucketData.buckets?.[0]?.bucketName) {
+                realBucketName = bucketData.buckets[0].bucketName
+            }
+        } catch (e) {
+            console.error('Failed to fetch real bucket name:', e)
+        }
+
         return NextResponse.json({
             authorizationToken: result.authorizationToken,
             downloadUrl: auth.downloadUrl,
-            bucketName: process.env.B2_BUCKET_NAME || 'yna-backup'
+            bucketName: realBucketName
         })
 
     } catch (error) {

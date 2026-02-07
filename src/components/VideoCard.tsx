@@ -35,17 +35,19 @@ export default function VideoCard({
     const videoRef = useRef<HTMLVideoElement>(null)
     const displayGradient = getValidGradient(gradient)
 
-    // Helper to fix B2 bucket name in URL if it doesn't match server setting
     const fixB2Url = (url: string) => {
         if (!url || !url.includes('backblazeb2.com/file/')) return url
-        const parts = url.split('/')
-        if (parts.length >= 5) {
-            const currentBucket = parts[4]
-            if (currentBucket !== activeBucketName) {
-                parts[4] = activeBucketName
-                return parts.join('/')
+        try {
+            const parts = url.split('/')
+            const fileIndex = parts.indexOf('file')
+            if (fileIndex !== -1 && parts.length > fileIndex + 1) {
+                const currentBucket = parts[fileIndex + 1]
+                if (currentBucket !== activeBucketName && activeBucketName) {
+                    parts[fileIndex + 1] = activeBucketName
+                    return parts.join('/')
+                }
             }
-        }
+        } catch (e) { }
         return url
     }
 

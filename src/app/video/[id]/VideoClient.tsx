@@ -50,16 +50,22 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         }
     }, [fallbackId, allVideos, video, streamers, id])
 
-    // Helper to fix B2 bucket name in URL
     const fixB2Url = (url: string) => {
         if (!url || !url.includes('backblazeb2.com/file/')) return url
-        const parts = url.split('/')
-        if (parts.length >= 5) {
-            const currentBucket = parts[4]
-            if (currentBucket !== activeBucketName) {
-                parts[4] = activeBucketName
-                return parts.join('/')
+        try {
+            const parts = url.split('/')
+            // B2 URL format: https://f000.backblazeb2.com/file/bucket-name/path/to/file
+            const fileIndex = parts.indexOf('file')
+            if (fileIndex !== -1 && parts.length > fileIndex + 1) {
+                const currentBucket = parts[fileIndex + 1]
+                if (currentBucket !== activeBucketName && activeBucketName) {
+                    console.log(`[B2 Fix] Correcting bucket: ${currentBucket} -> ${activeBucketName}`)
+                    parts[fileIndex + 1] = activeBucketName
+                    return parts.join('/')
+                }
             }
+        } catch (e) {
+            console.error('[B2 Fix] Failed to parse URL:', e)
         }
         return url
     }
