@@ -5,6 +5,7 @@ import { StreamerProvider } from '@/contexts/StreamerContext'
 import { SiteSettingsProvider } from '@/contexts/SiteSettingsContext'
 import { WebSiteSchema, OrganizationSchema } from '@/components/JsonLd'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
+import Script from 'next/script'
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
 
@@ -88,7 +89,7 @@ export default function RootLayout({
                     name="kStreamer"
                     url={BASE_URL}
                 />
-                <script src="https://accounts.google.com/gsi/client" async defer></script>
+                <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
             </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
                 <SiteSettingsProvider>

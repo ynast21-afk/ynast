@@ -139,16 +139,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const client_id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
             if (!client_id) {
-                console.error('Google Client ID not found')
+                alert('Vercel 설정에서 Google Client ID(환경변수)가 설정되지 않았습니다. 관리자 설정에서 NEXT_PUBLIC_GOOGLE_CLIENT_ID를 확인해주세요.')
                 setIsLoading(false)
                 resolve(false)
                 return
             }
 
+            // 30초 후 자동 로딩 해제 (팝업을 닫거나 무시할 경우 대비)
+            const timeoutId = setTimeout(() => {
+                setIsLoading(false)
+                resolve(false)
+            }, 30000)
+
             // @ts-ignore
             const google = window.google
 
             if (!google) {
+                clearTimeout(timeoutId)
                 alert('구글 로그인 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요. (또는 광고 차단기를 확인해주세요)')
                 setIsLoading(false)
                 resolve(false)
@@ -159,7 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const client = google.accounts.oauth2.initTokenClient({
                 client_id: client_id,
                 scope: 'email profile openid',
+                error_callback: (err: any) => {
+                    clearTimeout(timeoutId)
+                    console.error('GSI Error:', err)
+                    setIsLoading(false)
+                    resolve(false)
+                },
                 callback: async (response: any) => {
+                    clearTimeout(timeoutId)
                     if (response.error) {
                         console.error('Google login error:', response.error)
                         setIsLoading(false)
