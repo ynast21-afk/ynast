@@ -84,7 +84,15 @@ async function resolveBucketName(auth: B2AuthResponse): Promise<string> {
 
     // 3. Fallback to Env Var
     // 3. Fallback to Env Var (or empty if not set)
-    return process.env.B2_BUCKET_NAME || ''
+    const envBucket = process.env.B2_BUCKET_NAME || ''
+
+    // HOTFIX: Detect and correct known misconfiguration
+    if (envBucket === 'kbjkbj' || !envBucket) {
+        console.log('[API Fix] Detected invalid or missing bucket name. Forcing "yna-backup".')
+        return 'yna-backup'
+    }
+
+    return envBucket
 }
 
 export async function POST(request: NextRequest) {
