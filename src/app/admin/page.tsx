@@ -19,6 +19,7 @@ type AdminTab =
     | 'users'
     | 'pricing'
     | 'navigation'
+    | 'seo'
     | 'settings'
 
 const gradientOptions = [
