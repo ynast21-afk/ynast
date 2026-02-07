@@ -6,38 +6,104 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useStreamers } from '@/contexts/StreamerContext'
 import { useAuth } from '@/contexts/AuthContext'
-
-const relatedVideos = [
-    { id: '2', title: 'Future Tech 2025: What to Expect', creator: 'TechInsider', views: '850K', duration: '12:04', isVip: false },
-    { id: '3', title: 'Chill Synthwave Mix 2024 - Coding / Studying', creator: 'LofiGirl', views: '2.4M', duration: '1:04:20', isVip: true },
-    { id: '4', title: 'Hacking the Mainframe: A Visual Guide', creator: 'CyberSec Daily', views: '120K', duration: '08:45', isVip: false },
-    { id: '5', title: 'Hardware Teardown: The Quantum Chip', creator: 'HardwareUnboxed', views: '300K', duration: '15:30', isVip: true },
-    { id: '6', title: 'Nightlife in Tokyo: Hidden Bars Guide', creator: 'TravelWithMe', views: '45K', duration: '22:15', isVip: false },
-    { id: '7', title: 'Dance Reaction Compilation Vol. 5', creator: 'DanceQueen', views: '89K', duration: '18:30', isVip: true },
-]
-
-const comments = [
-    { id: 1, author: 'TechEnthusiast', time: '2 hours ago', text: 'The lighting effects in this video are absolutely insane. The reflection on the wet pavement is next level. 🤯', likes: 342 },
-    { id: 2, author: 'GameDev_Pro', time: '5 hours ago', text: 'Is this rendered in Unreal Engine 5? The detail is incredible. Makes me want to upgrade my GPU immediately.', likes: 128 },
-    { id: 3, author: 'CyberpunkFan99', time: '1 day ago', text: 'Finally some high quality dark cyberpunk content! Subscribed. Please do a day version next!', likes: 89 },
-]
+import CommentSection from '@/components/CommentSection'
 
 export default function VideoPage({ params }: { params: { id: string } }) {
     const { id } = params
     const { videos, getStreamerById } = useStreamers()
     const { user } = useAuth()
     const [isLiked, setIsLiked] = useState(false)
+    const [isFollowed, setIsFollowed] = useState(false)
 
     // Find the current video
     const video = videos.find(v => v.id === id)
     const streamer = video ? getStreamerById(video.streamerId) : null
+
+    // Check like and follow status on mount
+    useEffect(() => {
+        if (!user || !id || !video) return
+
+        // Check like status
+        const savedLikes = localStorage.getItem('kstreamer_user_likes')
+        if (savedLikes) {
+            const likes: string[] = JSON.parse(savedLikes)
+            setIsLiked(likes.includes(id))
+        }
+
+        // Check Following status
+        const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
+        setIsFollowed(followed.includes(video.streamerId))
+    }, [user, id, video])
+
+    // Toggle like
+    const toggleLike = () => {
+        if (!user) {
+            alert('찜하기를 하려면 로그인이 필요합니다.')
+            return
+        }
+
+        const savedLikes = localStorage.getItem('kstreamer_user_likes')
+        const currentLikes: string[] = savedLikes ? JSON.parse(savedLikes) : []
+        let updatedLikes: string[]
+
+        if (isLiked) {
+            updatedLikes = currentLikes.filter(likeId => likeId !== id)
+        } else {
+            updatedLikes = [id, ...currentLikes]
+
+            // Notification simulation
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift({
+                id: Date.now().toString(),
+                type: 'like',
+                message: `${user.name}님이 '${video?.title}' 영상을 찜했습니다.`,
+                time: new Date().toISOString(),
+                isRead: false
+            })
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+        }
+
+        localStorage.setItem('kstreamer_user_likes', JSON.stringify(updatedLikes))
+        setIsLiked(!isLiked)
+    }
+
+    const handleFollowToggle = () => {
+        if (!user) {
+            alert('팔로우하려면 로그인이 필요합니다.')
+            return
+        }
+        if (!video) return // Should not happen if button is rendered
+
+        const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
+        let newFollowed: string[]
+
+        if (isFollowed) {
+            newFollowed = followed.filter((streamerId: string) => streamerId !== video.streamerId)
+        } else {
+            newFollowed = [...followed, video.streamerId]
+
+            // Notify Admin
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift({
+                id: Date.now().toString(),
+                type: 'follow', // Changed type to 'follow'
+                message: `${user.name}님이 ${video.streamerName}님을 팔로우했습니다.`,
+                time: new Date().toISOString(),
+                isRead: false
+            })
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+        }
+
+        localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(newFollowed))
+        setIsFollowed(!isFollowed)
+    }
 
     // If video not found
     if (!video) {
         return (
             <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center text-center p-6">
                 <Header />
-                <h1 className="text-3xl font-bold mb-4">영상를 찾을 수 없습니다</h1>
+                <h1 className="text-3xl font-bold mb-4">영상을 찾을 수 없습니다</h1>
                 <p className="text-text-secondary mb-8">요청하신 영상이 존재하지 않거나 삭제되었을 수 있습니다.</p>
                 <Link href="/videos" className="gradient-button text-black px-8 py-3 rounded-full font-semibold">
                     다른 영상 보러가기
@@ -108,35 +174,42 @@ export default function VideoPage({ params }: { params: { id: string } }) {
 
                         {/* Video Info */}
                         <div className="py-5">
-                            <h1 className="text-2xl font-semibold mb-3">{video.title}</h1>
-                            <div className="flex flex-wrap gap-5 text-text-secondary text-sm mb-5">
-                                <span>👁 {video.views} views</span>
-                                <span>📅 {video.uploadedAt}</span>
-                                <span>⏱ {video.duration}</span>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h1 className="text-2xl font-semibold mb-3">{video.title}</h1>
+                                    <div className="flex flex-wrap gap-5 text-text-secondary text-sm mb-5">
+                                        <span>👁 {video.views} views</span>
+                                        <span>📅 {video.uploadedAt}</span>
+                                        <span>⏱ {video.duration}</span>
+                                    </div>
+                                </div>
                                 <button
-                                    onClick={() => setIsLiked(!isLiked)}
-                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all ${isLiked
+                                    onClick={toggleLike}
+                                    className={`flex items-center gap-2 px-6 py-3 rounded-xl border transition-all font-bold ${isLiked
                                         ? 'bg-accent-primary/20 border-accent-primary text-accent-primary'
                                         : 'bg-bg-secondary border-white/10 hover:border-accent-primary hover:text-accent-primary'
                                         }`}
                                 >
-                                    ❤️ {isLiked ? (parseInt(video.likes) + 1) : video.likes}
+                                    {isLiked ? '❤️ 찜한 영상' : '🤍 찜하기'}
                                 </button>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-wrap gap-3">
                                 <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
                                     📥 Download
                                 </button>
-                                <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(window.location.href)
+                                        alert('주소가 복사되었습니다!')
+                                    }}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all"
+                                >
                                     ↗️ Share
                                 </button>
                                 <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
                                     ➕ Playlist
-                                </button>
-                                <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
-                                    🚩 Report
                                 </button>
                             </div>
                         </div>
@@ -150,8 +223,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                                     <div className="text-sm text-text-secondary">{streamer?.videoCount || 0} Videos</div>
                                 </div>
                             </Link>
-                            <button className="px-7 py-3 bg-accent-primary text-black rounded-full font-semibold hover:shadow-[0_0_20px_rgba(0,255,136,0.5)] transition-all">
-                                Subscribe
+                            <button
+                                onClick={handleFollowToggle}
+                                className={`px-7 py-3 rounded-full font-semibold transition-all ${isFollowed
+                                        ? 'bg-bg-primary border border-white/20 text-white hover:bg-white/5'
+                                        : 'bg-accent-primary text-black hover:scale-105'
+                                    }`}
+                            >
+                                {isFollowed ? 'Following' : 'Follow'}
                             </button>
                         </div>
 
@@ -164,40 +243,8 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                             </p>
                         </div>
 
-                        {/* Comments */}
-                        <div>
-                            <h3 className="text-xl font-semibold mb-5">💬 댓글 {comments.length}개</h3>
-
-                            {/* Comment Input */}
-                            <div className="flex gap-4 mb-8">
-                                <div className="w-10 h-10 rounded-full bg-bg-tertiary flex-shrink-0" />
-                                <input
-                                    type="text"
-                                    placeholder="댓글을 입력하세요..."
-                                    className="flex-1 bg-bg-secondary border border-white/10 rounded-full px-5 py-3 text-sm focus:outline-none focus:border-accent-primary transition-colors"
-                                />
-                            </div>
-
-                            {/* Comment List */}
-                            <div className="space-y-6">
-                                {comments.map((comment) => (
-                                    <div key={comment.id} className="flex gap-4">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-zinc-700 flex-shrink-0" />
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <span className="font-medium">@{comment.author}</span>
-                                                <span className="text-xs text-text-secondary">{comment.time}</span>
-                                            </div>
-                                            <p className="text-text-secondary leading-relaxed mb-3">{comment.text}</p>
-                                            <div className="flex gap-4 text-xs text-text-secondary">
-                                                <span className="hover:text-accent-primary cursor-pointer">❤️ {comment.likes}</span>
-                                                <span className="hover:text-accent-primary cursor-pointer">💬 Reply</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        {/* Comments System */}
+                        <CommentSection videoId={id} />
                     </div>
 
                     {/* Right Column - Related Videos */}

@@ -65,6 +65,29 @@ export default function MembershipPage() {
         console.log("Payment Success:", details)
         alert(`Payment completed by ${details.payer.name.given_name}`)
 
+        // Record purchase history
+        const savedHistory = localStorage.getItem('kstreamer_purchase_history')
+        const history = savedHistory ? JSON.parse(savedHistory) : []
+        const newRecord = {
+            id: details.id,
+            amount: plan.price,
+            date: new Date().toISOString(),
+            status: 'COMPLETED',
+            plan: plan.name
+        }
+        localStorage.setItem('kstreamer_purchase_history', JSON.stringify([newRecord, ...history]))
+
+        // Notify Admin
+        const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+        notifications.unshift({
+            id: Date.now().toString(),
+            type: 'payment',
+            message: `${user?.name || '신규회원'}님이 ${plan.name} 멤버십을 결제했습니다.`,
+            time: new Date().toISOString(),
+            isRead: false
+        })
+        localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+
         if (updateMembership) {
             updateMembership('vip')
         }

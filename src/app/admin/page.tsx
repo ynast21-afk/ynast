@@ -82,6 +82,21 @@ export default function AdminPage() {
         setAnalyticsEdits(settings.analytics)
     }, [settings])
 
+    // notifications logic
+    const [notifications, setNotifications] = useState<any[]>([])
+
+    useEffect(() => {
+        const saved = localStorage.getItem('kstreamer_admin_notifications')
+        if (saved) {
+            setNotifications(JSON.parse(saved).slice(0, 20))
+        }
+    }, [activeTab]) // Refresh when switching tabs
+
+    const clearNotifications = () => {
+        localStorage.setItem('kstreamer_admin_notifications', '[]')
+        setNotifications([])
+    }
+
     // Handlers
     const handleAddStreamer = () => {
         if (!newStreamer.name.trim()) return
@@ -341,12 +356,12 @@ export default function AdminPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid lg:grid-cols-2 gap-6">
+                                    <div className="grid lg:grid-cols-2 gap-6 mb-8">
                                         <div className="bg-bg-primary rounded-xl p-5 border border-white/10">
                                             <h3 className="font-semibold mb-4">🎬 최근 영상</h3>
                                             {videos.slice(0, 5).map(video => (
-                                                <div key={video.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                                                    <span className="text-sm truncate flex-1">{video.title}</span>
+                                                <div key={video.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0 text-sm">
+                                                    <span className="truncate flex-1">{video.title}</span>
                                                     <span className="text-xs text-text-secondary ml-2">{video.uploadedAt}</span>
                                                 </div>
                                             ))}
@@ -356,12 +371,39 @@ export default function AdminPage() {
                                         <div className="bg-bg-primary rounded-xl p-5 border border-white/10">
                                             <h3 className="font-semibold mb-4">👥 인기 스트리머</h3>
                                             {streamers.sort((a, b) => b.videoCount - a.videoCount).slice(0, 5).map(s => (
-                                                <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                                                    <span className="text-sm">{s.name}</span>
+                                                <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0 text-sm">
+                                                    <span>{s.name}</span>
                                                     <span className="text-xs text-accent-primary">{s.videoCount} videos</span>
                                                 </div>
                                             ))}
                                             {streamers.length === 0 && <p className="text-text-secondary text-sm">스트리머가 없습니다</p>}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-bg-primary rounded-xl p-5 border border-white/10">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="font-semibold">🔔 실시간 알림</h3>
+                                            <button onClick={clearNotifications} className="text-xs text-text-secondary hover:text-accent-primary transition-colors">전체 삭제</button>
+                                        </div>
+                                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {notifications.length === 0 ? (
+                                                <p className="text-text-secondary text-sm italic text-center py-4">새로운 알림이 없습니다.</p>
+                                            ) : (
+                                                notifications.map((notif) => (
+                                                    <div key={notif.id} className="p-3 bg-bg-secondary rounded-lg border border-white/5 text-xs">
+                                                        <div className="flex justify-between mb-1">
+                                                            <span className={`font-bold ${notif.type === 'payment' ? 'text-green-400' :
+                                                                notif.type === 'comment' ? 'text-blue-400' :
+                                                                    'text-pink-400'
+                                                                }`}>
+                                                                {notif.type === 'payment' ? '💰 결제' : notif.type === 'comment' ? '💬 댓글' : '❤️ 찜'}
+                                                            </span>
+                                                            <span className="text-text-tertiary">{new Date(notif.time).toLocaleTimeString()}</span>
+                                                        </div>
+                                                        <p className="text-white">{notif.message}</p>
+                                                    </div>
+                                                ))
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -1131,7 +1173,7 @@ export default function AdminPage() {
                                                         type="text"
                                                         readOnly
                                                         value="naver_verification_code_placeholder"
-                                                        className="w-full px-4 py-4 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
+                                                        className="w-full px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
                                                     />
                                                 </div>
                                             </div>
