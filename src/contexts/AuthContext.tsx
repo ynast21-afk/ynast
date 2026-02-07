@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useSiteSettings } from './SiteSettingsContext'
 
 // 관리자 설정 - 이 이메일+비밀번호로 로그인한 사용자만 /admin 접근 가능
 const ADMIN_EMAIL = 'ynast21@gmail.com'
@@ -67,6 +68,7 @@ function updateUserInStorage(updatedUser: User) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const { addUser, users: siteUsers, toggleUserBan, updateUserMembership, stats } = useSiteSettings()
     const [user, setUser] = useState<User | null>(null)
     const [isLoading, setIsLoading] = useState(true)
 
@@ -133,49 +135,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const loginWithGoogle = async (): Promise<boolean> => {
         setIsLoading(true)
-        try {
-            // Simulate Google Login delay
-            await new Promise(resolve => setTimeout(resolve, 1500))
+        return new Promise((resolve) => {
+            const client_id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
-            // Mock Google user info
-            const mockGoogleUser = {
-                email: 'google_user@gmail.com',
-                name: 'Google User',
-                avatar: 'https://lh3.googleusercontent.com/a/default-user'
+            if (!client_id) {
+                console.error('Google Client ID not found')
+                setIsLoading(false)
+                resolve(false)
+                return
             }
 
-            const allUsers = getAllUsers()
-            let existingUser = allUsers.find(u => u.email === mockGoogleUser.email)
+            // @ts-ignore
+            const google = window.google
 
-            if (existingUser?.isBanned) {
-                alert(`계정이 차단되었습니다. 사유: ${existingUser.banReason || '관리자에게 문의하세요'}`)
-                return false
+            if (!google) {
+                console.error('Google SDK not loaded')
+                setIsLoading(false)
+                resolve(false)
+                return
             }
 
-            const loggedInUser: User = existingUser || {
-                id: 'google_' + Date.now(),
-                email: mockGoogleUser.email,
-                name: mockGoogleUser.name,
-                membership: 'guest',
-                role: 'user',
-                avatar: mockGoogleUser.avatar,
-                isBanned: false,
-                emailVerified: true, // Google accounts are verified
-                createdAt: new Date().toISOString(),
-            }
+            // Use Token Client for OAuth 2.0 (access token)
+            const client = google.accounts.oauth2.initTokenClient({
+                client_id: client_id,
+                scope: 'email profile openid',
+                callback: async (response: any) => {
+                    if (response.error) {
+                        console.error('Google login error:', response.error)
+                        setIsLoading(false)
+                        resolve(false)
+                        return
+                    }
 
-            loggedInUser.lastLoginAt = new Date().toISOString()
+                    try {
+                        // Get user info via UserInfo API using the access token
+                        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                            headers: { Authorization: `Bearer ${response.access_token}` },
+                        })
+                        const googleUser = await userInfoResponse.json()
 
-            setUser(loggedInUser)
-            localStorage.setItem('kstreamer_user', JSON.stringify(loggedInUser))
-            updateUserInStorage(loggedInUser)
-            return true
-        } catch (error) {
-            console.error('Google Login failed:', error)
-            return false
-        } finally {
-            setIsLoading(false)
-        }
+                        if (!googleUser.email) {
+                            throw new Error('No email from Google account')
+                        }
+
+                        // Check if user is banned (siteUsers is from useSiteSettings)
+                        const existingInSite = siteUsers.find(u => u.email === googleUser.email)
+                        if (existingInSite?.isBanned) {
+                            alert('계정이 차단되었습니다. 관리자에게 문의하세요.')
+                            setIsLoading(false)
+                            resolve(false)
+                            return
+                        }
+
+                        // Create/Login user
+                        const loggedInUser: User = {
+                            id: existingInSite?.id || 'google_' + Date.now(),
+                            email: googleUser.email,
+                            name: googleUser.name || googleUser.given_name || googleUser.email.split('@')[0],
+                            avatar: googleUser.picture,
+                            membership: existingInSite?.membership || 'guest',
+                            role: googleUser.email === ADMIN_EMAIL ? 'admin' : 'user',
+                            isBanned: false,
+                            emailVerified: true,
+                            createdAt: existingInSite?.createdAt || new Date().toISOString(),
+                            lastLoginAt: new Date().toISOString(),
+                        }
+
+                        // Sync with SiteSettingsContext if new
+                        if (!existingInSite) {
+                            addUser({
+                                email: loggedInUser.email,
+                                name: loggedInUser.name,
+                                membership: loggedInUser.membership,
+                            })
+                        }
+
+                        setUser(loggedInUser)
+                        localStorage.setItem('kstreamer_user', JSON.stringify(loggedInUser))
+                        updateUserInStorage(loggedInUser)
+
+                        setIsLoading(false)
+                        resolve(true)
+                    } catch (err) {
+                        console.error('Failed to fetch Google user info:', err)
+                        setIsLoading(false)
+                        resolve(false)
+                    }
+                },
+            })
+
+            client.requestAccessToken()
+        })
     }
 
     const signup = async (email: string, password: string, name: string): Promise<boolean> => {

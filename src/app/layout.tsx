@@ -88,6 +88,7 @@ export default function RootLayout({
                     name="kStreamer"
                     url={BASE_URL}
                 />
+                <script src="https://accounts.google.com/gsi/client" async defer></script>
             </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
                 <SiteSettingsProvider>

@@ -214,7 +214,7 @@ interface SiteSettingsContextType {
     toggleNavItem: (id: string) => void
     updateSocialLinks: (links: SocialLink[]) => void
     toggleSocialLink: (id: string) => void
-    addUser: (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>) => void
+    addUser: (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>) => User
     updateUserMembership: (userId: string, membership: User['membership']) => void
     toggleUserBan: (userId: string) => void
     incrementVisit: () => void
@@ -363,7 +363,10 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         }))
     }
 
-    const addUser = (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>) => {
+    const addUser = (user: Omit<User, 'id' | 'createdAt' | 'isBanned'>): User => {
+        const existing = users.find(u => u.email === user.email)
+        if (existing) return existing
+
         const newUser: User = {
             ...user,
             id: Date.now().toString(),
@@ -372,6 +375,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         }
         setUsers(prev => [...prev, newUser])
         setStats(prev => ({ ...prev, totalUsers: prev.totalUsers + 1 }))
+        return newUser
     }
 
     const updateUserMembership = (userId: string, membership: User['membership']) => {
