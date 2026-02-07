@@ -109,7 +109,8 @@ export async function POST(request: NextRequest) {
             }
 
             const result = await response.json()
-            const downloadUrl = `${auth.downloadUrl}/file/${process.env.B2_BUCKET_NAME}/${result.fileName}`
+            const bucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
+            const downloadUrl = `${auth.downloadUrl}/file/${bucketName}/${result.fileName}`
 
             return NextResponse.json({ ...result, downloadUrl })
         }
@@ -142,7 +143,7 @@ export async function GET(request: NextRequest) {
                 uploadUrl: uploadUrl.uploadUrl,
                 authorizationToken: uploadUrl.authorizationToken,
                 downloadUrl: auth.downloadUrl,
-                bucketName: process.env.B2_BUCKET_NAME
+                bucketName: process.env.B2_BUCKET_NAME || 'yna-backup'
             })
         }
 

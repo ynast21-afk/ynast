@@ -119,15 +119,17 @@ export default function AdminPage() {
         return new Promise((resolve, reject) => {
             const video = document.createElement('video')
             video.preload = 'metadata'
+            video.crossOrigin = 'anonymous'
             video.src = URL.createObjectURL(file)
             video.muted = true
             video.playsInline = true
 
             video.onloadedmetadata = () => {
-                video.currentTime = 1.0 // Seek to 1 second
+                video.currentTime = 0.5 // Seek to 0.5s instead of 1.0s to avoid short video issues
             }
 
             video.onseeked = () => {
+                console.log('Video seeked for thumbnail snapshot')
                 const canvas = document.createElement('canvas')
                 canvas.width = video.videoWidth
                 canvas.height = video.videoHeight
@@ -140,6 +142,7 @@ export default function AdminPage() {
                 canvas.toBlob((blob) => {
                     if (blob) {
                         const thumbFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + "_thumb.jpg", { type: 'image/jpeg' })
+                        console.log('Thumbnail blob created, size:', blob.size)
                         resolve(thumbFile)
                     } else {
                         reject(new Error('Thumbnail blob creation failed'))
