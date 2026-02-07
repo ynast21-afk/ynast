@@ -375,6 +375,37 @@ export default function AdminPage() {
         alert('✅ 영상이 추가되었습니다!')
     }
 
+    // Helper to create thumbnail from File object (for batch upload)
+    const createThumbnailFromFile = (file: File): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+            const video = document.createElement('video')
+            video.preload = 'metadata'
+            video.onloadedmetadata = () => {
+                video.currentTime = 0.5
+            }
+            video.onseeked = () => {
+                const canvas = document.createElement('canvas')
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    resolve(null)
+                    return
+                }
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                canvas.toBlob((blob) => {
+                    resolve(blob)
+                    URL.revokeObjectURL(video.src)
+                }, 'image/jpeg', 0.7)
+            }
+            video.onerror = () => {
+                resolve(null)
+                URL.revokeObjectURL(video.src)
+            }
+            video.src = URL.createObjectURL(file)
+        })
+    }
+
     const handleBatchUpload = async () => {
         if (batchFiles.length === 0 || !batchStreamerId) {
             alert('파일을 선택하고 스트리머를 지정해주세요.')
