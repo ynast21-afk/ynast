@@ -124,18 +124,29 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// Get signed URL for private videos (optional)
+// Get signed URL or upload credentials
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url)
         const fileId = searchParams.get('fileId')
+        const type = searchParams.get('type') // 'upload' or 'download'
         const duration = parseInt(searchParams.get('duration') || '3600') // Default 1 hour
+
+        const auth = await authorizeB2()
+
+        if (type === 'upload') {
+            const uploadUrl = await getUploadUrl(auth)
+            return NextResponse.json({
+                uploadUrl: uploadUrl.uploadUrl,
+                authorizationToken: uploadUrl.authorizationToken,
+                downloadUrl: auth.downloadUrl,
+                bucketName: process.env.B2_BUCKET_NAME
+            })
+        }
 
         if (!fileId) {
             return NextResponse.json({ error: 'File ID required' }, { status: 400 })
         }
-
-        const auth = await authorizeB2()
 
         // Get download authorization for private files
         const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_download_authorization`, {

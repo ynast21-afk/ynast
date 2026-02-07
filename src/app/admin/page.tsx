@@ -105,6 +105,14 @@ export default function AdminPage() {
         setNotifications([])
     }
 
+    // Helper for B2 SHA1
+    const calculateSHA1 = async (file: File): Promise<string> => {
+        const arrayBuffer = await file.arrayBuffer()
+        const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    }
+
     // Handlers
     const handleAddStreamer = () => {
         if (!newStreamer.name.trim()) return
@@ -130,28 +138,41 @@ export default function AdminPage() {
         // 파일이 선택된 경우 업로드 진행
         if (videoFile) {
             setIsUploading(true)
-            setUploadProgress(10) // 시작 표시
+            setUploadProgress(5) // 시작 표시
 
             try {
-                const formData = new FormData()
-                formData.append('file', videoFile)
-                formData.append('folder', 'videos')
+                // 1. Get B2 upload credentials
+                const credsRes = await fetch('/api/upload?type=upload')
+                if (!credsRes.ok) throw new Error('Failed to get B2 credentials')
+                const creds = await credsRes.json()
 
-                const response = await fetch('/api/upload', {
+                // 2. Calculate SHA1
+                setUploadProgress(15)
+                const sha1 = await calculateSHA1(videoFile)
+
+                // 3. Upload directly to B2
+                setUploadProgress(25)
+                const fileName = `videos/${Date.now()}_${videoFile.name}`
+
+                const uploadRes = await fetch(creds.uploadUrl, {
                     method: 'POST',
-                    body: formData,
+                    headers: {
+                        'Authorization': creds.authorizationToken,
+                        'X-Bz-File-Name': encodeURIComponent(fileName),
+                        'Content-Type': videoFile.type || 'application/octet-stream',
+                        'Content-Length': videoFile.size.toString(),
+                        'X-Bz-Content-Sha1': sha1,
+                    },
+                    body: videoFile,
                 })
 
-                if (!response.ok) {
-                    throw new Error('업로드 실패')
-                }
+                if (!uploadRes.ok) throw new Error('B2 upload failed')
 
-                const data = await response.json()
-                videoUrl = data.downloadUrl
+                videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
                 setUploadProgress(100)
             } catch (error) {
                 console.error('Upload failed:', error)
-                alert('비디오 업로드에 실패했습니다.')
+                alert('비디오 업로드에 실패했습니다. (Direct B2 Upload Error)')
                 setIsUploading(false)
                 setUploadProgress(0)
                 return
@@ -200,18 +221,33 @@ export default function AdminPage() {
             const file = batchFiles[i]
 
             try {
-                const formData = new FormData()
-                formData.append('file', file)
-                formData.append('folder', 'videos')
+                // 1. Get B2 upload credentials per file or reuse? B2 tokens are valid for a while.
+                // Reusing tokens for now for efficiency, but maybe refresh if many files.
+                const credsRes = await fetch('/api/upload?type=upload')
+                if (!credsRes.ok) throw new Error('Failed to get B2 credentials')
+                const creds = await credsRes.json()
 
-                const response = await fetch('/api/upload', {
+                // 2. Calculate SHA1
+                const sha1 = await calculateSHA1(file)
+
+                // 3. Upload directly to B2
+                const fileName = `videos/${Date.now()}_${file.name}`
+
+                const uploadRes = await fetch(creds.uploadUrl, {
                     method: 'POST',
-                    body: formData,
+                    headers: {
+                        'Authorization': creds.authorizationToken,
+                        'X-Bz-File-Name': encodeURIComponent(fileName),
+                        'Content-Type': file.type || 'application/octet-stream',
+                        'Content-Length': file.size.toString(),
+                        'X-Bz-Content-Sha1': sha1,
+                    },
+                    body: file,
                 })
 
-                if (!response.ok) throw new Error(`Upload failed for ${file.name}`)
+                if (!uploadRes.ok) throw new Error(`B2 upload failed for ${file.name}`)
 
-                const data = await response.json()
+                const videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
 
                 // Add video to list
                 addVideo({
@@ -224,13 +260,12 @@ export default function AdminPage() {
                     likes: '0',
                     gradient: streamer.gradient,
                     uploadedAt: 'Just now',
-                    videoUrl: data.downloadUrl,
+                    videoUrl: videoUrl,
                 })
 
                 setBatchProgress(((i + 1) / batchFiles.length) * 100)
             } catch (error) {
                 console.error('Batch upload item failed:', error)
-                // Continue with next file but maybe alert at the end
             }
         }
 
