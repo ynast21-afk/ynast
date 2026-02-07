@@ -36,6 +36,7 @@ interface AuthContextType {
     banUser: (userId: string, reason: string) => void
     unbanUser: (userId: string) => void
     verifyEmail: () => void
+    loginWithGoogle: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -127,6 +128,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Login failed:', error)
             return false
+        }
+    }
+
+    const loginWithGoogle = async (): Promise<boolean> => {
+        setIsLoading(true)
+        try {
+            // Simulate Google Login delay
+            await new Promise(resolve => setTimeout(resolve, 1500))
+
+            // Mock Google user info
+            const mockGoogleUser = {
+                email: 'google_user@gmail.com',
+                name: 'Google User',
+                avatar: 'https://lh3.googleusercontent.com/a/default-user'
+            }
+
+            const allUsers = getAllUsers()
+            let existingUser = allUsers.find(u => u.email === mockGoogleUser.email)
+
+            if (existingUser?.isBanned) {
+                alert(`계정이 차단되었습니다. 사유: ${existingUser.banReason || '관리자에게 문의하세요'}`)
+                return false
+            }
+
+            const loggedInUser: User = existingUser || {
+                id: 'google_' + Date.now(),
+                email: mockGoogleUser.email,
+                name: mockGoogleUser.name,
+                membership: 'guest',
+                role: 'user',
+                avatar: mockGoogleUser.avatar,
+                isBanned: false,
+                emailVerified: true, // Google accounts are verified
+                createdAt: new Date().toISOString(),
+            }
+
+            loggedInUser.lastLoginAt = new Date().toISOString()
+
+            setUser(loggedInUser)
+            localStorage.setItem('kstreamer_user', JSON.stringify(loggedInUser))
+            updateUserInStorage(loggedInUser)
+            return true
+        } catch (error) {
+            console.error('Google Login failed:', error)
+            return false
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -225,7 +273,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             updateUserRole,
             banUser,
             unbanUser,
-            verifyEmail
+            verifyEmail,
+            loginWithGoogle
         }}>
             {children}
         </AuthContext.Provider>
