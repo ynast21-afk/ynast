@@ -114,6 +114,46 @@ export default function AdminPage() {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
     }
 
+    // Capture first frame from video file
+    const generateThumbnail = (file: File): Promise<File> => {
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video')
+            video.preload = 'metadata'
+            video.src = URL.createObjectURL(file)
+            video.muted = true
+            video.playsInline = true
+
+            video.onloadedmetadata = () => {
+                video.currentTime = 1.0 // Seek to 1 second
+            }
+
+            video.onseeked = () => {
+                const canvas = document.createElement('canvas')
+                canvas.width = video.videoWidth
+                canvas.height = video.videoHeight
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    reject(new Error('Canvas context not supported'))
+                    return
+                }
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const thumbFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + "_thumb.jpg", { type: 'image/jpeg' })
+                        resolve(thumbFile)
+                    } else {
+                        reject(new Error('Thumbnail blob creation failed'))
+                    }
+                    URL.revokeObjectURL(video.src) // Clean up
+                }, 'image/jpeg', 0.8)
+            }
+
+            video.onerror = (e) => {
+                reject(new Error('Video loading failed for thumbnail'))
+            }
+        })
+    }
+
     // Handlers
     const handleAddStreamer = () => {
         if (!newStreamer.name.trim()) return
@@ -142,6 +182,41 @@ export default function AdminPage() {
             setUploadProgress(1)
 
             try {
+                // 1. 썸네일 생성 및 업로드 (Client-side Capture)
+                let thumbnailUrl = ''
+                try {
+                    console.log('Generating thumbnail...')
+                    const thumbnailFile = await generateThumbnail(videoFile)
+                    console.log('Thumbnail generated:', thumbnailFile.name, thumbnailFile.size)
+
+                    // 썸네일 업로드 (Single Upload Flow 재사용)
+                    const credsRes = await fetch('/api/upload?type=upload')
+                    if (!credsRes.ok) throw new Error('Failed to get B2 credentials for thumbnail')
+                    const creds = await credsRes.json()
+
+                    const thumbSha1 = await calculateSHA1(thumbnailFile)
+                    const thumbFileName = `thumbnails/${Date.now()}_${thumbnailFile.name}`
+
+                    const uploadRes = await fetch(creds.uploadUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': creds.authorizationToken,
+                            'X-Bz-File-Name': encodeURIComponent(thumbFileName),
+                            'Content-Type': thumbnailFile.type,
+                            'Content-Length': thumbnailFile.size.toString(),
+                            'X-Bz-Content-Sha1': thumbSha1,
+                        },
+                        body: thumbnailFile,
+                    })
+
+                    if (!uploadRes.ok) throw new Error('Thumbnail upload failed')
+                    thumbnailUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${thumbFileName}`
+                    console.log('Thumbnail uploaded:', thumbnailUrl)
+                } catch (err) {
+                    console.error('Thumbnail generation/upload failed:', err)
+                    // 썸네일 실패해도 비디오 업로드는 계속 진행 (Soft Fail)
+                }
+
                 const CHUNK_SIZE = 10 * 1024 * 1024 // 10MB
                 const isLargeFile = videoFile.size > 5 * 1024 * 1024 // 5MB
 
@@ -246,6 +321,20 @@ export default function AdminPage() {
                     videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
                 }
 
+                addVideo({
+                    title: newVideo.title.trim(),
+                    streamerId: newVideo.streamerId,
+                    streamerName: streamer.name,
+                    duration: newVideo.duration.trim(),
+                    isVip: newVideo.isVip,
+                    views: '0',
+                    likes: '0',
+                    gradient: streamer.gradient,
+                    uploadedAt: 'Just now',
+                    videoUrl: videoUrl || undefined,
+                    thumbnailUrl: thumbnailUrl || undefined, // Add thumbnail URL
+                })
+
                 setUploadProgress(100)
             } catch (error) {
                 console.error('Upload failed:', error)
@@ -254,20 +343,21 @@ export default function AdminPage() {
                 setUploadProgress(0)
                 return
             }
+        } else {
+            // 파일 없이 추가하는 경우 (기존 로직 유지)
+            addVideo({
+                title: newVideo.title.trim(),
+                streamerId: newVideo.streamerId,
+                streamerName: streamer.name,
+                duration: newVideo.duration.trim(),
+                isVip: newVideo.isVip,
+                views: '0',
+                likes: '0',
+                gradient: streamer.gradient,
+                uploadedAt: 'Just now',
+                videoUrl: videoUrl || undefined,
+            })
         }
-
-        addVideo({
-            title: newVideo.title.trim(),
-            streamerId: newVideo.streamerId,
-            streamerName: streamer.name,
-            duration: newVideo.duration.trim(),
-            isVip: newVideo.isVip,
-            views: '0',
-            likes: '0',
-            gradient: streamer.gradient,
-            uploadedAt: 'Just now',
-            videoUrl: videoUrl || undefined,
-        })
 
         setNewVideo({ title: '', streamerId: '', duration: '', isVip: true })
         setVideoFile(null)

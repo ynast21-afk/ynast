@@ -21,6 +21,7 @@ export interface Video {
     uploadedAt: string
     createdAt: string
     videoUrl?: string
+    thumbnailUrl?: string
 }
 
 export const initialStreamers: Streamer[] = [
@@ -39,7 +40,7 @@ export const initialStreamers: Streamer[] = [
 ]
 
 export const initialVideos: Video[] = [
-    { id: '1', title: '2026-02-06_Dance Cover - NewJeans', streamerId: '1', streamerName: 'golaniyuie0', views: '2.8K', likes: '12', duration: '21:36', isVip: true, gradient: 'from-purple-700 to-pink-700', uploadedAt: '1d ago', createdAt: '2026-02-06', videoUrl: 'https://f005.backblazeb2.com/file/yna-backup/test-preview-1.mp4' },
+    { id: '1', title: '2026-02-06_Dance Cover - NewJeans', streamerId: '1', streamerName: 'golaniyuie0', views: '2.8K', likes: '12', duration: '21:36', isVip: true, gradient: 'from-purple-700 to-pink-700', uploadedAt: '1d ago', createdAt: '2026-02-06', videoUrl: 'https://f005.backblazeb2.com/file/yna-backup/test-preview-1.mp4', thumbnailUrl: 'https://f005.backblazeb2.com/file/yna-backup/thumbnails/test-thumbnail-1.jpg' },
     { id: '2', title: '2026-02-06_K-Pop Tutorial Vol.1', streamerId: '2', streamerName: 'm0m099', views: '3.4K', likes: '12', duration: '10:03', isVip: true, gradient: 'from-indigo-700 to-blue-700', uploadedAt: '1d ago', createdAt: '2026-02-06', videoUrl: 'https://f005.backblazeb2.com/file/yna-backup/test-preview-2.mp4' },
     { id: '3', title: '2026-02-05_Freestyle Session', streamerId: '3', streamerName: 'rud9281', views: '2.4K', likes: '13', duration: '44:09', isVip: true, gradient: 'from-cyan-700 to-teal-700', uploadedAt: '1d ago', createdAt: '2026-02-05', videoUrl: 'https://f005.backblazeb2.com/file/yna-backup/test-preview-3.mp4' },
     { id: '4', title: '2026-02-05_aespa Choreography', streamerId: '4', streamerName: 'eunyoung1238', views: '2.8K', likes: '13', duration: '19:08', isVip: true, gradient: 'from-amber-700 to-orange-700', uploadedAt: '1d ago', createdAt: '2026-02-05' },

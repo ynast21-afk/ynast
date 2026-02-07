@@ -12,6 +12,7 @@ interface VideoCardProps {
     isVip?: boolean
     gradient?: string
     videoUrl?: string
+    thumbnailUrl?: string
     uploadedAt?: string
     aspectRatio?: 'video' | 'portrait'
 }
@@ -25,6 +26,7 @@ export default function VideoCard({
     isVip = false,
     gradient,
     videoUrl,
+    thumbnailUrl,
     uploadedAt,
     aspectRatio = 'video'
 }: VideoCardProps) {
@@ -36,6 +38,11 @@ export default function VideoCard({
     const videoSrcWithAuth = videoUrl && videoUrl.includes('backblazeb2.com') && downloadToken
         ? `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
         : videoUrl
+
+    // 썸네일 스타일: URL이 있으면 이미지, 없으면 그라데이션
+    const backgroundStyle = thumbnailUrl
+        ? { backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        : getGradientStyle(displayGradient)
 
     useEffect(() => {
         if (isHovered && videoRef.current) {
@@ -63,12 +70,14 @@ export default function VideoCard({
                 {/* Thumbnail / Preview Area */}
                 {/* Thumbnail / Gradient Background */}
                 <div
-                    className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-500 overflow-hidden`}
-                    style={!videoUrl ? getGradientStyle(displayGradient) : undefined}
+                    className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-500 overflow-hidden bg-black`}
+                    style={backgroundStyle}
                 >
-                    {/* Video Element (Always rendered if valid URL exists) */}
+                    {/* 만약 썸네일 이미지가 로딩되기 전이라면 그라데이션을 보여주기 위한 백업 레이어 */}
+                    <div className="absolute inset-0 -z-10" style={getGradientStyle(displayGradient)} />
+                    {/* Video Element (Hover or no thumbnail fallback) */}
                     {videoUrl && (
-                        <div className="absolute inset-0 z-10 bg-black">
+                        <div className={`absolute inset-0 z-10 transition-opacity duration-300 ${isHovered || !thumbnailUrl ? 'opacity-100' : 'opacity-0'}`}>
                             <video
                                 ref={videoRef}
                                 src={videoSrcWithAuth}
@@ -76,13 +85,13 @@ export default function VideoCard({
                                 loop
                                 playsInline
                                 preload="metadata"
-                                className="w-full h-full object-cover transition-opacity duration-300"
+                                className="w-full h-full object-cover"
                             />
                         </div>
                     )}
 
-                    {/* Gradient Fallback (If no video URL) */}
-                    {!videoUrl && (
+                    {/* Gradient Fallback (Explicit for no video & no thumbnail) */}
+                    {!videoUrl && !thumbnailUrl && (
                         <div className="absolute inset-0 z-0" style={getGradientStyle(displayGradient)} />
                     )}
 
