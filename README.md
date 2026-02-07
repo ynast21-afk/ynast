@@ -30,7 +30,7 @@ Create `.env.local` file:
 
 ```env
 # PayPal
-PAYPAL_API_BASE=https://api-m.sandbox.paypal.com
+PAYPAL_API_BASE=https://api-m.paypal.com
 PAYPAL_CLIENT_ID=your_paypal_client_id
 PAYPAL_CLIENT_SECRET=your_paypal_client_secret
 NEXT_PUBLIC_PAYPAL_CLIENT_ID=your_paypal_client_id
