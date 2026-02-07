@@ -436,6 +436,11 @@ export default function AdminPage() {
                         })
 
                         if (!uploadPartRes.ok) throw new Error(`Failed to upload part ${j + 1}`)
+
+                        // Progress Update (Granular)
+                        const currentFileProgress = (j + 1) / totalParts
+                        const totalProgress = ((i + currentFileProgress) / batchFiles.length) * 100
+                        setBatchProgress(totalProgress)
                     }
 
                     const finishData = new FormData()
@@ -472,7 +477,8 @@ export default function AdminPage() {
 
                 // Add video to list
                 addVideo({
-                    title: file.name.split('.')[0],
+                    // Fix: Correctly handle filenames with multiple dots (remove only the last extension)
+                    title: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
                     streamerId: batchStreamerId,
                     streamerName: streamer.name,
                     duration: '?',
