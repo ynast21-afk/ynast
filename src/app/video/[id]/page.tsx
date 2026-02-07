@@ -89,7 +89,7 @@ export default function VideoPage({ params }: PageProps) {
         'interactionStatistic': {
             '@type': 'InteractionCounter',
             'interactionType': { '@type': 'WatchAction' },
-            'userInteractionCount': parseInt(video.views.replace(/[^0-9]/g, '')) * 1000 || 1000
+            'userInteractionCount': (video.views || 0) * 1000 || 1000
         },
         'regionsAllowed': 'US,KR,JP'
     }

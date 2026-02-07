@@ -26,10 +26,10 @@ export default function VideosPage() {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         }
         if (sort === 'popular') {
-            return parseInt(b.views.replace(/[^0-9]/g, '')) - parseInt(a.views.replace(/[^0-9]/g, ''))
+            return (b.views || 0) - (a.views || 0)
         }
         if (sort === 'liked') {
-            return parseInt(b.likes) - parseInt(a.likes)
+            return (b.likes || 0) - (a.likes || 0)
         }
         return 0
     })
