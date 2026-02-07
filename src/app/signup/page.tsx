@@ -165,7 +165,7 @@ export default function SignupPage() {
                             <button
                                 type="button"
                                 onClick={handleGoogleSignup}
-                                disabled={isLoading}
+                                disabled={isLoading || authLoading}
                                 className="w-full flex items-center justify-center gap-3 py-3.5 bg-white text-black hover:bg-white/90 rounded-xl font-bold transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
                             >
                                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -186,7 +186,7 @@ export default function SignupPage() {
                                         d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.83c.87-2.6 3.3-4.52 6.16-4.52z"
                                     />
                                 </svg>
-                                {isLoading ? 'Please wait...' : 'Sign up with Google'}
+                                {authLoading ? 'Signing up with Google...' : 'Sign up with Google'}
                             </button>
                         </div>
                     </div>
