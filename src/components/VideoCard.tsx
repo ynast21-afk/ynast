@@ -35,9 +35,10 @@ export default function VideoCard({
     const videoRef = useRef<HTMLVideoElement>(null)
     const displayGradient = getValidGradient(gradient)
 
-    const videoSrcWithAuth = videoUrl && videoUrl.includes('backblazeb2.com') && downloadToken
+    // Only prepare the video source if hovered (Lazy Loading) or if we need it for an immediate preview
+    const videoSrcWithAuth = (isHovered || !thumbnailUrl) && videoUrl && videoUrl.includes('backblazeb2.com') && downloadToken
         ? `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
-        : videoUrl
+        : (isHovered || !thumbnailUrl) ? videoUrl : ""
 
     // 썸네일 스타일: URL이 있으면 이미지, 없으면 그라데이션
     const backgroundStyle = thumbnailUrl
