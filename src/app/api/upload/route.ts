@@ -187,6 +187,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             authorizationToken: result.authorizationToken,
             downloadUrl: auth.downloadUrl,
+            bucketName: process.env.B2_BUCKET_NAME || 'yna-backup'
         })
 
     } catch (error) {

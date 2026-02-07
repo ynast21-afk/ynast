@@ -31,14 +31,29 @@ export default function VideoCard({
     aspectRatio = 'video'
 }: VideoCardProps) {
     const [isHovered, setIsHovered] = useState(false)
-    const { downloadToken } = useStreamers()
+    const { downloadToken, activeBucketName } = useStreamers()
     const videoRef = useRef<HTMLVideoElement>(null)
     const displayGradient = getValidGradient(gradient)
 
+    // Helper to fix B2 bucket name in URL if it doesn't match server setting
+    const fixB2Url = (url: string) => {
+        if (!url || !url.includes('backblazeb2.com/file/')) return url
+        const parts = url.split('/')
+        if (parts.length >= 5) {
+            const currentBucket = parts[4]
+            if (currentBucket !== activeBucketName) {
+                parts[4] = activeBucketName
+                return parts.join('/')
+            }
+        }
+        return url
+    }
+
     // Only prepare the video source if hovered (Lazy Loading) or if we need it for an immediate preview
-    const videoSrcWithAuth = (isHovered || !thumbnailUrl) && videoUrl && videoUrl.includes('backblazeb2.com') && downloadToken
-        ? `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
-        : (isHovered || !thumbnailUrl) ? videoUrl : ""
+    const rawVideoUrl = fixB2Url(videoUrl || "")
+    const videoSrcWithAuth = (isHovered || !thumbnailUrl) && rawVideoUrl && rawVideoUrl.includes('backblazeb2.com') && downloadToken
+        ? `${rawVideoUrl}${rawVideoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
+        : (isHovered || !thumbnailUrl) ? rawVideoUrl : ""
 
     // 썸네일 스타일: URL이 있으면 이미지, 없으면 그라데이션
     const backgroundStyle = thumbnailUrl
