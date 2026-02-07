@@ -6,14 +6,32 @@ import Footer from '@/components/Footer'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useStreamers } from '@/contexts/StreamerContext'
+import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { Suspense } from 'react'
 
-export default function MyPage() {
+// Need to wrap in Suspense or handle client-side because of useSearchParams in Next.js
+function MyPageContent() {
     const { user } = useAuth()
     const { videos, streamers } = useStreamers()
+    const searchParams = useSearchParams()
+
     const [likedVideos, setLikedVideos] = useState<any[]>([])
     const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
     const [followedStreamers, setFollowedStreamers] = useState<any[]>([])
-    const [activeTab, setActiveTab] = useState<'liked' | 'history' | 'following'>('liked')
+    const [watchHistory, setWatchHistory] = useState<any[]>([])
+    const [downloads, setDownloads] = useState<any[]>([])
+
+    const [activeTab, setActiveTab] = useState<'liked' | 'purchases' | 'following' | 'history' | 'downloads'>('liked')
+
+    useEffect(() => {
+        const tab = searchParams.get('tab')
+        if (tab === 'history') setActiveTab('history')
+        else if (tab === 'downloads') setActiveTab('downloads')
+        else if (tab === 'purchases') setActiveTab('purchases')
+        else if (tab === 'following') setActiveTab('following')
+        else setActiveTab('liked')
+    }, [searchParams])
 
     useEffect(() => {
         if (!user) return
@@ -29,17 +47,6 @@ export default function MyPage() {
         const savedHistory = localStorage.getItem('kstreamer_purchase_history')
         if (savedHistory) {
             setPurchaseHistory(JSON.parse(savedHistory))
-        } else if (user.membership === 'vip') {
-            // Mock history if they are VIP but history is empty (legacy test data)
-            const mockHistory = [{
-                id: 'PAYID-MOCK123',
-                amount: '19.99',
-                date: new Date().toISOString(),
-                status: 'COMPLETED',
-                plan: 'VIP Membership'
-            }]
-            setPurchaseHistory(mockHistory)
-            localStorage.setItem('kstreamer_purchase_history', JSON.stringify(mockHistory))
         }
 
         // Load followed streamers
@@ -48,6 +55,12 @@ export default function MyPage() {
             const followedIds = JSON.parse(savedFollows)
             setFollowedStreamers(streamers.filter(s => followedIds.includes(s.id)))
         }
+
+        // Mock Watch History
+        setWatchHistory(videos.slice(0, 3))
+
+        // Mock Downloads
+        setDownloads(videos.slice(4, 6))
 
     }, [user, videos, streamers])
 
@@ -130,8 +143,22 @@ export default function MyPage() {
                         onClick={() => setActiveTab('history')}
                         className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'history' ? 'text-accent-primary' : 'text-text-secondary'}`}
                     >
-                        💳 결제 내역
+                        📺 시청 기록
                         {activeTab === 'history' && <div className="absolute bottom-0 left-0 w-full h-1 bg-accent-primary rounded-full"></div>}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('downloads')}
+                        className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'downloads' ? 'text-accent-primary' : 'text-text-secondary'}`}
+                    >
+                        📥 다운로드
+                        {activeTab === 'downloads' && <div className="absolute bottom-0 left-0 w-full h-1 bg-accent-primary rounded-full"></div>}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('purchases')}
+                        className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'purchases' ? 'text-accent-primary' : 'text-text-secondary'}`}
+                    >
+                        💳 결제 내역
+                        {activeTab === 'purchases' && <div className="absolute bottom-0 left-0 w-full h-1 bg-accent-primary rounded-full"></div>}
                     </button>
                 </div>
 
@@ -186,6 +213,42 @@ export default function MyPage() {
                 )}
 
                 {activeTab === 'history' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {watchHistory.map((video) => (
+                            <Link key={video.id} href={`/video/${video.id}`} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 hover:border-accent-primary/50 transition-all">
+                                <div className={`aspect-video relative bg-gradient-to-br ${video.gradient}`}>
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="bg-white/10 backdrop-blur-md p-3 rounded-full text-white">▶ 다시보기</span>
+                                    </div>
+                                    <div className="absolute bottom-0 left-0 h-1 bg-accent-primary" style={{ width: '70%' }}></div>
+                                </div>
+                                <div className="p-4">
+                                    <h3 className="font-semibold line-clamp-1 group-hover:text-accent-primary transition-colors">{video.title}</h3>
+                                    <p className="text-text-secondary text-sm mt-1">70% 시청함</p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'downloads' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {downloads.map((video) => (
+                            <div key={video.id} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 p-4 flex gap-4 items-center">
+                                <div className={`w-20 aspect-video rounded-lg flex-shrink-0 bg-gradient-to-br ${video.gradient}`}></div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-sm line-clamp-1">{video.title}</h3>
+                                    <p className="text-text-tertiary text-xs">1.2 GB • MP4</p>
+                                </div>
+                                <button className="p-2 bg-white/5 hover:bg-accent-primary hover:text-black rounded-lg transition-all">
+                                    ⬇️
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'purchases' && (
                     <div className="bg-bg-secondary rounded-2xl border border-white/5 overflow-hidden">
                         {purchaseHistory.length === 0 ? (
                             <div className="py-20 text-center">
@@ -227,5 +290,13 @@ export default function MyPage() {
 
             <Footer />
         </div>
+    )
+}
+
+export default function MyPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-bg-primary flex items-center justify-center text-accent-primary">로딩 중...</div>}>
+            <MyPageContent />
+        </Suspense>
     )
 }

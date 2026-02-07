@@ -56,10 +56,10 @@ export default function Header() {
                         <Link href="/actors" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             {t('actors')}
                         </Link>
-                        <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                        <Link href="/contact" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             {t('contact')}
                         </Link>
-                        <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
+                        <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             Playlists
                         </Link>
                     </nav>
@@ -108,16 +108,16 @@ export default function Header() {
                                                     )}
                                                 </div>
                                                 <div className="py-2">
-                                                    <Link href="/profile" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
+                                                    <Link href="/mypage" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
                                                         👤 Profile
                                                     </Link>
                                                     <Link href="/membership" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
                                                         ⭐ Upgrade Plan
                                                     </Link>
-                                                    <Link href="/history" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
+                                                    <Link href="/mypage?tab=history" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
                                                         📺 Watch History
                                                     </Link>
-                                                    <Link href="/downloads" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
+                                                    <Link href="/mypage?tab=downloads" className="block px-4 py-2 text-text-secondary hover:bg-white/5 hover:text-white">
                                                         📥 Downloads
                                                     </Link>
                                                 </div>
@@ -167,22 +167,22 @@ export default function Header() {
 
                 {/* Sub Navigation */}
                 <div className="hidden md:flex gap-6 px-10 py-3 bg-bg-secondary border-b border-white/5">
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         🎰 Roulette
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         🧩 Extension
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         📱 Shorts
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         📤 Submit Video
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         🏷️ Tags
                     </Link>
-                    <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
+                    <Link href="/coming-soon" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
                         ⋯ More
                     </Link>
                     <Link href="/contact" className="text-text-secondary hover:text-accent-primary text-sm flex items-center gap-1">
