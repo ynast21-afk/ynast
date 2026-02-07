@@ -60,6 +60,32 @@ async function getUploadUrl(auth: B2AuthResponse): Promise<B2UploadUrlResponse> 
     return response.json()
 }
 
+// Helper to determine the real bucket name
+async function resolveBucketName(auth: B2AuthResponse): Promise<string> {
+    // 1. Try to get from auth response (present for restricted keys)
+    if (auth.allowed?.bucketName) {
+        return auth.allowed.bucketName
+    }
+
+    // 2. Try to list buckets (if master key)
+    try {
+        const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
+            method: 'POST',
+            headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
+        })
+        const bucketData = await bucketRes.json()
+        if (bucketData.buckets?.[0]?.bucketName) {
+            return bucketData.buckets[0].bucketName
+        }
+    } catch (e) {
+        console.error('Failed to resolve bucket name via list_buckets:', e)
+    }
+
+    // 3. Fallback to Env Var
+    return process.env.B2_BUCKET_NAME || 'yna-backup'
+}
+
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
@@ -114,7 +140,7 @@ export async function POST(request: NextRequest) {
             }
 
             const result = await response.json()
-            const bucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
+            const bucketName = await resolveBucketName(auth)
             const downloadUrl = `${auth.downloadUrl}/file/${bucketName}/${result.fileName}`
 
             return NextResponse.json({ ...result, downloadUrl })
@@ -144,122 +170,67 @@ export async function GET(request: NextRequest) {
 
         if (type === 'upload') {
             const uploadUrl = await getUploadUrl(auth)
-
-            // Fetch real bucket name to ensure consistency
-            let realBucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
-            try {
-                const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
-                    method: 'POST',
-                    headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
-                })
-                const bucketData = await bucketRes.json()
-                if (bucketData.buckets?.[0]?.bucketName) {
-                    realBucketName = bucketData.buckets[0].bucketName
-                }
-            } catch (e) {
-                console.error('Failed to fetch real bucket name:', e)
-            }
+            const realBucketName = await resolveBucketName(auth)
 
             return NextResponse.json({
-                // Fetch real bucket name - Priority: 1. Auth Response 2. List API 3. Env Var
-                let realBucketName = auth.allowed?.bucketName
-            
-            if(!realBucketName) {
-                    try {
-                        const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
-                            method: 'POST',
-                            headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
-                        })
-                        const bucketData = await bucketRes.json()
-                        if (bucketData.buckets?.[0]?.bucketName) {
-                            realBucketName = bucketData.buckets[0].bucketName
-                        }
-                    } catch (e) {
-                        console.error('Failed to fetch real bucket name:', e)
-                    }
-                }
-
-            // Final fallback
-            if(!realBucketName) {
-                    realBucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
-                }
-
-            console.log('[API Debug] Determined Bucket Name:', realBucketName)
-
-            return NextResponse.json({
-                    uploadUrl: uploadUrl.uploadUrl,
-                    authorizationToken: uploadUrl.authorizationToken,
-                    downloadUrl: auth.downloadUrl,
-                    bucketName: realBucketName
-                })
-            }
+                uploadUrl: uploadUrl.uploadUrl,
+                authorizationToken: uploadUrl.authorizationToken,
+                downloadUrl: auth.downloadUrl,
+                bucketName: realBucketName
+            })
+        }
 
         if (type === 'upload_part') {
-                const fileId = searchParams.get('fileId')
-                if (!fileId) return NextResponse.json({ error: 'File ID required' }, { status: 400 })
+            const fileId = searchParams.get('fileId')
+            if (!fileId) return NextResponse.json({ error: 'File ID required' }, { status: 400 })
 
-                const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': auth.authorizationToken,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ fileId }),
-                })
-
-                if (!response.ok) throw new Error('Failed to get upload part URL')
-                return NextResponse.json(await response.json())
-            }
-
-            if (!fileId && type !== 'download') {
-                return NextResponse.json({ error: 'File ID required' }, { status: 400 })
-            }
-
-            // Get download authorization for private files
-            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_download_authorization`, {
+            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
                 method: 'POST',
                 headers: {
                     'Authorization': auth.authorizationToken,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    bucketId: B2_BUCKET_ID,
-                    fileNamePrefix: '',
-                    validDurationInSeconds: duration,
-                }),
+                body: JSON.stringify({ fileId }),
             })
 
-            const result = await response.json()
-
-            // Fetch real bucket name for download/streaming too
-            let realBucketName = process.env.B2_BUCKET_NAME || 'yna-backup'
-            try {
-                const bucketRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_buckets`, {
-                    method: 'POST',
-                    headers: { 'Authorization': auth.authorizationToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountId: auth.accountId, bucketId: B2_BUCKET_ID }),
-                })
-                const bucketData = await bucketRes.json()
-                if (bucketData.buckets?.[0]?.bucketName) {
-                    realBucketName = bucketData.buckets[0].bucketName
-                }
-            } catch (e) {
-                console.error('Failed to fetch real bucket name:', e)
-            }
-
-            return NextResponse.json({
-                authorizationToken: result.authorizationToken,
-                downloadUrl: auth.downloadUrl,
-                bucketName: realBucketName
-            })
-
-        } catch (error) {
-            console.error('Get URL error:', error)
-            return NextResponse.json(
-                { error: 'Failed to get download URL' },
-                { status: 500 }
-            )
+            if (!response.ok) throw new Error('Failed to get upload part URL')
+            return NextResponse.json(await response.json())
         }
+
+        if (!fileId && type !== 'download') {
+            return NextResponse.json({ error: 'File ID required' }, { status: 400 })
+        }
+
+        // Get download authorization for private files
+        const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_download_authorization`, {
+            method: 'POST',
+            headers: {
+                'Authorization': auth.authorizationToken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                bucketId: B2_BUCKET_ID,
+                fileNamePrefix: '',
+                validDurationInSeconds: duration,
+            }),
+        })
+
+        const result = await response.json()
+        const realBucketName = await resolveBucketName(auth)
+
+        console.log('[API Debug] Bucket Name Resolved:', realBucketName)
+
+        return NextResponse.json({
+            authorizationToken: result.authorizationToken,
+            downloadUrl: auth.downloadUrl,
+            bucketName: realBucketName
+        })
+
+    } catch (error) {
+        console.error('Get URL error:', error)
+        return NextResponse.json(
+            { error: 'Failed to get download URL' },
+            { status: 500 }
+        )
     }
+}
