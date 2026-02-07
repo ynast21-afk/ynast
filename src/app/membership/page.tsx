@@ -29,8 +29,8 @@ const faqs = [
     },
 ]
 
-// IMPORTANT: Replace this with your actual PayPal Sandbox Client ID
-const PAYPAL_CLIENT_ID = "test" // "test" uses a default sandbox account, but strictly rate limited
+// PayPal Live Client ID - 환경변수 또는 직접 설정
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "AasSptGjVa9znflRAZO0ztjSGMOWzEtHULqAaJPKMPXZ2-jJ52avIVoxrckuWQNAY9p6v9BbdIEvMYCZ"
 
 export default function MembershipPage() {
     const { settings } = useSiteSettings()
