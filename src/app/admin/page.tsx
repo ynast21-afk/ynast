@@ -251,6 +251,7 @@ export default function AdminPage() {
         { id: 'users', icon: '👤', label: '사용자' },
         { id: 'pricing', icon: '💰', label: '멤버십 가격' },
         { id: 'navigation', icon: '🔗', label: '메뉴/링크' },
+        { id: 'seo', icon: '🔍', label: 'SEO/마케팅' },
         { id: 'settings', icon: '⚙️', label: '사이트 설정' },
     ]
 
@@ -1053,6 +1054,88 @@ export default function AdminPage() {
                                         >
                                             설정 저장하기
                                         </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ========== SEO 탭 ========== */}
+                            {activeTab === 'seo' && (
+                                <div>
+                                    <h1 className="text-2xl font-bold mb-6">🔍 SEO & 마케팅 설정</h1>
+
+                                    <div className="space-y-6">
+                                        <div className="bg-bg-primary rounded-xl p-6 border border-white/10">
+                                            <h3 className="font-semibold mb-4 text-accent-primary">📄 검색 엔진 파일</h3>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">Sitemap URL</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value="https://kdance.xyz/sitemap.xml"
+                                                            className="flex-1 px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText('https://kdance.xyz/sitemap.xml')
+                                                                alert('복사되었습니다!')
+                                                            }}
+                                                            className="px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
+                                                        >
+                                                            복사
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">Robots.txt URL</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value="https://kdance.xyz/robots.txt"
+                                                            className="flex-1 px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText('https://kdance.xyz/robots.txt')
+                                                                alert('복사되었습니다!')
+                                                            }}
+                                                            className="px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
+                                                        >
+                                                            복사
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-bg-primary rounded-xl p-6 border border-white/10">
+                                            <h3 className="font-semibold mb-4 text-accent-primary">✅ 소유권 확인</h3>
+                                            <p className="text-sm text-text-secondary mb-4">
+                                                Google/Naver에서 발급받은 확인 코드를 알려주시면 제가 즉시 반영해 드립니다.
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">Google Verification ID</label>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value="OoRNUH40e5AbJhU5TXIq1_LtDkDwIL4jhST76dBAoq8"
+                                                        className="w-full px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-text-secondary mb-2">Naver Verification ID</label>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value="naver_verification_code_placeholder"
+                                                        className="w-full px-4 py-4 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
