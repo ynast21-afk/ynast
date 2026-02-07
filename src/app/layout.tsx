@@ -73,21 +73,17 @@ export const metadata: Metadata = {
 }
 
 import { NextIntlClientProvider } from 'next-intl'
-import { cookies } from 'next/headers'
+import { getMessages, getLocale } from 'next-intl/server'
 
-export default function RootLayout({
+export const dynamic = 'force-dynamic'
+
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
-    const cookieStore = cookies()
-    const locale = cookieStore.get('NEXT_LOCALE')?.value || 'ko'
-    let messages
-    try {
-        messages = require(`../../messages/${locale}.json`)
-    } catch (error) {
-        messages = require('../../messages/ko.json')
-    }
+    const locale = await getLocale()
+    const messages = await getMessages()
 
     return (
         <html lang={locale} className="dark">
