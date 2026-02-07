@@ -45,7 +45,7 @@ const colorPresets = [
 ]
 
 export default function AdminPage() {
-    console.log('--- ADMIN PAGE VERSION 1.7 (CORS HARDENED) ---')
+    console.log('--- ADMIN PAGE VERSION 2.1 (FINAL CORS FIX) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
@@ -991,7 +991,7 @@ export default function AdminPage() {
                                                     disabled={isUploading}
                                                     className={`gradient-button text-black rounded-lg font-semibold ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 >
-                                                    {isUploading ? '업로드 중...' : '영상 추가 (v1.7)'}
+                                                    {isUploading ? '업로드 중...' : '영상 추가 (v2.1)'}
                                                 </button>
                                             </div>
                                         )}

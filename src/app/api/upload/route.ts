@@ -6,6 +6,7 @@ const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY
 const B2_BUCKET_ID = process.env.B2_BUCKET_ID
 
 interface B2AuthResponse {
+    accountId: string
     authorizationToken: string
     apiUrl: string
     downloadUrl: string
@@ -176,6 +177,7 @@ export async function GET(request: NextRequest) {
                 method: 'POST',
                 headers: { 'Authorization': auth.authorizationToken },
                 body: JSON.stringify({
+                    accountId: auth.accountId,
                     bucketId: B2_BUCKET_ID,
                     corsRules: corsRules
                 })
