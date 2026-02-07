@@ -12,7 +12,7 @@ export default function SignupPage() {
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const { signup, loginWithGoogle } = useAuth()
+    const { signup, loginWithGoogle, isLoading: authLoading } = useAuth()
     const router = useRouter()
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -144,7 +144,7 @@ export default function SignupPage() {
 
                         <button
                             type="submit"
-                            disabled={isLoading}
+                            disabled={isLoading || authLoading}
                             className="w-full py-3 gradient-button text-black font-semibold rounded-xl transition-all disabled:opacity-50"
                         >
                             {isLoading ? 'Creating account...' : 'Create Account'}

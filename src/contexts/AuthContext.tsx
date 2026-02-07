@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const google = window.google
 
             if (!google) {
-                console.error('Google SDK not loaded')
+                alert('구글 로그인 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요. (또는 광고 차단기를 확인해주세요)')
                 setIsLoading(false)
                 resolve(false)
                 return
