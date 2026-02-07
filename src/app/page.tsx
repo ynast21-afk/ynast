@@ -2,6 +2,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import VideoCard from '@/components/VideoCard'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 
 // Sample video data
 const videos = [
@@ -20,6 +21,8 @@ const videos = [
 ]
 
 export default function HomePage() {
+    const t = useTranslations('membership')
+    const tCommon = useTranslations('common')
     return (
         <div className="min-h-screen bg-bg-primary">
             <Header />
@@ -48,9 +51,9 @@ export default function HomePage() {
 
                     {/* Hero Info */}
                     <div className="flex-1 p-4">
-                        <h1 className="text-3xl lg:text-4xl font-bold mb-4">Unlock Premium Content</h1>
+                        <h1 className="text-3xl lg:text-4xl font-bold mb-4">{t('title')}</h1>
                         <p className="text-text-secondary mb-6">
-                            Access exclusive videos from top creators worldwide
+                            {t('subtitle')}
                         </p>
 
                         {/* Stats */}
@@ -73,7 +76,7 @@ export default function HomePage() {
                             href="/membership"
                             className="inline-block gradient-button text-black px-10 py-4 rounded-full font-bold text-lg animate-pulse-glow"
                         >
-                            Get VIP Access
+                            {t('getStarted')}
                         </Link>
                     </div>
                 </div>
@@ -84,7 +87,7 @@ export default function HomePage() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 max-w-7xl mx-auto">
                     <div className="flex gap-3">
                         <button className="px-5 py-2 bg-accent-primary text-black rounded-full text-sm font-medium">
-                            All Videos
+                            {tCommon('videos')}
                         </button>
                         <button className="px-5 py-2 bg-bg-secondary rounded-full text-sm hover:bg-bg-tertiary transition-colors">
                             Trending

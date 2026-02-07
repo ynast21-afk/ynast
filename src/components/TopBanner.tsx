@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
+import { useTranslations } from 'next-intl'
 
 export default function TopBanner() {
     const { settings } = useSiteSettings()
     const { banner } = settings
     const [isDismissed, setIsDismissed] = useState(false)
+    const t = useTranslations('common')
 
     useEffect(() => {
         // 세션 스토리지에서 배너 닫힘 상태 확인
