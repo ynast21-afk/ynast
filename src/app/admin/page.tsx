@@ -108,8 +108,8 @@ export default function AdminPage() {
     }
 
     // Helper for B2 SHA1
-    const calculateSHA1 = async (data: ArrayBuffer | File): Promise<string> => {
-        const arrayBuffer = data instanceof File ? await data.arrayBuffer() : data
+    const calculateSHA1 = async (data: ArrayBuffer | Blob): Promise<string> => {
+        const arrayBuffer = data instanceof Blob ? await data.arrayBuffer() : data
         const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer)
         const hashArray = Array.from(new Uint8Array(hashBuffer))
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
