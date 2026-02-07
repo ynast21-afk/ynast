@@ -41,3 +41,46 @@ export const getValidGradient = (gradient?: string): string => {
 
     return gradientMap[gradient!] || gradient!;
 };
+
+// Tailwind 500 color palette for inline styles
+const colors: Record<string, string> = {
+    pink: '#ec4899',
+    purple: '#a855f7',
+    blue: '#3b82f6',
+    indigo: '#6366f1',
+    cyan: '#06b6d4',
+    teal: '#14b8a6',
+    amber: '#f59e0b',
+    orange: '#f97316',
+    rose: '#f43f5e',
+    violet: '#8b5cf6',
+    emerald: '#10b981',
+    green: '#22c55e',
+    slate: '#64748b',
+    gray: '#6b7280',
+    red: '#ef4444',
+    fuchsia: '#d946ef',
+    sky: '#0ea5e9',
+    lime: '#84cc16',
+    yellow: '#eab308'
+};
+
+/**
+ * Returns a React CSSProperties object with a linear-gradient background.
+ * Bypasses Tailwind classes to guarantee visibility.
+ */
+export const getGradientStyle = (gradientClass?: string): React.CSSProperties => {
+    if (!gradientClass) return { background: 'linear-gradient(135deg, #ec4899, #a855f7)' };
+
+    // Parse "from-pink-500 to-purple-500"
+    // We assume the classes have been normalized to -500 by getValidGradient
+    const fromMatch = gradientClass.match(/from-([a-z]+)-/);
+    const toMatch = gradientClass.match(/to-([a-z]+)-/);
+
+    const fromColor = fromMatch ? colors[fromMatch[1]] : '#ec4899'; // default pink
+    const toColor = toMatch ? colors[toMatch[1]] : '#a855f7';     // default purple
+
+    return {
+        background: `linear-gradient(135deg, ${fromColor}, ${toColor})`
+    };
+};

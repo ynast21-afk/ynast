@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
-import { getValidGradient } from '@/utils/ui'
+import { getValidGradient, getGradientStyle } from '@/utils/ui'
 import { useStreamers } from '@/contexts/StreamerContext'
 
 interface VideoCardProps {
@@ -61,7 +61,10 @@ export default function VideoCard({
                 onMouseLeave={() => setIsHovered(false)}
             >
                 {/* Thumbnail / Preview Area */}
-                <div className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} bg-gradient-to-br ${displayGradient} transition-all duration-500 overflow-hidden`}>
+                <div
+                    className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-500 overflow-hidden`}
+                    style={getGradientStyle(displayGradient)}
+                >
 
                     {/* VIP Badge */}
                     {isVip && (
