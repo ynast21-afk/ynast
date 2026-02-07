@@ -106,8 +106,8 @@ export default function AdminPage() {
     }
 
     // Helper for B2 SHA1
-    const calculateSHA1 = async (file: File): Promise<string> => {
-        const arrayBuffer = await file.arrayBuffer()
+    const calculateSHA1 = async (data: ArrayBuffer | File): Promise<string> => {
+        const arrayBuffer = data instanceof File ? await data.arrayBuffer() : data
         const hashBuffer = await crypto.subtle.digest('SHA-1', arrayBuffer)
         const hashArray = Array.from(new Uint8Array(hashBuffer))
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
@@ -138,41 +138,94 @@ export default function AdminPage() {
         // 파일이 선택된 경우 업로드 진행
         if (videoFile) {
             setIsUploading(true)
-            setUploadProgress(5) // 시작 표시
+            setUploadProgress(1)
 
             try {
-                // 1. Get B2 upload credentials
-                const credsRes = await fetch('/api/upload?type=upload')
-                if (!credsRes.ok) throw new Error('Failed to get B2 credentials')
-                const creds = await credsRes.json()
+                const CHUNK_SIZE = 50 * 1024 * 1024 // 50MB
+                const isLargeFile = videoFile.size > CHUNK_SIZE * 2
 
-                // 2. Calculate SHA1
-                setUploadProgress(15)
-                const sha1 = await calculateSHA1(videoFile)
+                if (isLargeFile) {
+                    // --- Multi-part Upload Flow ---
+                    const formData = new FormData()
+                    formData.append('action', 'start_large_file')
+                    formData.append('fileName', videoFile.name)
+                    formData.append('contentType', videoFile.type)
 
-                // 3. Upload directly to B2
-                setUploadProgress(25)
-                const fileName = `videos/${Date.now()}_${videoFile.name}`
+                    const startRes = await fetch('/api/upload', { method: 'POST', body: formData })
+                    if (!startRes.ok) throw new Error('Failed to start large file')
+                    const { fileId } = await startRes.json()
 
-                const uploadRes = await fetch(creds.uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': creds.authorizationToken,
-                        'X-Bz-File-Name': encodeURIComponent(fileName),
-                        'Content-Type': videoFile.type || 'application/octet-stream',
-                        'Content-Length': videoFile.size.toString(),
-                        'X-Bz-Content-Sha1': sha1,
-                    },
-                    body: videoFile,
-                })
+                    const partSha1Array: string[] = []
+                    const totalParts = Math.ceil(videoFile.size / CHUNK_SIZE)
 
-                if (!uploadRes.ok) throw new Error('B2 upload failed')
+                    for (let i = 0; i < totalParts; i++) {
+                        const start = i * CHUNK_SIZE
+                        const end = Math.min(start + CHUNK_SIZE, videoFile.size)
+                        const chunk = videoFile.slice(start, end)
+                        const chunkBuffer = await chunk.arrayBuffer()
+                        const sha1 = await calculateSHA1(chunkBuffer)
+                        partSha1Array.push(sha1)
 
-                videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
+                        // Get upload URL for this part
+                        const partUrlRes = await fetch(`/api/upload?type=upload_part&fileId=${fileId}`)
+                        if (!partUrlRes.ok) throw new Error('Failed to get part upload URL')
+                        const { uploadUrl, authorizationToken } = await partUrlRes.json()
+
+                        // Upload part
+                        const uploadPartRes = await fetch(uploadUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': authorizationToken,
+                                'X-Bz-Part-Number': (i + 1).toString(),
+                                'Content-Length': chunk.size.toString(),
+                                'X-Bz-Content-Sha1': sha1,
+                            },
+                            body: chunk,
+                        })
+
+                        if (!uploadPartRes.ok) throw new Error(`Failed to upload part ${i + 1}`)
+                        setUploadProgress(Math.floor(((i + 1) / totalParts) * 90))
+                    }
+
+                    // Finish large file
+                    const finishData = new FormData()
+                    finishData.append('action', 'finish_large_file')
+                    finishData.append('fileId', fileId)
+                    finishData.append('partSha1Array', JSON.stringify(partSha1Array))
+
+                    const finishRes = await fetch('/api/upload', { method: 'POST', body: finishData })
+                    if (!finishRes.ok) throw new Error('Failed to finish large file')
+                    const finishResult = await finishRes.json()
+                    videoUrl = finishResult.downloadUrl
+                } else {
+                    // --- Single Direct Upload Flow ---
+                    const credsRes = await fetch('/api/upload?type=upload')
+                    if (!credsRes.ok) throw new Error('Failed to get B2 credentials')
+                    const creds = await credsRes.json()
+
+                    const sha1 = await calculateSHA1(videoFile)
+                    const fileName = `videos/${Date.now()}_${videoFile.name}`
+
+                    const uploadRes = await fetch(creds.uploadUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': creds.authorizationToken,
+                            'X-Bz-File-Name': encodeURIComponent(fileName),
+                            'Content-Type': videoFile.type || 'application/octet-stream',
+                            'Content-Length': videoFile.size.toString(),
+                            'X-Bz-Content-Sha1': sha1,
+                        },
+                        body: videoFile,
+                    })
+
+                    if (!uploadRes.ok) throw new Error('B2 upload failed')
+                    videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
+                }
+
                 setUploadProgress(100)
             } catch (error) {
                 console.error('Upload failed:', error)
-                alert('비디오 업로드에 실패했습니다. (Direct B2 Upload Error)')
+                alert('비디오 업로드에 실패했습니다. (B2 Upload Error)')
                 setIsUploading(false)
                 setUploadProgress(0)
                 return
@@ -219,48 +272,96 @@ export default function AdminPage() {
         for (let i = 0; i < batchFiles.length; i++) {
             setBatchCurrentIndex(i)
             const file = batchFiles[i]
+            let downloadUrl = ''
 
             try {
-                // 1. Get B2 upload credentials per file or reuse? B2 tokens are valid for a while.
-                // Reusing tokens for now for efficiency, but maybe refresh if many files.
-                const credsRes = await fetch('/api/upload?type=upload')
-                if (!credsRes.ok) throw new Error('Failed to get B2 credentials')
-                const creds = await credsRes.json()
+                const CHUNK_SIZE = 50 * 1024 * 1024 // 50MB
+                const isLargeFile = file.size > CHUNK_SIZE * 2
 
-                // 2. Calculate SHA1
-                const sha1 = await calculateSHA1(file)
+                if (isLargeFile) {
+                    // --- Multi-part Upload Flow ---
+                    const formData = new FormData()
+                    formData.append('action', 'start_large_file')
+                    formData.append('fileName', file.name)
+                    formData.append('contentType', file.type)
 
-                // 3. Upload directly to B2
-                const fileName = `videos/${Date.now()}_${file.name}`
+                    const startRes = await fetch('/api/upload', { method: 'POST', body: formData })
+                    if (!startRes.ok) throw new Error('Failed to start large file')
+                    const { fileId } = await startRes.json()
 
-                const uploadRes = await fetch(creds.uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': creds.authorizationToken,
-                        'X-Bz-File-Name': encodeURIComponent(fileName),
-                        'Content-Type': file.type || 'application/octet-stream',
-                        'Content-Length': file.size.toString(),
-                        'X-Bz-Content-Sha1': sha1,
-                    },
-                    body: file,
-                })
+                    const partSha1Array: string[] = []
+                    const totalParts = Math.ceil(file.size / CHUNK_SIZE)
 
-                if (!uploadRes.ok) throw new Error(`B2 upload failed for ${file.name}`)
+                    for (let j = 0; j < totalParts; j++) {
+                        const start = j * CHUNK_SIZE
+                        const end = Math.min(start + CHUNK_SIZE, file.size)
+                        const chunk = file.slice(start, end)
+                        const chunkBuffer = await chunk.arrayBuffer()
+                        const sha1 = await calculateSHA1(chunkBuffer)
+                        partSha1Array.push(sha1)
 
-                const videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
+                        const partUrlRes = await fetch(`/api/upload?type=upload_part&fileId=${fileId}`)
+                        if (!partUrlRes.ok) throw new Error('Failed to get part upload URL')
+                        const { uploadUrl, authorizationToken } = await partUrlRes.json()
+
+                        const uploadPartRes = await fetch(uploadUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': authorizationToken,
+                                'X-Bz-Part-Number': (j + 1).toString(),
+                                'Content-Length': chunk.size.toString(),
+                                'X-Bz-Content-Sha1': sha1,
+                            },
+                            body: chunk,
+                        })
+
+                        if (!uploadPartRes.ok) throw new Error(`Failed to upload part ${j + 1}`)
+                    }
+
+                    const finishData = new FormData()
+                    finishData.append('action', 'finish_large_file')
+                    finishData.append('fileId', fileId)
+                    finishData.append('partSha1Array', JSON.stringify(partSha1Array))
+
+                    const finishRes = await fetch('/api/upload', { method: 'POST', body: finishData })
+                    if (!finishRes.ok) throw new Error('Failed to finish large file')
+                    const finishResult = await finishRes.json()
+                    downloadUrl = finishResult.downloadUrl
+                } else {
+                    // --- Single Direct Upload Flow ---
+                    const credsRes = await fetch('/api/upload?type=upload')
+                    const creds = await credsRes.json()
+                    const sha1 = await calculateSHA1(file)
+                    const fileName = `videos/${Date.now()}_${file.name}`
+
+                    const uploadRes = await fetch(creds.uploadUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': creds.authorizationToken,
+                            'X-Bz-File-Name': encodeURIComponent(fileName),
+                            'Content-Type': file.type || 'application/octet-stream',
+                            'Content-Length': file.size.toString(),
+                            'X-Bz-Content-Sha1': sha1,
+                        },
+                        body: file,
+                    })
+
+                    if (!uploadRes.ok) throw new Error('B2 upload failed')
+                    downloadUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
+                }
 
                 // Add video to list
                 addVideo({
-                    title: file.name.split('.')[0], // Use filename as default title
+                    title: file.name.split('.')[0],
                     streamerId: batchStreamerId,
                     streamerName: streamer.name,
-                    duration: '?', // Unknown for batch
+                    duration: '?',
                     isVip: true,
                     views: '0',
                     likes: '0',
                     gradient: streamer.gradient,
                     uploadedAt: 'Just now',
-                    videoUrl: videoUrl,
+                    videoUrl: downloadUrl,
                 })
 
                 setBatchProgress(((i + 1) / batchFiles.length) * 100)

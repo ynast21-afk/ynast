@@ -57,25 +57,75 @@ async function getUploadUrl(auth: B2AuthResponse): Promise<B2UploadUrlResponse> 
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
-        const file = formData.get('file') as File
+        const action = formData.get('action') as string
         const folder = formData.get('folder') as string || 'videos'
-
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-        }
 
         // Authorize with B2
         const auth = await authorizeB2()
+
+        if (action === 'start_large_file') {
+            const fileName = formData.get('fileName') as string
+            const contentType = formData.get('contentType') as string
+
+            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_start_large_file`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': auth.authorizationToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    bucketId: B2_BUCKET_ID,
+                    fileName: `${folder}/${fileName}`,
+                    contentType: contentType || 'application/octet-stream',
+                }),
+            })
+
+            if (!response.ok) throw new Error('Failed to start large file')
+            return NextResponse.json(await response.json())
+        }
+
+        if (action === 'finish_large_file') {
+            const fileId = formData.get('fileId') as string
+            const partSha1Array = JSON.parse(formData.get('partSha1Array') as string)
+
+            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_finish_large_file`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': auth.authorizationToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fileId,
+                    partSha1Array,
+                }),
+            })
+
+            if (!response.ok) {
+                const err = await response.text()
+                console.error('Finish large file error:', err)
+                throw new Error('Failed to finish large file')
+            }
+
+            const result = await response.json()
+            const downloadUrl = `${auth.downloadUrl}/file/${process.env.B2_BUCKET_NAME}/${result.fileName}`
+
+            return NextResponse.json({ ...result, downloadUrl })
+        }
+
+        const file = formData.get('file') as File
+        if (!file) {
+            return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+        }
 
         // Get upload URL
         const uploadUrl = await getUploadUrl(auth)
 
         // Read file content
         const arrayBuffer = await file.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        const uint8Array = new Uint8Array(arrayBuffer)
 
         // Calculate SHA1 hash
-        const sha1 = crypto.createHash('sha1').update(buffer).digest('hex')
+        const sha1 = crypto.createHash('sha1').update(uint8Array).digest('hex')
 
         // Generate unique filename
         const timestamp = Date.now()
@@ -89,10 +139,9 @@ export async function POST(request: NextRequest) {
                 'Authorization': uploadUrl.authorizationToken,
                 'X-Bz-File-Name': encodeURIComponent(fileName),
                 'Content-Type': file.type || 'application/octet-stream',
-                'Content-Length': buffer.length.toString(),
                 'X-Bz-Content-Sha1': sha1,
             },
-            body: buffer,
+            body: uint8Array,
         })
 
         if (!uploadResponse.ok) {
@@ -142,6 +191,23 @@ export async function GET(request: NextRequest) {
                 downloadUrl: auth.downloadUrl,
                 bucketName: process.env.B2_BUCKET_NAME
             })
+        }
+
+        if (type === 'upload_part') {
+            const fileId = searchParams.get('fileId')
+            if (!fileId) return NextResponse.json({ error: 'File ID required' }, { status: 400 })
+
+            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': auth.authorizationToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ fileId }),
+            })
+
+            if (!response.ok) throw new Error('Failed to get upload part URL')
+            return NextResponse.json(await response.json())
         }
 
         if (!fileId) {
