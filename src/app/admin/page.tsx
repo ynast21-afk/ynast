@@ -566,6 +566,64 @@ export default function AdminPage() {
                     <div className="flex-1">
                         <div className="bg-bg-secondary rounded-2xl border border-white/10 p-6">
 
+                            {/* Storage Diagnostic Tool (Only visible in dev or for debugging) */}
+                            <div className="bg-black/40 border border-blue-500/30 rounded-2xl p-6 mb-8">
+                                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                    <span className="text-blue-400">🔍</span> Storage Diagnostic (v1.2.1)
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-mono">
+                                    <div className="p-3 bg-black/60 rounded-lg">
+                                        <div className="text-gray-400 mb-1">Current State</div>
+                                        <div className="flex justify-between">
+                                            <span>Videos:</span>
+                                            <span className="text-green-400 font-bold">{videos.length}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Streamers:</span>
+                                            <span className="text-blue-400 font-bold">{streamers.length}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-black/60 rounded-lg">
+                                        <div className="text-gray-400 mb-1">Browser Storage</div>
+                                        <div className="flex justify-between">
+                                            <span>videos count:</span>
+                                            <span className="text-yellow-400 font-bold">
+                                                {typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('videos') || '[]').length : 'N/A'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>settings check:</span>
+                                            <span className="text-blue-400 font-bold">
+                                                {typeof window !== 'undefined' && localStorage.getItem('kstreamer_site_settings') ? 'OK' : 'MISSING'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('⚠️ WARNING: This will clear all videos and reset to defaults. Proceed?')) {
+                                                localStorage.removeItem('videos')
+                                                localStorage.removeItem('streamers')
+                                                window.location.reload()
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 bg-red-900/30 border border-red-500/50 text-red-400 rounded-md hover:bg-red-500/20 transition-all"
+                                    >
+                                        Reset to Defaults (Wipe)
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            console.log('FULL STORAGE DUMP:', { ...localStorage })
+                                            alert('Console에 전체 주소와 저장값이 출력되었습니다 (F12 확인)')
+                                        }}
+                                        className="px-3 py-1.5 bg-blue-900/30 border border-blue-500/50 text-blue-400 rounded-md hover:bg-blue-500/20 transition-all"
+                                    >
+                                        Log Full Dump
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* ========== 대시보드 탭 ========== */}
                             {activeTab === 'dashboard' && (
                                 <div>

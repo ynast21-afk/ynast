@@ -274,13 +274,19 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     // localStorage 로드
     useEffect(() => {
         const saved = localStorage.getItem('kstreamer_site_settings')
+        console.log('--- SiteSettingsProvider Sync ---')
+        console.log('Saved Settings (Raw):', saved?.substring(0, 100))
+
         if (saved) {
             try {
                 const parsed = JSON.parse(saved)
-                // 구조 변경 대응: 기본값과 안전하게 병합
+                // 구조 변경 대응: 기본값과 안전하게 병합 (저장된 값을 우선)
                 setSettings(prev => ({
                     ...defaultSettings,
                     ...parsed,
+                    texts: { ...defaultTexts, ...(parsed.texts || {}) },
+                    theme: { ...defaultTheme, ...(parsed.theme || {}) },
+                    banner: { ...defaultBanner, ...(parsed.banner || {}) },
                     pricing: {
                         ...defaultPricing,
                         ...(parsed.pricing || {}),

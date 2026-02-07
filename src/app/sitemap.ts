@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { initialVideos } from '@/data/initialData'
 
 const BASE_URL = process.env.NODE_ENV === 'production' ? 'https://kdance.xyz' : (process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz')
 
@@ -49,14 +50,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
         },
     ]
 
-    // TODO: 향후 DB에서 비디오 목록 가져와서 동적 URL 생성
-    // const videos = await getVideos()
-    // const videoPages = videos.map((video) => ({
-    //     url: `${BASE_URL}/video/${video.id}`,
-    //     lastModified: video.updatedAt,
-    //     changeFrequency: 'weekly' as const,
-    //     priority: 0.8,
-    // }))
+    // 비디오 목록 가져와서 동적 URL 생성
+    const videoPages = initialVideos.map((video) => ({
+        url: `${BASE_URL}/video/${video.id}`,
+        lastModified: new Date(video.createdAt),
+        changeFrequency: 'weekly' as const,
+        priority: 0.8,
+    }))
 
-    return [...staticPages]
+    return [...staticPages, ...videoPages]
 }

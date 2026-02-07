@@ -1,31 +1,52 @@
+'use client'
+
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import VideoCard from '@/components/VideoCard'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-
-// Sample video data
-const videos = [
-    { id: '1', title: 'Cyberpunk City Night Walk 8K', creator: 'NeonWalker', views: '1.2K', duration: '12:45', isVip: true, gradient: 'from-purple-900 to-cyan-900' },
-    { id: '2', title: 'Digital Art Masterclass', creator: 'ArtistPro', views: '3.5K', duration: '08:32', isVip: false, gradient: 'from-indigo-900 to-blue-900' },
-    { id: '3', title: 'Synthwave Mix 2024', creator: 'LofiGirl', views: '890', duration: '15:20', isVip: true, gradient: 'from-cyan-900 to-teal-900' },
-    { id: '4', title: 'Tokyo Night Life Guide', creator: 'TravelWithMe', views: '2.1K', duration: '22:10', isVip: false, gradient: 'from-amber-900 to-green-900' },
-    { id: '5', title: 'Hardware Teardown Series', creator: 'TechInsider', views: '5.6K', duration: '45:30', isVip: true, gradient: 'from-slate-800 to-zinc-800' },
-    { id: '6', title: 'Future Tech Preview 2025', creator: 'FutureTech', views: '1.8K', duration: '18:45', isVip: false, gradient: 'from-emerald-900 to-cyan-900' },
-    { id: '7', title: 'Dance Choreography Vol.3', creator: 'DanceQueen', views: '4.2K', duration: '10:15', isVip: false, gradient: 'from-pink-900 to-purple-900' },
-    { id: '8', title: 'Coding Live Session', creator: 'DevMaster', views: '780', duration: '25:00', isVip: true, gradient: 'from-blue-900 to-purple-900' },
-    { id: '9', title: 'Morning Workout Routine', creator: 'FitLife', views: '3.3K', duration: '06:40', isVip: false, gradient: 'from-orange-900 to-red-900' },
-    { id: '10', title: 'Gaming Highlights EP.42', creator: 'ProGamer', views: '920', duration: '33:20', isVip: false, gradient: 'from-violet-900 to-indigo-900' },
-    { id: '11', title: 'ASMR Relaxation Session', creator: 'SoftSounds', views: '1.5K', duration: '14:55', isVip: true, gradient: 'from-slate-900 to-gray-900' },
-    { id: '12', title: 'Street Food Adventures', creator: 'FoodieExplorer', views: '2.7K', duration: '28:15', isVip: false, gradient: 'from-rose-900 to-pink-900' },
-]
+import { useStreamers } from '@/contexts/StreamerContext'
+import { useState, useMemo } from 'react'
 
 export default function HomePage() {
     const t = useTranslations('membership')
     const tCommon = useTranslations('common')
+    const { videos: rawVideos } = useStreamers()
+    const [sortBy, setSortBy] = useState<'popular' | 'newest'>('newest')
+
+    const sortedVideos = useMemo(() => {
+        const v = [...rawVideos]
+        if (sortBy === 'newest') {
+            // New videos have 'Just now' or are later in the array if ID is incremental
+            // Real sorting would use createdAt.
+            return v.sort((a, b) => {
+                const dateA = new Date(a.createdAt || 0).getTime()
+                const dateB = new Date(b.createdAt || 0).getTime()
+                return dateB - dateA
+            })
+        }
+        // Basic popularity sort (mock)
+        return v.sort((a, b) => {
+            const viewsA = parseInt(a.views.replace(/[^0-9]/g, '')) || 0
+            const viewsB = parseInt(b.views.replace(/[^0-9]/g, '')) || 0
+            return viewsB - viewsA
+        })
+    }, [rawVideos, sortBy])
+
     return (
         <div className="min-h-screen">
             <Header />
+
+            {/* DEBUG MARKER V1.2.1 */}
+            <div className="fixed top-20 left-10 z-[9999] flex flex-col gap-2">
+                <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-bold shadow-2xl animate-pulse">
+                    v1.2.1 (LOGS ACTIVE)
+                </div>
+                <div className="bg-black/90 text-green-400 p-3 rounded-lg border border-green-500/50 shadow-xl text-xs font-mono">
+                    <div className="font-bold border-b border-green-500/30 mb-1 pb-1">DATA STATUS</div>
+                    <div>Videos: {sortedVideos.length} (Raw: {rawVideos.length})</div>
+                </div>
+            </div>
 
             {/* Spacer for fixed header */}
             <div className="h-[120px]" />
@@ -98,10 +119,16 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center gap-3">
                         <span className="text-text-secondary text-sm">Sort:</span>
-                        <button className="px-4 py-2 border border-accent-primary text-accent-primary rounded-full text-sm">
+                        <button
+                            onClick={() => setSortBy('popular')}
+                            className={`px-4 py-2 border rounded-full text-sm transition-all ${sortBy === 'popular' ? 'border-accent-primary text-accent-primary' : 'border-text-secondary text-text-secondary hover:border-white hover:text-white'}`}
+                        >
                             Most Popular
                         </button>
-                        <button className="px-4 py-2 border border-text-secondary text-text-secondary rounded-full text-sm hover:border-white hover:text-white transition-colors">
+                        <button
+                            onClick={() => setSortBy('newest')}
+                            className={`px-4 py-2 border rounded-full text-sm transition-all ${sortBy === 'newest' ? 'border-accent-primary text-accent-primary' : 'border-text-secondary text-text-secondary hover:border-white hover:text-white'}`}
+                        >
                             Newest
                         </button>
                     </div>
@@ -111,8 +138,8 @@ export default function HomePage() {
             {/* Video Grid */}
             <section className="px-6 lg:px-10 py-6">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-5 max-w-[1800px] mx-auto">
-                    {videos.map((video) => (
-                        <VideoCard key={video.id} {...video} />
+                    {sortedVideos.map((video) => (
+                        <VideoCard key={video.id} id={video.id} title={video.title} creator={video.streamerName} views={video.views} duration={video.duration} isVip={video.isVip} gradient={video.gradient} />
                     ))}
                 </div>
             </section>
