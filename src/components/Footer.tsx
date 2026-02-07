@@ -6,7 +6,7 @@ export default function Footer() {
     const tFooter = useTranslations('footer')
 
     return (
-        <footer className="bg-bg-secondary border-t border-white/10 mt-16">
+        <footer className="bg-bg-secondary border-t border-[var(--border-color)] mt-16">
             <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                     {/* Brand */}

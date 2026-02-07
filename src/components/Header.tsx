@@ -41,7 +41,7 @@ export default function Header() {
             {/* Top Banner */}
             <TopBanner />
 
-            <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-white/10" style={{ top: settings.banner.enabled ? '48px' : '0' }}>
+            <header className="fixed top-0 left-0 right-0 z-50 bg-bg-primary/80 backdrop-blur-md border-b border-[var(--border-color)]" style={{ top: settings.banner.enabled ? '48px' : '0' }}>
                 <div className="flex items-center justify-between px-6 lg:px-10 py-4">
                     {/* Logo */}
                     <Link

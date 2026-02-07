@@ -24,7 +24,7 @@ export default function HomePage() {
     const t = useTranslations('membership')
     const tCommon = useTranslations('common')
     return (
-        <div className="min-h-screen bg-bg-primary">
+        <div className="min-h-screen">
             <Header />
 
             {/* Spacer for fixed header */}
@@ -34,7 +34,7 @@ export default function HomePage() {
             <section className="px-6 lg:px-10 py-12">
                 <div className="flex flex-col lg:flex-row gap-8 items-center max-w-7xl mx-auto">
                     {/* Featured Video */}
-                    <div className="flex-[2] relative rounded-2xl overflow-hidden aspect-video bg-gradient-to-br from-indigo-950 to-purple-950">
+                    <div className="flex-[2] relative rounded-2xl overflow-hidden aspect-video bg-gradient-to-br from-indigo-500/20 to-purple-500/20 dark:from-indigo-950 dark:to-purple-950 border border-[var(--border-color)]">
                         <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-6xl">🎬</span>
                         </div>

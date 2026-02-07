@@ -13,6 +13,7 @@
   --text-primary: #0a0a0a;
   --text-secondary: #65676b;
   --card-bg: #ffffff;
+  --border-color: rgba(0, 0, 0, 0.1);
 }
 
 .dark {
@@ -24,6 +25,7 @@
   --text-primary: #ffffff;
   --text-secondary: #888888;
   --card-bg: #1a1a1a;
+  --border-color: rgba(255, 255, 255, 0.1);
 }
 
 * {
