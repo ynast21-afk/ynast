@@ -85,31 +85,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(await response.json())
         }
 
-        if (action === 'update_cors') {
-            console.log('Updating CORS rules for bucket:', B2_BUCKET_ID);
-            const corsRules = [
-                {
-                    corsRuleName: "Allow-KStreamer-Upload",
-                    allowedOrigins: ["*"],
-                    allowedOperations: ["s3_put", "b2_upload_file", "b2_upload_part", "b2_download_file_by_name"],
-                    allowedHeaders: ["authorization", "content-type", "x-bz-file-name", "x-bz-content-sha1", "x-bz-part-number"],
-                    exposeHeaders: ["x-bz-content-sha1"],
-                    maxAgeSeconds: 3600
-                }
-            ];
-
-            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_update_bucket`, {
-                method: 'POST',
-                headers: { 'Authorization': auth.authorizationToken },
-                body: JSON.stringify({
-                    bucketId: B2_BUCKET_ID,
-                    corsRules: corsRules
-                })
-            });
-
-            if (!response.ok) throw new Error('Failed to update CORS: ' + await response.text());
-            return NextResponse.json({ success: true });
-        }
 
         if (action === 'finish_large_file') {
             const fileId = formData.get('fileId') as string
@@ -160,40 +135,6 @@ export async function GET(request: NextRequest) {
 
         const auth = await authorizeB2()
 
-        if (type === 'update_cors') {
-            console.log('Updating CORS rules for bucket:', B2_BUCKET_ID);
-            const corsRules = [
-                {
-                    corsRuleName: "Allow-KStreamer-Upload",
-                    allowedOrigins: ["*"],
-                    allowedOperations: ["s3_put", "b2_upload_file", "b2_upload_part", "b2_download_file_by_name"],
-                    allowedHeaders: ["authorization", "content-type", "x-bz-file-name", "x-bz-content-sha1", "x-bz-part-number"],
-                    exposeHeaders: ["x-bz-content-sha1"],
-                    maxAgeSeconds: 3600
-                }
-            ];
-
-            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_update_bucket`, {
-                method: 'POST',
-                headers: { 'Authorization': auth.authorizationToken },
-                body: JSON.stringify({
-                    accountId: auth.accountId,
-                    bucketId: B2_BUCKET_ID,
-                    corsRules: corsRules
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Failed to update CORS:', errorText);
-                return NextResponse.json({ error: 'Failed to update CORS: ' + errorText }, { status: 500 });
-            }
-
-            return NextResponse.json({
-                success: 'CORS rules updated successfully!',
-                details: 'B2 bucket has been configured to allow multi-part upload headers.'
-            });
-        }
 
         if (type === 'upload') {
             const uploadUrl = await getUploadUrl(auth)
