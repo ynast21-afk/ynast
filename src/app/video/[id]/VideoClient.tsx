@@ -18,7 +18,7 @@ interface VideoClientProps {
 }
 
 export default function VideoClient({ video: initialVideo, streamer: initialStreamer, relatedVideos, fallbackId }: VideoClientProps) {
-    const { videos: allVideos, streamers, incrementVideoView, toggleVideoLike: toggleVideoLikeState } = useStreamers()
+    const { videos: allVideos, streamers, incrementVideoView, toggleVideoLike: toggleVideoLikeState, downloadToken } = useStreamers()
     const [video, setVideo] = useState<Video | undefined>(initialVideo)
     const [streamer, setStreamer] = useState<Streamer | undefined>(initialStreamer)
 
@@ -26,7 +26,6 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     const { user } = useAuth()
     const [isLiked, setIsLiked] = useState(false)
     const [isFollowed, setIsFollowed] = useState(false)
-    const [downloadAuthToken, setDownloadAuthToken] = useState<string | null>(null)
 
     // Increment view once per mount
     useEffect(() => {
@@ -51,22 +50,6 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         }
     }, [fallbackId, allVideos, video, streamers, id])
 
-    // Fetch B2 Download Authorization Token if video is private/uploaded
-    useEffect(() => {
-        const fetchAuth = async () => {
-            if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) return
-            try {
-                const res = await fetch(`/api/upload?type=download&duration=3600`)
-                if (res.ok) {
-                    const data = await res.json()
-                    setDownloadAuthToken(data.authorizationToken)
-                }
-            } catch (err) {
-                console.error('Failed to get B2 download auth exception:', err)
-            }
-        }
-        fetchAuth()
-    }, [video])
 
     // Check like and follow status on mount
     useEffect(() => {
@@ -162,8 +145,8 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
             return
         }
 
-        const urlWithAuth = downloadAuthToken
-            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+        const urlWithAuth = downloadToken
+            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
             : video.videoUrl
 
         const link = document.createElement('a')
@@ -214,8 +197,8 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                                         controls
                                         autoPlay
                                         className="w-full h-full"
-                                        src={downloadAuthToken && video.videoUrl.includes('backblazeb2.com')
-                                            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+                                        src={downloadToken && video.videoUrl.includes('backblazeb2.com')
+                                            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
                                             : video.videoUrl
                                         }
                                     />
