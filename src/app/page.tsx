@@ -40,7 +40,7 @@ export default function HomePage() {
             {/* DEBUG MARKER V1.2.1 */}
             <div className="fixed top-20 left-10 z-[9999] flex flex-col gap-2">
                 <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-bold shadow-2xl animate-pulse">
-                    v1.2.2 (LOGS ACTIVE)
+                    v1.2.3 (LOGS ACTIVE)
                 </div>
                 <div className="bg-black/90 text-green-400 p-3 rounded-lg border border-green-500/50 shadow-xl text-xs font-mono">
                     <div className="font-bold border-b border-green-500/30 mb-1 pb-1">DATA STATUS</div>
@@ -139,7 +139,18 @@ export default function HomePage() {
             <section className="px-6 lg:px-10 py-6">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-5 max-w-[1800px] mx-auto">
                     {sortedVideos.map((video) => (
-                        <VideoCard key={video.id} id={video.id} title={video.title} creator={video.streamerName} views={video.views} duration={video.duration} isVip={video.isVip} gradient={video.gradient} />
+                        <VideoCard
+                            key={video.id}
+                            id={video.id}
+                            title={video.title}
+                            creator={video.streamerName}
+                            views={video.views}
+                            duration={video.duration}
+                            isVip={video.isVip}
+                            gradient={video.gradient}
+                            videoUrl={video.videoUrl}
+                            uploadedAt={video.uploadedAt}
+                        />
                     ))}
                 </div>
             </section>

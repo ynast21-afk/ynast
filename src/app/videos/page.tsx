@@ -3,6 +3,7 @@
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
+import VideoCard from '@/components/VideoCard'
 import { useStreamers } from '@/contexts/StreamerContext'
 import { useState } from 'react'
 import { getValidGradient } from '@/utils/ui'
@@ -130,58 +131,19 @@ export default function VideosPage() {
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
                             {sortedVideos.map((video) => (
-                                <Link key={video.id} href={`/video/${video.id}`} className="group block">
-                                    <div className={`relative aspect-[4/5] rounded-xl overflow-hidden bg-gradient-to-br ${getValidGradient(video.gradient)} cursor-pointer card-hover shadow-lg`}>
-                                        {/* VIP Badge */}
-                                        {video.isVip && (
-                                            <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-black text-xs font-bold rounded shadow-sm">
-                                                VIP
-                                            </div>
-                                        )}
-
-                                        {/* Duration */}
-                                        <div className="absolute top-2 right-2 z-10 px-2 py-0.5 bg-black/70 text-white text-xs rounded">
-                                            {video.duration}
-                                        </div>
-
-                                        {/* Uploaded Time */}
-                                        <div className="absolute bottom-12 right-2 z-10 px-2 py-0.5 bg-black/70 text-white text-xs rounded">
-                                            {video.uploadedAt}
-                                        </div>
-
-                                        {/* Bottom Stats */}
-                                        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                                            <div className="flex items-center gap-3 text-white text-xs">
-                                                <span className="flex items-center gap-1">
-                                                    👁️ {video.views}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    ❤️ {video.likes}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Play overlay */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <div className="w-14 h-14 rounded-full bg-accent-primary flex items-center justify-center shadow-[0_0_20px_rgba(0,255,136,0.3)]">
-                                                <span className="text-black text-2xl ml-1">▶</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Video Info */}
-                                    <div className="mt-2">
-                                        <h3 className="text-sm text-white font-medium line-clamp-2 group-hover:text-accent-primary transition-colors">
-                                            {video.title}
-                                        </h3>
-                                        <div className="flex items-center justify-between mt-1">
-                                            <span className="text-xs text-text-secondary hover:text-accent-primary transition-colors">
-                                                @{video.streamerName}
-                                            </span>
-                                            <span className="text-[10px] text-text-tertiary">{video.uploadedAt}</span>
-                                        </div>
-                                    </div>
-                                </Link>
+                                <VideoCard
+                                    key={video.id}
+                                    id={video.id}
+                                    title={video.title}
+                                    creator={video.streamerName}
+                                    views={video.views}
+                                    duration={video.duration}
+                                    isVip={video.isVip}
+                                    gradient={video.gradient}
+                                    videoUrl={video.videoUrl}
+                                    uploadedAt={video.uploadedAt}
+                                    aspectRatio="portrait"
+                                />
                             ))}
                         </div>
                     )}

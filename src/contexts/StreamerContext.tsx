@@ -13,6 +13,7 @@ interface StreamerContextType {
     removeVideo: (id: string) => void
     getStreamerVideos: (streamerId: string) => Video[]
     getStreamerById: (id: string) => Streamer | undefined
+    downloadToken: string | null
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined)
@@ -21,6 +22,7 @@ const StreamerContext = createContext<StreamerContextType | undefined>(undefined
 export function StreamerProvider({ children }: { children: ReactNode }) {
     const [streamers, setStreamers] = useState<Streamer[]>([])
     const [videos, setVideos] = useState<Video[]>([])
+    const [downloadToken, setDownloadToken] = useState<string | null>(null)
 
     // Load from localStorage
     useEffect(() => {
@@ -74,6 +76,26 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             console.log('No saved videos key "videos" found in localStorage, using initial')
             setVideos(initialVideos)
         }
+    }, [])
+
+    // Fetch session-wide B2 Download Authorization
+    useEffect(() => {
+        const fetchToken = async () => {
+            try {
+                const res = await fetch('/api/upload?type=download&duration=3600')
+                if (res.ok) {
+                    const data = await res.json()
+                    setDownloadToken(data.authorizationToken)
+                    console.log('Global B2 Download Token Sync SUCCESS')
+                }
+            } catch (err) {
+                console.error('Failed to get global B2 token:', err)
+            }
+        }
+        fetchToken()
+        // Refresh every 50 minutes
+        const interval = setInterval(fetchToken, 50 * 60 * 1000)
+        return () => clearInterval(interval)
     }, [])
 
     // Save to localStorage
@@ -158,6 +180,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             removeVideo,
             getStreamerVideos,
             getStreamerById,
+            downloadToken,
         }}>
             {children}
         </StreamerContext.Provider>
