@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import Script from 'next/script'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
-
-// ... (imports)
 
 declare global {
     interface Window {
@@ -14,7 +12,7 @@ declare global {
     }
 }
 
-export default function GoogleAnalytics() {
+function GoogleAnalyticsInner() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const { settings } = useSiteSettings()
@@ -59,6 +57,14 @@ export default function GoogleAnalytics() {
                 }}
             />
         </>
+    )
+}
+
+export default function GoogleAnalytics() {
+    return (
+        <Suspense fallback={null}>
+            <GoogleAnalyticsInner />
+        </Suspense>
     )
 }
 
