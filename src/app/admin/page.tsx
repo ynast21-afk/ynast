@@ -59,6 +59,13 @@ export default function AdminPage() {
     const [isUploading, setIsUploading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(0)
 
+    // Batch upload states
+    const [batchFiles, setBatchFiles] = useState<File[]>([])
+    const [batchStreamerId, setBatchStreamerId] = useState('')
+    const [isBatchUploading, setIsBatchUploading] = useState(false)
+    const [batchCurrentIndex, setBatchCurrentIndex] = useState(0)
+    const [batchProgress, setBatchProgress] = useState(0)
+
     // Text edit states
     const [textEdits, setTextEdits] = useState(settings.texts)
 
@@ -176,6 +183,68 @@ export default function AdminPage() {
         alert('✅ 영상이 추가되었습니다!')
     }
 
+    const handleBatchUpload = async () => {
+        if (batchFiles.length === 0 || !batchStreamerId) {
+            alert('파일을 선택하고 스트리머를 지정해주세요.')
+            return
+        }
+
+        const streamer = streamers.find(s => s.id === batchStreamerId)
+        if (!streamer) return
+
+        setIsBatchUploading(true)
+        setBatchCurrentIndex(0)
+
+        for (let i = 0; i < batchFiles.length; i++) {
+            setBatchCurrentIndex(i)
+            const file = batchFiles[i]
+
+            try {
+                const formData = new FormData()
+                formData.append('file', file)
+                formData.append('folder', 'videos')
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                })
+
+                if (!response.ok) throw new Error(`Upload failed for ${file.name}`)
+
+                const data = await response.json()
+
+                // Add video to list
+                addVideo({
+                    title: file.name.split('.')[0], // Use filename as default title
+                    streamerId: batchStreamerId,
+                    streamerName: streamer.name,
+                    duration: '?', // Unknown for batch
+                    isVip: true,
+                    views: '0',
+                    likes: '0',
+                    gradient: streamer.gradient,
+                    uploadedAt: 'Just now',
+                    videoUrl: data.downloadUrl,
+                })
+
+                setBatchProgress(((i + 1) / batchFiles.length) * 100)
+            } catch (error) {
+                console.error('Batch upload item failed:', error)
+                // Continue with next file but maybe alert at the end
+            }
+        }
+
+        setIsBatchUploading(false)
+        setBatchFiles([])
+        setBatchProgress(0)
+        setBatchCurrentIndex(0)
+
+        // Reset file input
+        const batchInput = document.getElementById('batch-file-input') as HTMLInputElement
+        if (batchInput) batchInput.value = ''
+
+        alert('✅ 일괄 업로드가 완료되었습니다!')
+    }
     const handleConfirmDelete = () => {
         if (!deleteModal) return
         if (deleteModal.type === 'streamer') {
@@ -786,6 +855,91 @@ export default function AdminPage() {
                                             </div>
                                         ))}
                                         {videos.length === 0 && <p className="text-text-secondary text-center py-8">등록된 영상이 없습니다</p>}
+                                    </div>
+
+                                    {/* Batch Upload Section */}
+                                    <div className="bg-bg-primary rounded-xl p-5 border border-white/10 mt-6 overflow-hidden">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="font-semibold text-accent-primary">📦 비디오 일괄 업로드 (Migration)</h3>
+                                            <span className="text-xs px-2 py-1 bg-accent-primary/20 text-accent-primary rounded font-mono">B2 Bulk Mode</span>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-text-secondary mb-2">대상 스트리머 선택</label>
+                                                    <select
+                                                        value={batchStreamerId}
+                                                        onChange={e => setBatchStreamerId(e.target.value)}
+                                                        className="w-full px-4 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent-primary"
+                                                        disabled={isBatchUploading}
+                                                    >
+                                                        <option value="">스트리머 선택</option>
+                                                        {streamers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.koreanName || s.name})</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-text-secondary mb-2">비디오 파일 선택 (다중 선택 가능)</label>
+                                                    <input
+                                                        id="batch-file-input"
+                                                        type="file"
+                                                        accept="video/*"
+                                                        multiple
+                                                        onChange={e => setBatchFiles(Array.from(e.target.files || []))}
+                                                        className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-bg-secondary file:text-accent-primary hover:file:bg-white/10"
+                                                        disabled={isBatchUploading}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {batchFiles.length > 0 && (
+                                                <div className="bg-bg-secondary rounded-lg p-4 border border-white/5">
+                                                    <div className="flex justify-between items-center mb-3 text-sm">
+                                                        <span className="text-text-secondary">대기열: <span className="text-white font-bold">{batchFiles.length}</span>개 파일</span>
+                                                        {isBatchUploading && (
+                                                            <span className="text-accent-primary animate-pulse">
+                                                                {batchCurrentIndex + 1} / {batchFiles.length} 업로드 중...
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {isBatchUploading && (
+                                                        <div className="space-y-2 mb-4">
+                                                            <div className="flex justify-between text-xs mb-1">
+                                                                <span>전체 진행률</span>
+                                                                <span>{Math.round(batchProgress)}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                                                                <div
+                                                                    className="bg-accent-primary h-full transition-all duration-300 shadow-[0_0_10px_rgba(0,255,136,0.3)]"
+                                                                    style={{ width: `${batchProgress}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <p className="text-[10px] text-text-tertiary truncate">
+                                                                Processing: {batchFiles[batchCurrentIndex]?.name}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="max-h-40 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                                        {batchFiles.map((file, idx) => (
+                                                            <div key={idx} className={`text-xs flex justify-between p-2 rounded ${idx === batchCurrentIndex && isBatchUploading ? 'bg-accent-primary/10 text-accent-primary' : 'hover:bg-white/5'}`}>
+                                                                <span className="truncate flex-1">{file.name}</span>
+                                                                <span className="text-text-tertiary ml-2">{(file.size / (1024 * 1024)).toFixed(1)}MB</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    <button
+                                                        onClick={handleBatchUpload}
+                                                        disabled={isBatchUploading || !batchStreamerId}
+                                                        className={`w-full mt-4 py-3 rounded-xl font-bold transition-all ${isBatchUploading || !batchStreamerId ? 'bg-gray-600 opacity-50 cursor-not-allowed text-gray-400' : 'bg-white text-black hover:scale-[1.02] shadow-lg shadow-white/10'}`}
+                                                    >
+                                                        {isBatchUploading ? '대량 업로드 진행 중...' : '🔥 일괄 업로드 시작'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
