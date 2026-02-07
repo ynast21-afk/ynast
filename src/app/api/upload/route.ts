@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(await response.json())
         }
 
-        if (!fileId) {
+        if (!fileId && type !== 'download') {
             return NextResponse.json({ error: 'File ID required' }, { status: 400 })
         }
 

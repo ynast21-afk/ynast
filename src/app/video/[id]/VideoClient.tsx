@@ -43,18 +43,30 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     // Fetch B2 Download Authorization Token if video is private/uploaded
     useEffect(() => {
         const fetchAuth = async () => {
-            if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) return
+            if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) {
+                console.log('Video URL not B2 or missing, skipping auth token fetch')
+                return
+            }
+
+            console.log('--- B2 Auth Token Sync ---')
+            console.log('Target URL:', video.videoUrl)
 
             try {
                 // We ask for a token that covers the bucket/file
                 const res = await fetch(`/api/upload?type=download&duration=3600`)
                 if (res.ok) {
                     const data = await res.json()
+                    console.log('B2 Token data received:', {
+                        hasToken: !!data.authorizationToken,
+                        downloadUrl: data.downloadUrl
+                    })
                     setDownloadAuthToken(data.authorizationToken)
-                    console.log('B2 Download Authorization obtained successfully')
+                } else {
+                    const errText = await res.text()
+                    console.error('Failed to get B2 token. Status:', res.status, errText)
                 }
             } catch (err) {
-                console.error('Failed to get B2 download auth:', err)
+                console.error('Failed to get B2 download auth exception:', err)
             }
         }
         fetchAuth()
