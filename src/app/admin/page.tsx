@@ -1761,6 +1761,62 @@ export default function AdminPage() {
                                 </div>
                             )}
 
+                            {/* ========== 데이터 백업 탭 ========== */}
+                            {activeTab === 'data' && (
+                                <div>
+                                    <h1 className="text-2xl font-bold mb-6">💾 데이터 백업 및 마이그레이션</h1>
+
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        {/* Export Section */}
+                                        <div className="bg-bg-primary rounded-2xl p-6 border border-white/10">
+                                            <div className="text-3xl mb-4">📤</div>
+                                            <h3 className="text-xl font-bold mb-2">백업 데이터 내보내기</h3>
+                                            <p className="text-text-secondary text-sm mb-6">
+                                                현재 브라우저에 저장된 모든 스트리머와 비디오 데이터를 JSON 파일로 다운로드합니다.
+                                                다른 PC나 브라우저에서 작업할 때 유용합니다.
+                                            </p>
+                                            <button
+                                                onClick={handleExportData}
+                                                className="w-full py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all font-semibold flex items-center justify-center gap-2"
+                                            >
+                                                <span>📄</span> JSON 백업 파일 다운로드
+                                            </button>
+                                        </div>
+
+                                        {/* Import Section */}
+                                        <div className="bg-bg-primary rounded-2xl p-6 border border-white/10">
+                                            <div className="text-3xl mb-4">📥</div>
+                                            <h3 className="text-xl font-bold mb-2">데이터 가져오기</h3>
+                                            <p className="text-text-secondary text-sm mb-6">
+                                                이전에 백업한 JSON 파일을 업로드하여 데이터를 복원하거나 통합합니다.
+                                                기존 데이터와 ID가 겹칠 경우 백업 파일의 데이터로 덮어씌워집니다.
+                                            </p>
+                                            <div className="relative">
+                                                <input
+                                                    type="file"
+                                                    accept=".json"
+                                                    onChange={handleImportData}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                />
+                                                <div className="w-full py-3 bg-accent-primary/20 border border-accent-primary/30 text-accent-primary rounded-xl font-semibold flex items-center justify-center gap-2">
+                                                    <span>📂</span> 백업 파일 선택하기
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-2xl">
+                                        <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">
+                                            💡 마이그레이션 팁
+                                        </h4>
+                                        <ul className="text-sm text-text-secondary space-y-2 list-disc list-inside">
+                                            <li>로컬 기기에서 영상 업로드 후, 이 백업 파일을 사용하여 실제 서버(Production)에 동일한 데이터를 옮길 수 있습니다.</li>
+                                            <li>백업 파일에는 영상 파일 자체가 포함되지 않으며, Backblaze B2에 업로드된 URL 정보가 포함됩니다.</li>
+                                            <li>정기적으로 백업을 수행하여 데이터 손실을 방지하세요.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
