@@ -94,6 +94,16 @@ export interface SiteStats {
     totalStreamers: number
 }
 
+export interface Inquiry {
+    id: string
+    name: string
+    email: string
+    subject: string
+    message: string
+    createdAt: string
+    status: 'new' | 'replied' | 'archived'
+}
+
 export interface SiteSettings {
     texts: SiteTexts
     theme: ThemeSettings
@@ -204,6 +214,7 @@ interface SiteSettingsContextType {
     settings: SiteSettings
     users: User[]
     stats: SiteStats
+    inquiries: Inquiry[]
     updateTexts: (texts: Partial<SiteTexts>) => void
     updateTheme: (theme: Partial<ThemeSettings>) => void
     updateBanner: (banner: Partial<BannerSettings>) => void
@@ -218,6 +229,8 @@ interface SiteSettingsContextType {
     updateUserMembership: (userId: string, membership: User['membership']) => void
     toggleUserBan: (userId: string) => void
     incrementVisit: () => void
+    addInquiry: (inquiry: Omit<Inquiry, 'id' | 'createdAt' | 'status'>) => void
+    deleteInquiry: (id: string) => void
 }
 
 const SiteSettingsContext = createContext<SiteSettingsContextType | undefined>(undefined)
@@ -255,6 +268,8 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         totalVideos: 0,
         totalStreamers: 0,
     })
+
+    const [inquiries, setInquiries] = useState<Inquiry[]>([])
 
     // localStorage 로드
     useEffect(() => {
@@ -297,6 +312,15 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
                 console.error('Failed to load stats:', e)
             }
         }
+
+        const savedInquiries = localStorage.getItem('kstreamer_inquiries')
+        if (savedInquiries) {
+            try {
+                setInquiries(JSON.parse(savedInquiries))
+            } catch (e) {
+                console.error('Failed to load inquiries:', e)
+            }
+        }
     }, [])
 
     // localStorage 저장
@@ -311,6 +335,10 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         localStorage.setItem('kstreamer_stats', JSON.stringify(stats))
     }, [stats])
+
+    useEffect(() => {
+        localStorage.setItem('kstreamer_inquiries', JSON.stringify(inquiries))
+    }, [inquiries])
 
     // 업데이트 함수들
     const updateTexts = (newTexts: Partial<SiteTexts>) => {
@@ -398,12 +426,27 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         }))
     }
 
+    const addInquiry = (inquiry: Omit<Inquiry, 'id' | 'createdAt' | 'status'>) => {
+        const newInquiry: Inquiry = {
+            ...inquiry,
+            id: Date.now().toString(),
+            createdAt: new Date().toISOString(),
+            status: 'new',
+        }
+        setInquiries(prev => [newInquiry, ...prev])
+    }
+
+    const deleteInquiry = (id: string) => {
+        setInquiries(prev => prev.filter(inq => inq.id !== id))
+    }
+
     return (
         <SiteSettingsContext.Provider
             value={{
                 settings,
                 users,
                 stats,
+                inquiries,
                 updateTexts,
                 updateTheme,
                 updateBanner,
@@ -418,6 +461,8 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
                 updateUserMembership,
                 toggleUserBan,
                 incrementVisit,
+                addInquiry,
+                deleteInquiry,
             }}
         >
             {children}

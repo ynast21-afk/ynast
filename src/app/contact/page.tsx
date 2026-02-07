@@ -3,6 +3,7 @@
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useState } from 'react'
+import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 
 const subjects = [
     { value: '', label: 'Select a subject...' },
@@ -23,6 +24,7 @@ export default function ContactPage() {
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    const { addInquiry } = useSiteSettings()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -37,6 +39,14 @@ export default function ContactPage() {
 
         // 직접 이메일 클라이언트 열기
         window.location.href = mailtoLink
+
+        // 사이트 내부 DB에 저장 (관리자 확인용)
+        addInquiry({
+            name: formData.name,
+            email: formData.email,
+            subject: subjects.find(s => s.value === formData.subject)?.label || formData.subject,
+            message: formData.message,
+        })
 
         setIsSubmitting(false)
         setSubmitted(true)

@@ -21,6 +21,7 @@ type AdminTab =
     | 'navigation'
     | 'seo'
     | 'settings'
+    | 'inquiries'
 
 const gradientOptions = [
     { value: 'from-pink-900 to-purple-900', label: '핑크-퍼플' },
@@ -46,7 +47,7 @@ const colorPresets = [
 export default function AdminPage() {
     const { user, isLoading: authLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
-    const { settings, users, stats, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan } = useSiteSettings()
+    const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
     const [deleteModal, setDeleteModal] = useState<{ type: 'streamer' | 'video', id: string, name: string } | null>(null)
@@ -267,6 +268,7 @@ export default function AdminPage() {
         { id: 'pricing', icon: '💰', label: '멤버십 가격' },
         { id: 'navigation', icon: '🔗', label: '메뉴/링크' },
         { id: 'seo', icon: '🔍', label: 'SEO/마케팅' },
+        { id: 'inquiries', icon: '✉️', label: '문의 내역' },
         { id: 'settings', icon: '⚙️', label: '사이트 설정' },
     ]
 
@@ -1052,6 +1054,71 @@ export default function AdminPage() {
                                                 ))}
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ========== 문의 내역 탭 ========== */}
+                            {activeTab === 'inquiries' && (
+                                <div>
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h1 className="text-2xl font-bold">✉️ 문의 내역</h1>
+                                        <span className="px-3 py-1 bg-accent-primary/20 text-accent-primary rounded-full text-sm">
+                                            총 {inquiries.length}건
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {inquiries.length === 0 ? (
+                                            <div className="text-center py-12 bg-bg-primary rounded-xl border border-white/10">
+                                                <p className="text-text-secondary">문의 내역이 없습니다.</p>
+                                            </div>
+                                        ) : (
+                                            inquiries.map(inquiry => (
+                                                <div key={inquiry.id} className="bg-bg-primary rounded-xl p-6 border border-white/10 relative group">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (confirm('정말 이 문의를 삭제하시겠습니까?')) {
+                                                                deleteInquiry(inquiry.id)
+                                                            }
+                                                        }}
+                                                        className="absolute top-6 right-6 p-2 text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                                        title="삭제"
+                                                    >
+                                                        🗑️
+                                                    </button>
+
+                                                    <div className="flex flex-wrap gap-4 mb-4 text-sm">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-text-secondary">보낸 사람:</span>
+                                                            <span className="font-semibold">{inquiry.name}</span>
+                                                            <span className="text-text-secondary">({inquiry.email})</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-text-secondary">날짜:</span>
+                                                            <span>{new Date(inquiry.createdAt).toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-text-secondary">구분:</span>
+                                                            <span className="px-2 py-0.5 bg-white/5 rounded text-xs">{inquiry.subject}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-bg-secondary p-4 rounded-lg border border-white/5 text-sm whitespace-pre-wrap leading-relaxed">
+                                                        {inquiry.message}
+                                                    </div>
+
+                                                    <div className="mt-4 flex gap-2">
+                                                        <a
+                                                            href={`mailto:${inquiry.email}?subject=Re: ${encodeURIComponent(inquiry.subject)}`}
+                                                            className="text-xs px-3 py-1.5 bg-accent-primary text-black font-bold rounded hover:opacity-90 transition-opacity"
+                                                        >
+                                                            답장하기
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             )}
