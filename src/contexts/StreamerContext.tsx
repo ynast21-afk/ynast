@@ -15,6 +15,7 @@ interface StreamerContextType {
     toggleVideoLike: (videoId: string, isLiked: boolean) => void
     getStreamerVideos: (streamerId: string) => Video[]
     getStreamerById: (id: string) => Streamer | undefined
+    importData: (data: { streamers: Streamer[], videos: Video[] }) => boolean
     downloadToken: string | null
 }
 
@@ -184,6 +185,36 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
         return streamers.find(s => s.id === id)
     }
 
+    const importData = (data: { streamers: Streamer[], videos: Video[] }) => {
+        if (!data.streamers || !data.videos) {
+            console.error('Invalid import data structure')
+            return false
+        }
+
+        // Merge streamers
+        setStreamers(prev => {
+            const combined = [...prev]
+            data.streamers.forEach(s => {
+                const index = combined.findIndex(item => item.id === s.id)
+                if (index !== -1) combined[index] = s
+                else combined.push(s)
+            })
+            return combined
+        })
+
+        // Merge videos
+        setVideos(prev => {
+            const combined = [...prev]
+            data.videos.forEach(v => {
+                const index = combined.findIndex(item => item.id === v.id)
+                if (index !== -1) combined[index] = v
+                else combined.push(v)
+            })
+            return combined
+        })
+        return true
+    }
+
     return (
         <StreamerContext.Provider value={{
             streamers,
@@ -196,6 +227,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             toggleVideoLike,
             getStreamerVideos,
             getStreamerById,
+            importData,
             downloadToken,
         }}>
             {children}

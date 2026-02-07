@@ -22,6 +22,7 @@ type AdminTab =
     | 'seo'
     | 'settings'
     | 'inquiries'
+    | 'data'
 
 const gradientOptions = [
     { value: 'from-pink-900 to-purple-900', label: '핑크-퍼플' },
@@ -47,7 +48,7 @@ const colorPresets = [
 export default function AdminPage() {
     console.log('--- ADMIN PAGE VERSION 2.1 (FINAL CORS FIX) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
-    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
+    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
@@ -535,6 +536,49 @@ export default function AdminPage() {
         alert('✅ 설정이 저장되었습니다!')
     }
 
+    const handleExportData = () => {
+        const data = {
+            streamers,
+            videos,
+            settings,
+            exportDate: new Date().toISOString()
+        }
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `kdance_backup_${new Date().toISOString().split('T')[0]}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+    }
+
+    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target?.result as string)
+                if (data.streamers && data.videos) {
+                    const success = importData({ streamers: data.streamers, videos: data.videos })
+                    if (success) {
+                        alert('✅ 데이터 가져오기가 완료되었습니다! (스트리머/비디오)')
+                        window.location.reload() // Reload to ensure all contexts sync
+                    } else {
+                        alert('❌ 데이터 형식이 올바르지 않습니다.')
+                    }
+                } else {
+                    alert('❌ 필수 데이터(streamers, videos)가 누락되었습니다.')
+                }
+            } catch (err) {
+                console.error('Import failed:', err)
+                alert('❌ 파일 읽기 중 오류가 발생했습니다.')
+            }
+        }
+        reader.readAsText(file)
+    }
+
     // 로딩 중
     if (authLoading) {
         return (
@@ -593,6 +637,7 @@ export default function AdminPage() {
         { id: 'navigation', icon: '🔗', label: '메뉴/링크' },
         { id: 'seo', icon: '🔍', label: 'SEO/마케팅' },
         { id: 'inquiries', icon: '✉️', label: '문의 내역' },
+        { id: 'data', icon: '💾', label: '데이터 백업' },
         { id: 'settings', icon: '⚙️', label: '사이트 설정' },
     ]
 
