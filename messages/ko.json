@@ -1,0 +1,60 @@
+{
+  "common": {
+    "login": "로그인",
+    "signup": "회원가입",
+    "logout": "로그아웃",
+    "home": "홈",
+    "membership": "멤버십",
+    "videos": "비디오",
+    "actors": "배우",
+    "contact": "문의",
+    "admin": "관리자",
+    "settings": "설정",
+    "language": "언어",
+    "korean": "한국어",
+    "english": "English"
+  },
+  "membership": {
+    "title": "VIP 멤버십",
+    "subtitle": "최고의 K-Dance 경험을 시작하세요",
+    "getStarted": "지금 시작하기",
+    "monthly": "월간",
+    "yearly": "연간",
+    "perMonth": "/ 월",
+    "perYear": "/ 년",
+    "features": "혜택",
+    "recommended": "추천",
+    "completePayment": "결제 완료",
+    "plan": "플랜",
+    "total": "총액"
+  },
+  "auth": {
+    "email": "이메일",
+    "password": "비밀번호",
+    "confirmPassword": "비밀번호 확인",
+    "name": "이름",
+    "loginTitle": "로그인",
+    "signupTitle": "회원가입",
+    "forgotPassword": "비밀번호 찾기",
+    "noAccount": "계정이 없으신가요?",
+    "hasAccount": "이미 계정이 있으신가요?",
+    "loginFailed": "로그인에 실패했습니다",
+    "signupSuccess": "회원가입이 완료되었습니다"
+  },
+  "faq": {
+    "title": "자주 묻는 질문",
+    "cancelQuestion": "구독을 취소하려면 어떻게 하나요?",
+    "cancelAnswer": "계정 설정에서 언제든지 취소할 수 있습니다. 결제 기간이 끝날 때까지 이용이 가능합니다.",
+    "changePlanQuestion": "플랜을 변경할 수 있나요?",
+    "changePlanAnswer": "네! 언제든지 업그레이드 또는 다운그레이드할 수 있습니다. 변경사항은 다음 결제 주기에 적용됩니다.",
+    "paymentQuestion": "어떤 결제 방법을 지원하나요?",
+    "paymentAnswer": "PayPal, PayPal을 통한 모든 주요 신용카드, 암호화폐를 지원합니다.",
+    "trialQuestion": "무료 체험이 있나요?",
+    "trialAnswer": "신규 회원은 10개의 무료 비디오를 이용할 수 있습니다. VIP와 Premium+는 7일 체험 기간이 포함됩니다."
+  },
+  "footer": {
+    "rights": "All rights reserved.",
+    "privacy": "개인정보처리방침",
+    "terms": "이용약관"
+  }
+}

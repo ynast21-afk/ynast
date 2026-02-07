@@ -18,6 +18,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.9,
         },
         {
+            url: `${BASE_URL}/videos`,
+            lastModified: new Date(),
+            changeFrequency: 'daily' as const,
+            priority: 0.9,
+        },
+        {
+            url: `${BASE_URL}/actors`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        },
+        {
+            url: `${BASE_URL}/contact`,
+            lastModified: new Date(),
+            changeFrequency: 'monthly' as const,
+            priority: 0.6,
+        },
+        {
             url: `${BASE_URL}/login`,
             lastModified: new Date(),
             changeFrequency: 'monthly' as const,

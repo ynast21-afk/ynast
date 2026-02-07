@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 import TopBanner from './TopBanner'
+import LanguageSwitcher from './LanguageSwitcher'
 
 export default function Header() {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -68,6 +69,9 @@ export default function Header() {
                         <button className="text-xl hover:text-accent-primary transition-colors">
                             🔔
                         </button>
+
+                        {/* Language Switcher */}
+                        <LanguageSwitcher />
 
                         {!isLoading && (
                             <>
