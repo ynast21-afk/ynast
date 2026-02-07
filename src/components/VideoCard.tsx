@@ -19,11 +19,13 @@ export default function VideoCard({
     isVip = false,
     gradient = 'from-purple-500/20 to-cyan-500/20 dark:from-purple-900 dark:to-cyan-900'
 }: VideoCardProps) {
+    // Ensure gradient is not empty
+    const displayGradient = gradient || 'from-purple-600 to-blue-600'
     return (
         <Link href={`/video/${id}`} className="block">
             <div className="bg-bg-secondary rounded-xl overflow-hidden card-hover cursor-pointer border border-[var(--border-color)]">
                 {/* Thumbnail */}
-                <div className={`relative aspect-video bg-gradient-to-br ${gradient}`}>
+                <div className={`relative aspect-video bg-gradient-to-br ${displayGradient}`}>
                     {/* View Count Badge */}
                     <span className="absolute top-2 left-2 bg-black/70 px-2 py-1 rounded text-xs">
                         👁 {views}
