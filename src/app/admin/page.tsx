@@ -1775,6 +1775,43 @@ export default function AdminPage() {
                                                 현재 브라우저에 저장된 모든 스트리머와 비디오 데이터를 JSON 파일로 다운로드합니다.
                                                 다른 PC나 브라우저에서 작업할 때 유용합니다.
                                             </p>
+                                            <div className="space-y-4">
+                                                <div className="bg-black/50 p-4 rounded-xl border border-white/5 font-mono text-xs">
+                                                    <div className="flex justify-between mb-2 pb-1 border-b border-white/10">
+                                                        <span className="text-text-secondary">B2 Download Token:</span>
+                                                        <span className={downloadToken ? 'text-green-400' : 'text-red-400'}>
+                                                            {downloadToken ? 'SYNCED' : 'MISSING'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between mb-2 pb-1 border-b border-white/10">
+                                                        <span className="text-text-secondary">Token Length:</span>
+                                                        <span>{downloadToken ? downloadToken.length : 0} chars</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-text-secondary">Next.js Environment:</span>
+                                                        <span className="text-blue-400">{process.env.NODE_ENV}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const diagnostic = {
+                                                                tokenPresent: !!downloadToken,
+                                                                tokenPrefix: downloadToken?.substring(0, 10),
+                                                                videosCount: videos.length,
+                                                                streamersCount: streamers.length,
+                                                                userAgent: navigator.userAgent
+                                                            }
+                                                            console.log('DIAGNOSTIC DATA:', diagnostic)
+                                                            alert('Diagnostic data logged to console. Please check F12.')
+                                                        }}
+                                                        className="flex-1 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all font-semibold"
+                                                    >
+                                                        🔍 Run Detailed Sync Check
+                                                    </button>
+                                                </div>
+                                            </div>
                                             <button
                                                 onClick={handleExportData}
                                                 className="w-full py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all font-semibold flex items-center justify-center gap-2"
