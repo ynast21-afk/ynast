@@ -17,7 +17,7 @@ interface StreamerContextType {
     getStreamerById: (id: string) => Streamer | undefined
     importData: (data: { streamers: Streamer[], videos: Video[] }) => boolean
     downloadToken: string | null
-    activeBucketName: string
+    activeBucketName: string | null
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined)
@@ -27,7 +27,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
     const [streamers, setStreamers] = useState<Streamer[]>([])
     const [videos, setVideos] = useState<Video[]>([])
     const [downloadToken, setDownloadToken] = useState<string | null>(null)
-    const [activeBucketName, setActiveBucketName] = useState<string>('yna-backup')
+    const [activeBucketName, setActiveBucketName] = useState<string | null>(null)
 
     // Load from localStorage
     useEffect(() => {

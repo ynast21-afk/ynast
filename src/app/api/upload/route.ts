@@ -83,7 +83,8 @@ async function resolveBucketName(auth: B2AuthResponse): Promise<string> {
     }
 
     // 3. Fallback to Env Var
-    return process.env.B2_BUCKET_NAME || 'yna-backup'
+    // 3. Fallback to Env Var (or empty if not set)
+    return process.env.B2_BUCKET_NAME || ''
 }
 
 export async function POST(request: NextRequest) {
