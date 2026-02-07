@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { getValidGradient } from '@/utils/ui'
 
 interface VideoCardProps {
     id: string
@@ -17,10 +18,10 @@ export default function VideoCard({
     views,
     duration,
     isVip = false,
-    gradient = 'from-purple-500/20 to-cyan-500/20 dark:from-purple-900 dark:to-cyan-900'
+    gradient
 }: VideoCardProps) {
-    // Ensure gradient is not empty
-    const displayGradient = gradient || 'from-purple-600 to-blue-600'
+    const displayGradient = getValidGradient(gradient)
+
     return (
         <Link href={`/video/${id}`} className="block">
             <div className="bg-bg-secondary rounded-xl overflow-hidden card-hover cursor-pointer border border-[var(--border-color)]">

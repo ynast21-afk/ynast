@@ -5,6 +5,7 @@ import Footer from '@/components/Footer'
 import Link from 'next/link'
 import { useStreamers } from '@/contexts/StreamerContext'
 import { useState } from 'react'
+import { getValidGradient } from '@/utils/ui'
 
 export default function VideosPage() {
     const { videos } = useStreamers()
@@ -130,7 +131,7 @@ export default function VideosPage() {
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
                             {sortedVideos.map((video) => (
                                 <Link key={video.id} href={`/video/${video.id}`} className="group block">
-                                    <div className={`relative aspect-[4/5] rounded-xl overflow-hidden bg-gradient-to-br ${video.gradient || 'from-purple-600 to-blue-600'} cursor-pointer card-hover shadow-lg`}>
+                                    <div className={`relative aspect-[4/5] rounded-xl overflow-hidden bg-gradient-to-br ${getValidGradient(video.gradient)} cursor-pointer card-hover shadow-lg`}>
                                         {/* VIP Badge */}
                                         {video.isVip && (
                                             <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-black text-xs font-bold rounded shadow-sm">
