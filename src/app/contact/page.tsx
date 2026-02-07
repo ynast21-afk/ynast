@@ -32,15 +32,14 @@ export default function ContactPage() {
         const mailtoLink = `mailto:ynast21@gmail.com?subject=${encodeURIComponent(
             subjects.find(s => s.value === formData.subject)?.label || 'Contact'
         )}&body=${encodeURIComponent(
-            `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`
+            `[Message from Contact Form]\n\nName: ${formData.name}\nEmail: ${formData.email}\nSubject: ${subjects.find(s => s.value === formData.subject)?.label}\n\nMessage:\n${formData.message}`
         )}`
 
+        // 직접 이메일 클라이언트 열기
         window.location.href = mailtoLink
 
-        setTimeout(() => {
-            setIsSubmitting(false)
-            setSubmitted(true)
-        }, 1000)
+        setIsSubmitting(false)
+        setSubmitted(true)
     }
 
     const characterCount = formData.message.length
