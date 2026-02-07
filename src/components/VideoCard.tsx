@@ -61,10 +61,30 @@ export default function VideoCard({
                 onMouseLeave={() => setIsHovered(false)}
             >
                 {/* Thumbnail / Preview Area */}
+                {/* Thumbnail / Gradient Background */}
                 <div
                     className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-500 overflow-hidden`}
-                    style={getGradientStyle(displayGradient)}
+                    style={!videoUrl ? getGradientStyle(displayGradient) : undefined}
                 >
+                    {/* Video Element (Always rendered if valid URL exists) */}
+                    {videoUrl && (
+                        <div className="absolute inset-0 z-10 bg-black">
+                            <video
+                                ref={videoRef}
+                                src={videoSrcWithAuth}
+                                muted
+                                loop
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-cover transition-opacity duration-300"
+                            />
+                        </div>
+                    )}
+
+                    {/* Gradient Fallback (If no video URL) */}
+                    {!videoUrl && (
+                        <div className="absolute inset-0 z-0" style={getGradientStyle(displayGradient)} />
+                    )}
 
                     {/* VIP Badge */}
                     {isVip && (
@@ -77,20 +97,6 @@ export default function VideoCard({
                     <span className="absolute top-2 right-2 z-20 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white">
                         👁 {views}
                     </span>
-
-                    {/* Video Preview (Only on focus/hover) */}
-                    {isHovered && videoUrl && (
-                        <div className="absolute inset-0 z-10 bg-black">
-                            <video
-                                ref={videoRef}
-                                src={videoSrcWithAuth}
-                                muted
-                                loop
-                                playsInline
-                                className="w-full h-full object-cover"
-                            />
-                        </div>
-                    )}
 
                     {/* Duration Badge */}
                     <span className="absolute bottom-2 right-2 z-20 bg-black/80 px-1.5 py-0.5 rounded text-[10px] text-white font-medium">
@@ -106,7 +112,7 @@ export default function VideoCard({
 
                     {/* Play Button Icon Overlay (Subtle) */}
                     {!isHovered && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 z-10">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 z-30">
                             <div className="w-10 h-10 rounded-full bg-accent-primary/80 flex items-center justify-center shadow-2xl scale-90 group-hover:scale-100 transition-transform">
                                 <span className="text-black text-lg ml-0.5">▶</span>
                             </div>
