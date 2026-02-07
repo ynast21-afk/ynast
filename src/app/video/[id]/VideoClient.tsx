@@ -38,6 +38,27 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     const { user } = useAuth()
     const [isLiked, setIsLiked] = useState(false)
     const [isFollowed, setIsFollowed] = useState(false)
+    const [downloadAuthToken, setDownloadAuthToken] = useState<string | null>(null)
+
+    // Fetch B2 Download Authorization Token if video is private/uploaded
+    useEffect(() => {
+        const fetchAuth = async () => {
+            if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) return
+
+            try {
+                // We ask for a token that covers the bucket/file
+                const res = await fetch(`/api/upload?type=download&duration=3600`)
+                if (res.ok) {
+                    const data = await res.json()
+                    setDownloadAuthToken(data.authorizationToken)
+                    console.log('B2 Download Authorization obtained successfully')
+                }
+            } catch (err) {
+                console.error('Failed to get B2 download auth:', err)
+            }
+        }
+        fetchAuth()
+    }, [video])
 
     // Check like and follow status on mount
     useEffect(() => {
@@ -131,8 +152,12 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
             return
         }
 
+        const urlWithAuth = downloadAuthToken
+            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+            : video.videoUrl
+
         const link = document.createElement('a')
-        link.href = video.videoUrl
+        link.href = urlWithAuth
         link.download = `${video.title || 'video'}.mp4`
         document.body.appendChild(link)
         link.click()
@@ -179,7 +204,10 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                                         controls
                                         autoPlay
                                         className="w-full h-full"
-                                        src={video.videoUrl}
+                                        src={downloadAuthToken && video.videoUrl.includes('backblazeb2.com')
+                                            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+                                            : video.videoUrl
+                                        }
                                     />
                                 ) : (
                                     <>
