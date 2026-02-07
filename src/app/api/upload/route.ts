@@ -84,6 +84,32 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(await response.json())
         }
 
+        if (action === 'update_cors') {
+            console.log('Updating CORS rules for bucket:', B2_BUCKET_ID);
+            const corsRules = [
+                {
+                    corsRuleName: "Allow-KStreamer-Upload",
+                    allowedOrigins: ["*"],
+                    allowedOperations: ["s3_put", "b2_upload_file", "b2_upload_part", "b2_download_file_by_name"],
+                    allowedHeaders: ["authorization", "content-type", "x-bz-file-name", "x-bz-content-sha1", "x-bz-part-number"],
+                    exposeHeaders: ["x-bz-content-sha1"],
+                    maxAgeSeconds: 3600
+                }
+            ];
+
+            const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_update_bucket`, {
+                method: 'POST',
+                headers: { 'Authorization': auth.authorizationToken },
+                body: JSON.stringify({
+                    bucketId: B2_BUCKET_ID,
+                    corsRules: corsRules
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to update CORS: ' + await response.text());
+            return NextResponse.json({ success: true });
+        }
+
         if (action === 'finish_large_file') {
             const fileId = formData.get('fileId') as string
             const partSha1Array = JSON.parse(formData.get('partSha1Array') as string)
