@@ -24,6 +24,7 @@ export interface Video {
     gradient: string
     uploadedAt: string
     createdAt: string
+    videoUrl?: string
 }
 
 interface StreamerContextType {

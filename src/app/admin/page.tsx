@@ -53,6 +53,9 @@ export default function AdminPage() {
     // Form states
     const [newStreamer, setNewStreamer] = useState({ name: '', koreanName: '', gradient: gradientOptions[0].value })
     const [newVideo, setNewVideo] = useState({ title: '', streamerId: '', duration: '', isVip: true })
+    const [videoFile, setVideoFile] = useState<File | null>(null)
+    const [isUploading, setIsUploading] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState(0)
 
     // Text edit states
     const [textEdits, setTextEdits] = useState(settings.texts)
@@ -89,10 +92,48 @@ export default function AdminPage() {
         setNewStreamer({ name: '', koreanName: '', gradient: gradientOptions[0].value })
     }
 
-    const handleAddVideo = () => {
-        if (!newVideo.title.trim() || !newVideo.streamerId || !newVideo.duration.trim()) return
+    const handleAddVideo = async () => {
+        if (!newVideo.title.trim() || !newVideo.streamerId || !newVideo.duration.trim()) {
+            alert('영상 제목, 스트리머, 재생시간을 입력해주세요.')
+            return
+        }
+
         const streamer = streamers.find(s => s.id === newVideo.streamerId)
         if (!streamer) return
+
+        let videoUrl = ''
+
+        // 파일이 선택된 경우 업로드 진행
+        if (videoFile) {
+            setIsUploading(true)
+            setUploadProgress(10) // 시작 표시
+
+            try {
+                const formData = new FormData()
+                formData.append('file', videoFile)
+                formData.append('folder', 'videos')
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                })
+
+                if (!response.ok) {
+                    throw new Error('업로드 실패')
+                }
+
+                const data = await response.json()
+                videoUrl = data.downloadUrl
+                setUploadProgress(100)
+            } catch (error) {
+                console.error('Upload failed:', error)
+                alert('비디오 업로드에 실패했습니다.')
+                setIsUploading(false)
+                setUploadProgress(0)
+                return
+            }
+        }
+
         addVideo({
             title: newVideo.title.trim(),
             streamerId: newVideo.streamerId,
@@ -103,8 +144,19 @@ export default function AdminPage() {
             likes: '0',
             gradient: streamer.gradient,
             uploadedAt: 'Just now',
+            videoUrl: videoUrl || undefined,
         })
+
         setNewVideo({ title: '', streamerId: '', duration: '', isVip: true })
+        setVideoFile(null)
+        setIsUploading(false)
+        setUploadProgress(0)
+
+        // 파일 입력 초기화
+        const fileInput = document.getElementById('video-file-input') as HTMLInputElement
+        if (fileInput) fileInput.value = ''
+
+        alert('✅ 영상이 추가되었습니다!')
     }
 
     const handleConfirmDelete = () => {
@@ -639,8 +691,30 @@ export default function AdminPage() {
                                                     onChange={e => setNewVideo({ ...newVideo, duration: e.target.value })}
                                                     className="px-4 py-2 bg-bg-secondary border border-white/10 rounded-lg text-white focus:outline-none focus:border-accent-primary"
                                                 />
-                                                <button onClick={handleAddVideo} className="gradient-button text-black rounded-lg font-semibold">
-                                                    추가
+                                                <div className="md:col-span-3 flex flex-col gap-2">
+                                                    <label className="text-xs text-text-secondary">비디오 파일 업로드 (B2 연동)</label>
+                                                    <input
+                                                        id="video-file-input"
+                                                        type="file"
+                                                        accept="video/*"
+                                                        onChange={e => setVideoFile(e.target.files?.[0] || null)}
+                                                        className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-bg-secondary file:text-accent-primary hover:file:bg-white/10"
+                                                    />
+                                                    {isUploading && (
+                                                        <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden mt-1">
+                                                            <div
+                                                                className="bg-accent-primary h-full transition-all duration-300"
+                                                                style={{ width: `${uploadProgress}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={handleAddVideo}
+                                                    disabled={isUploading}
+                                                    className={`gradient-button text-black rounded-lg font-semibold ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                >
+                                                    {isUploading ? '업로드 중...' : '영상 추가'}
                                                 </button>
                                             </div>
                                         )}

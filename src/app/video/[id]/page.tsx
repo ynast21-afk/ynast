@@ -3,7 +3,9 @@
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useStreamers } from '@/contexts/StreamerContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 const relatedVideos = [
     { id: '2', title: 'Future Tech 2025: What to Expect', creator: 'TechInsider', views: '850K', duration: '12:04', isVip: false },
@@ -21,7 +23,31 @@ const comments = [
 ]
 
 export default function VideoPage({ params }: { params: { id: string } }) {
+    const { id } = params
+    const { videos, getStreamerById } = useStreamers()
+    const { user } = useAuth()
     const [isLiked, setIsLiked] = useState(false)
+
+    // Find the current video
+    const video = videos.find(v => v.id === id)
+    const streamer = video ? getStreamerById(video.streamerId) : null
+
+    // If video not found
+    if (!video) {
+        return (
+            <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center text-center p-6">
+                <Header />
+                <h1 className="text-3xl font-bold mb-4">영상를 찾을 수 없습니다</h1>
+                <p className="text-text-secondary mb-8">요청하신 영상이 존재하지 않거나 삭제되었을 수 있습니다.</p>
+                <Link href="/videos" className="gradient-button text-black px-8 py-3 rounded-full font-semibold">
+                    다른 영상 보러가기
+                </Link>
+                <Footer />
+            </div>
+        )
+    }
+
+    const isLocked = video.isVip && (!user || user.membership === 'guest')
 
     return (
         <div className="min-h-screen bg-bg-primary">
@@ -35,46 +61,58 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                     {/* Left Column - Video */}
                     <div>
                         {/* Video Player */}
-                        <div className="bg-black rounded-2xl overflow-hidden">
-                            <div className="aspect-video bg-gradient-to-br from-indigo-950 to-purple-950 relative flex items-center justify-center">
-                                {/* VIP Badge */}
-                                <span className="absolute top-5 right-5 bg-accent-primary text-black px-4 py-2 rounded-full font-bold text-sm">
-                                    ⭐ VIP Only
-                                </span>
+                        <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
+                            <div className={`aspect-video relative flex items-center justify-center group ${!video.videoUrl ? `bg-gradient-to-br ${video.gradient}` : 'bg-black'}`}>
+                                {isLocked ? (
+                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
+                                        <div className="w-20 h-20 rounded-full bg-accent-primary/20 flex items-center justify-center mb-6 text-accent-primary text-4xl">
+                                            🔒
+                                        </div>
+                                        <h3 className="text-2xl font-bold mb-2">VIP 전용 콘텐츠</h3>
+                                        <p className="text-text-secondary max-w-sm mb-6">
+                                            이 영상은 VIP 회원만 시청할 수 있습니다. 지금 바로 프리미엄 멤버십으로 업그레이드하세요!
+                                        </p>
+                                        <Link href="/membership" className="gradient-button text-black px-8 py-3 rounded-full font-bold">
+                                            VIP 멤버십 가입하기
+                                        </Link>
+                                    </div>
+                                ) : video.videoUrl ? (
+                                    <video
+                                        controls
+                                        autoPlay
+                                        className="w-full h-full"
+                                        src={video.videoUrl}
+                                    />
+                                ) : (
+                                    <>
+                                        {/* Placeholder for legacy/mock data without real videoUrl */}
+                                        <div className="text-center">
+                                            <p className="text-text-secondary mb-4 italic">(비디오 파일이 업로드되지 않은 데모 영상입니다)</p>
+                                            <div
+                                                className="w-20 h-20 rounded-full bg-accent-primary/90 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                                style={{ boxShadow: '0 0 40px rgba(0, 255, 136, 0.5)' }}
+                                            >
+                                                <span className="text-black text-3xl ml-1">▶</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
 
-                                {/* Play Button */}
-                                <div
-                                    className="w-20 h-20 rounded-full bg-accent-primary/90 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                                    style={{ boxShadow: '0 0 40px rgba(0, 255, 136, 0.5)' }}
-                                >
-                                    <span className="text-black text-3xl ml-1">▶</span>
-                                </div>
-                            </div>
-
-                            {/* Controls */}
-                            <div className="flex items-center gap-5 px-5 py-4 bg-bg-secondary">
-                                <button className="text-lg hover:text-accent-primary">⏮</button>
-                                <button className="text-lg hover:text-accent-primary">▶️</button>
-                                <button className="text-lg hover:text-accent-primary">⏭</button>
-
-                                <div className="flex-1 h-1 bg-bg-tertiary rounded-full cursor-pointer">
-                                    <div className="w-[35%] h-full bg-accent-primary rounded-full" />
-                                </div>
-
-                                <span className="text-sm text-text-secondary">5:23 / 15:30</span>
-                                <button className="text-lg hover:text-accent-primary">🔊</button>
-                                <button className="text-lg hover:text-accent-primary">⚙️</button>
-                                <button className="text-lg hover:text-accent-primary">⛶</button>
+                                {video.isVip && (
+                                    <span className="absolute top-5 left-5 z-20 bg-accent-primary text-black px-4 py-2 rounded-full font-bold text-sm shadow-lg">
+                                        ⭐ VIP
+                                    </span>
+                                )}
                             </div>
                         </div>
 
                         {/* Video Info */}
                         <div className="py-5">
-                            <h1 className="text-2xl font-semibold mb-3">Cyberpunk City - Night Walk [8K]</h1>
+                            <h1 className="text-2xl font-semibold mb-3">{video.title}</h1>
                             <div className="flex flex-wrap gap-5 text-text-secondary text-sm mb-5">
-                                <span>👁 125,432 views</span>
-                                <span>📅 Feb 5, 2026</span>
-                                <span>⏱ 15:30</span>
+                                <span>👁 {video.views} views</span>
+                                <span>📅 {video.uploadedAt}</span>
+                                <span>⏱ {video.duration}</span>
                             </div>
 
                             {/* Action Buttons */}
@@ -82,11 +120,11 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                                 <button
                                     onClick={() => setIsLiked(!isLiked)}
                                     className={`flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all ${isLiked
-                                            ? 'bg-accent-primary/20 border-accent-primary text-accent-primary'
-                                            : 'bg-bg-secondary border-white/10 hover:border-accent-primary hover:text-accent-primary'
+                                        ? 'bg-accent-primary/20 border-accent-primary text-accent-primary'
+                                        : 'bg-bg-secondary border-white/10 hover:border-accent-primary hover:text-accent-primary'
                                         }`}
                                 >
-                                    ❤️ 12.5K
+                                    ❤️ {isLiked ? (parseInt(video.likes) + 1) : video.likes}
                                 </button>
                                 <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
                                     📥 Download
@@ -104,14 +142,14 @@ export default function VideoPage({ params }: { params: { id: string } }) {
                         </div>
 
                         {/* Creator Section */}
-                        <div className="flex items-center justify-between p-5 bg-bg-secondary rounded-xl my-5">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-accent-primary to-accent-secondary" />
+                        <div className="flex items-center justify-between p-5 bg-bg-secondary border border-white/5 rounded-xl my-5">
+                            <Link href={`/actors/${video.streamerId}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                                <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${video.gradient}`} />
                                 <div>
-                                    <div className="font-semibold text-lg">NeonWalker</div>
-                                    <div className="text-sm text-text-secondary">500K Subscribers</div>
+                                    <div className="font-semibold text-lg">@{video.streamerName} {streamer?.koreanName && <span className="text-text-secondary text-sm">({streamer.koreanName})</span>}</div>
+                                    <div className="text-sm text-text-secondary">{streamer?.videoCount || 0} Videos</div>
                                 </div>
-                            </div>
+                            </Link>
                             <button className="px-7 py-3 bg-accent-primary text-black rounded-full font-semibold hover:shadow-[0_0_20px_rgba(0,255,136,0.5)] transition-all">
                                 Subscribe
                             </button>
@@ -119,25 +157,23 @@ export default function VideoPage({ params }: { params: { id: string } }) {
 
                         {/* Description */}
                         <div className="bg-bg-secondary rounded-xl p-5 mb-8">
-                            <h4 className="font-semibold mb-3">Description</h4>
+                            <h4 className="font-semibold mb-3">설명</h4>
                             <p className="text-text-secondary leading-relaxed">
-                                Take a virtual walk through the neon-soaked streets of Neo-Tokyo in the year 2077.
-                                This 8K footage captures the immersive atmosphere of a cyberpunk future, featuring
-                                stunning ray-traced reflections, volumetric fog, and vibrant holographic advertisements.
-                                Best viewed on an OLED display.
+                                {video.streamerName}의 새로운 댄스 비디오입니다. {video.duration} 동안 이어지는 환상적인 퍼포먼스를 시청하세요!
+                                프리미엄 고화질로 제공되며, 실제 스트리머의 독점 콘텐츠를 감상하실 수 있습니다.
                             </p>
                         </div>
 
                         {/* Comments */}
                         <div>
-                            <h3 className="text-xl font-semibold mb-5">💬 2,408 Comments</h3>
+                            <h3 className="text-xl font-semibold mb-5">💬 댓글 {comments.length}개</h3>
 
                             {/* Comment Input */}
                             <div className="flex gap-4 mb-8">
                                 <div className="w-10 h-10 rounded-full bg-bg-tertiary flex-shrink-0" />
                                 <input
                                     type="text"
-                                    placeholder="Add a comment..."
+                                    placeholder="댓글을 입력하세요..."
                                     className="flex-1 bg-bg-secondary border border-white/10 rounded-full px-5 py-3 text-sm focus:outline-none focus:border-accent-primary transition-colors"
                                 />
                             </div>
@@ -166,27 +202,27 @@ export default function VideoPage({ params }: { params: { id: string } }) {
 
                     {/* Right Column - Related Videos */}
                     <aside>
-                        <h3 className="text-lg font-semibold mb-5">Up Next</h3>
+                        <h3 className="text-lg font-semibold mb-5">관련된 영상</h3>
 
                         <div className="space-y-4">
-                            {relatedVideos.map((video) => (
-                                <Link key={video.id} href={`/video/${video.id}`} className="flex gap-3 group">
-                                    <div className="w-40 h-[90px] bg-gradient-to-br from-slate-800 to-zinc-800 rounded-lg flex-shrink-0 relative overflow-hidden">
-                                        {video.isVip && (
+                            {videos.filter(v => v.id !== id).slice(0, 10).map((v) => (
+                                <Link key={v.id} href={`/video/${v.id}`} className="flex gap-3 group">
+                                    <div className={`w-40 h-[90px] bg-gradient-to-br ${v.gradient} rounded-lg flex-shrink-0 relative overflow-hidden`}>
+                                        {v.isVip && (
                                             <span className="absolute top-1 left-1 bg-accent-primary text-black px-1.5 py-0.5 rounded text-[10px] font-bold">
                                                 VIP
                                             </span>
                                         )}
                                         <span className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px]">
-                                            {video.duration}
+                                            {v.duration}
                                         </span>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-sm font-medium line-clamp-2 mb-1 group-hover:text-accent-primary transition-colors">
-                                            {video.title}
+                                            {v.title}
                                         </h4>
-                                        <p className="text-xs text-text-secondary">{video.creator}</p>
-                                        <p className="text-xs text-text-secondary">{video.views} views</p>
+                                        <p className="text-xs text-text-secondary">@{v.streamerName}</p>
+                                        <p className="text-xs text-text-secondary">{v.views} views</p>
                                     </div>
                                 </Link>
                             ))}
