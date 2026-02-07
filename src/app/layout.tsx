@@ -72,13 +72,25 @@ export const metadata: Metadata = {
     },
 }
 
+import { NextIntlClientProvider } from 'next-intl'
+import { cookies } from 'next/headers'
+
 export default function RootLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
+    const cookieStore = cookies()
+    const locale = cookieStore.get('NEXT_LOCALE')?.value || 'ko'
+    let messages
+    try {
+        messages = require(`../../messages/${locale}.json`)
+    } catch (error) {
+        messages = require('../../messages/ko.json')
+    }
+
     return (
-        <html lang="ko" className="dark">
+        <html lang={locale} className="dark">
             <head>
                 <WebSiteSchema
                     name="kStreamer dance"
@@ -92,14 +104,16 @@ export default function RootLayout({
                 <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
             </head>
             <body className="bg-bg-primary text-text-primary min-h-screen">
-                <SiteSettingsProvider>
-                    <GoogleAnalytics />
-                    <AuthProvider>
-                        <StreamerProvider>
-                            {children}
-                        </StreamerProvider>
-                    </AuthProvider>
-                </SiteSettingsProvider>
+                <NextIntlClientProvider locale={locale} messages={messages}>
+                    <SiteSettingsProvider>
+                        <GoogleAnalytics />
+                        <AuthProvider>
+                            <StreamerProvider>
+                                {children}
+                            </StreamerProvider>
+                        </AuthProvider>
+                    </SiteSettingsProvider>
+                </NextIntlClientProvider>
             </body>
         </html>
     )

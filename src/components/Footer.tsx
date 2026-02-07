@@ -1,6 +1,10 @@
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 
 export default function Footer() {
+    const t = useTranslations('common')
+    const tFooter = useTranslations('footer')
+
     return (
         <footer className="bg-bg-secondary border-t border-white/10 mt-16">
             <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10">
@@ -18,13 +22,13 @@ export default function Footer() {
                         <h4 className="text-sm uppercase tracking-wider font-semibold mb-4">Quick Links</h4>
                         <nav className="flex flex-col gap-2">
                             <Link href="/" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
-                                All Videos
+                                {t('videos')}
                             </Link>
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
                                 Popular Creators
                             </Link>
                             <Link href="/membership" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
-                                VIP Membership
+                                {t('membership')}
                             </Link>
                         </nav>
                     </div>
@@ -34,10 +38,10 @@ export default function Footer() {
                         <h4 className="text-sm uppercase tracking-wider font-semibold mb-4">Legal</h4>
                         <nav className="flex flex-col gap-2">
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
-                                Terms of Service
+                                {tFooter('terms')}
                             </Link>
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
-                                Privacy Policy
+                                {tFooter('privacy')}
                             </Link>
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
                                 DMCA
@@ -53,7 +57,7 @@ export default function Footer() {
                                 FAQ
                             </Link>
                             <Link href="/contact" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
-                                Contact
+                                {t('contact')}
                             </Link>
                             <Link href="#" className="text-text-secondary hover:text-accent-primary text-sm transition-colors">
                                 Report
@@ -64,7 +68,7 @@ export default function Footer() {
 
                 {/* Bottom */}
                 <div className="flex flex-col md:flex-row justify-between items-center mt-10 pt-6 border-t border-white/10 text-xs text-text-secondary">
-                    <span>© 2026 kStreamer dance. All rights reserved.</span>
+                    <span>© 2026 kStreamer dance. {tFooter('rights')}</span>
                     <span>All models are 18 years of age or older</span>
                 </div>
             </div>

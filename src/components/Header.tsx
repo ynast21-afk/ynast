@@ -6,12 +6,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 import TopBanner from './TopBanner'
 import LanguageSwitcher from './LanguageSwitcher'
+import { useTranslations } from 'next-intl'
 
 export default function Header() {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
     const { user, logout, isLoading } = useAuth()
     const { settings } = useSiteSettings()
+    const t = useTranslations('common')
+    const tAuth = useTranslations('auth')
 
     const getMembershipBadge = () => {
         if (!user) return null
@@ -45,16 +48,16 @@ export default function Header() {
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex gap-8">
                         <Link href="/videos" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Videos
+                            {t('videos')}
                         </Link>
                         <Link href="/membership" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Premium
+                            {t('membership')}
                         </Link>
                         <Link href="/actors" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Actors
+                            {t('actors')}
                         </Link>
                         <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
-                            Community
+                            {t('contact')}
                         </Link>
                         <Link href="#" className="text-text-secondary hover:text-accent-primary transition-colors font-medium">
                             Playlists
@@ -139,13 +142,13 @@ export default function Header() {
                                             href="/login"
                                             className="hidden sm:block text-text-secondary hover:text-white px-4 py-2 text-sm font-medium"
                                         >
-                                            Sign In
+                                            {t('login')}
                                         </Link>
                                         <Link
                                             href="/signup"
                                             className="hidden sm:block gradient-button text-black px-5 py-2 rounded-full font-semibold text-sm"
                                         >
-                                            Join Free
+                                            {t('signup')}
                                         </Link>
                                     </>
                                 )}
