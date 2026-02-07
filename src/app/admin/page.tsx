@@ -145,15 +145,20 @@ export default function AdminPage() {
                 const isLargeFile = videoFile.size > CHUNK_SIZE * 2
 
                 if (isLargeFile) {
-                    // --- Multi-part Upload Flow ---
+                    console.log('Initiating Multi-part upload...')
                     const formData = new FormData()
                     formData.append('action', 'start_large_file')
                     formData.append('fileName', videoFile.name)
                     formData.append('contentType', videoFile.type)
 
                     const startRes = await fetch('/api/upload', { method: 'POST', body: formData })
-                    if (!startRes.ok) throw new Error('Failed to start large file')
+                    if (!startRes.ok) {
+                        const err = await startRes.text()
+                        console.error('Start large file failed:', err)
+                        throw new Error(`Failed to start large file: ${err}`)
+                    }
                     const { fileId } = await startRes.json()
+                    console.log('Multi-part upload started. File ID:', fileId)
 
                     const partSha1Array: string[] = []
                     const totalParts = Math.ceil(videoFile.size / CHUNK_SIZE)
@@ -171,6 +176,7 @@ export default function AdminPage() {
                         if (!partUrlRes.ok) throw new Error('Failed to get part upload URL')
                         const { uploadUrl, authorizationToken } = await partUrlRes.json()
 
+                        console.log(`Uploading part ${i + 1}/${totalParts}...`)
                         // Upload part
                         const uploadPartRes = await fetch(uploadUrl, {
                             method: 'POST',
@@ -183,10 +189,20 @@ export default function AdminPage() {
                             body: chunk,
                         })
 
-                        if (!uploadPartRes.ok) throw new Error(`Failed to upload part ${i + 1}`)
+                        if (!uploadPartRes.ok) {
+                            const err = await uploadPartRes.text()
+                            console.error(`Part ${i + 1} upload failed:`, err)
+                            if (uploadPartRes.status === 0 || uploadPartRes.status === 403) {
+                                throw new Error(`Part ${i + 1} failed. B2 CORS settings likely missing "X-Bz-Part-Number" header.`)
+                            }
+                            throw new Error(`Failed to upload part ${i + 1}: ${err}`)
+                        }
+
+                        console.log(`Part ${i + 1} done.`)
                         setUploadProgress(Math.floor(((i + 1) / totalParts) * 90))
                     }
 
+                    console.log('Finishing large file...')
                     // Finish large file
                     const finishData = new FormData()
                     finishData.append('action', 'finish_large_file')
@@ -194,9 +210,14 @@ export default function AdminPage() {
                     finishData.append('partSha1Array', JSON.stringify(partSha1Array))
 
                     const finishRes = await fetch('/api/upload', { method: 'POST', body: finishData })
-                    if (!finishRes.ok) throw new Error('Failed to finish large file')
+                    if (!finishRes.ok) {
+                        const err = await finishRes.text()
+                        console.error('Finish large file failed:', err)
+                        throw new Error(`Failed to finish large file: ${err}`)
+                    }
                     const finishResult = await finishRes.json()
                     videoUrl = finishResult.downloadUrl
+                    console.log('Multi-part upload SUCCESS.')
                 } else {
                     // --- Single Direct Upload Flow ---
                     const credsRes = await fetch('/api/upload?type=upload')
