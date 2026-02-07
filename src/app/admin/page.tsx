@@ -48,7 +48,7 @@ const colorPresets = [
 export default function AdminPage() {
     console.log('--- ADMIN PAGE VERSION 2.5 (DATA BACKUP) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
-    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData } = useStreamers()
+    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData, downloadToken } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
