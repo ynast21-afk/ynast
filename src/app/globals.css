@@ -59,8 +59,15 @@ body {
 
 /* Animations */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 30px rgba(0, 255, 136, 0.4); }
-  50% { box-shadow: 0 0 50px rgba(0, 255, 136, 0.6); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 50px rgba(0, 255, 136, 0.6);
+  }
 }
 
 .animate-pulse-glow {
@@ -100,6 +107,7 @@ body {
 }
 
 .glass-effect {
-  background: rgba(26, 26, 26, 0.8);
+  background: var(--bg-secondary);
+  opacity: 0.8;
   backdrop-filter: blur(10px);
 }
