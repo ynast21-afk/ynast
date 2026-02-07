@@ -13,8 +13,8 @@ export interface Video {
     title: string
     streamerId: string
     streamerName: string
-    views: string
-    likes: string
+    views: number
+    likes: number
     duration: string
     isVip: boolean
     gradient: string

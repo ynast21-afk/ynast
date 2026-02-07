@@ -11,6 +11,8 @@ interface StreamerContextType {
     removeStreamer: (id: string) => void
     addVideo: (video: Omit<Video, 'id' | 'createdAt'>) => void
     removeVideo: (id: string) => void
+    incrementVideoView: (videoId: string) => void
+    toggleVideoLike: (videoId: string, isLiked: boolean) => void
     getStreamerVideos: (streamerId: string) => Video[]
     getStreamerById: (id: string) => Streamer | undefined
     downloadToken: string | null
@@ -162,6 +164,18 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    const incrementVideoView = (videoId: string) => {
+        setVideos(prev => prev.map(v =>
+            v.id === videoId ? { ...v, views: v.views + 1 } : v
+        ))
+    }
+
+    const toggleVideoLike = (videoId: string, isLiked: boolean) => {
+        setVideos(prev => prev.map(v =>
+            v.id === videoId ? { ...v, likes: v.likes + (isLiked ? 1 : -1) } : v
+        ))
+    }
+
     const getStreamerVideos = (streamerId: string) => {
         return videos.filter(v => v.streamerId === streamerId)
     }
@@ -178,6 +192,8 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             removeStreamer,
             addVideo,
             removeVideo,
+            incrementVideoView,
+            toggleVideoLike,
             getStreamerVideos,
             getStreamerById,
             downloadToken,

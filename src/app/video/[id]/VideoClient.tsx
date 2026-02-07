@@ -17,342 +17,335 @@ interface VideoClientProps {
     fallbackId?: string
 }
 
-export default function VideoClient({ video: initialVideo, streamer: initialStreamer, relatedVideos, fallbackId }: VideoClientProps) {
-    const { videos: allVideos, streamers } = useStreamers()
-    const [video, setVideo] = useState<Video | undefined>(initialVideo)
-    const [streamer, setStreamer] = useState<Streamer | undefined>(initialStreamer)
+const id = (video?.id || fallbackId) as string
+const { user } = useAuth()
+const [isLiked, setIsLiked] = useState(false)
+const [isFollowed, setIsFollowed] = useState(false)
+const [downloadAuthToken, setDownloadAuthToken] = useState<string | null>(null)
 
-    // Fallback logic for videos not found on server
-    useEffect(() => {
-        if (!video && fallbackId) {
-            const foundVideo = allVideos.find(v => v.id === fallbackId)
-            if (foundVideo) {
-                setVideo(foundVideo)
-                const foundStreamer = streamers.find(s => s.id === foundVideo.streamerId)
-                setStreamer(foundStreamer)
+// Increment view once per mount
+useEffect(() => {
+    if (id) {
+        incrementVideoView(id)
+    }
+}, [id])
+
+// Fallback logic for videos not found on server
+useEffect(() => {
+    if (!video && fallbackId) {
+        const foundVideo = allVideos.find(v => v.id === fallbackId)
+        if (foundVideo) {
+            setVideo(foundVideo)
+            const foundStreamer = streamers.find(s => s.id === foundVideo.streamerId)
+            setStreamer(foundStreamer)
+        }
+    } else if (id) {
+        // Keep video object in sync with context (for real-time view/like updates)
+        const updatedVideo = allVideos.find(v => v.id === id)
+        if (updatedVideo) setVideo(updatedVideo)
+    }
+}, [fallbackId, allVideos, video, streamers, id])
+
+// Fetch B2 Download Authorization Token if video is private/uploaded
+useEffect(() => {
+    const fetchAuth = async () => {
+        if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) return
+        try {
+            const res = await fetch(`/api/upload?type=download&duration=3600`)
+            if (res.ok) {
+                const data = await res.json()
+                setDownloadAuthToken(data.authorizationToken)
             }
+        } catch (err) {
+            console.error('Failed to get B2 download auth exception:', err)
         }
-    }, [fallbackId, allVideos, video, streamers])
+    }
+    fetchAuth()
+}, [video])
 
-    const id = (video?.id || fallbackId) as string
-    const { user } = useAuth()
-    const [isLiked, setIsLiked] = useState(false)
-    const [isFollowed, setIsFollowed] = useState(false)
-    const [downloadAuthToken, setDownloadAuthToken] = useState<string | null>(null)
+// Check like and follow status on mount
+useEffect(() => {
+    if (!user || !id) return
 
-    // Fetch B2 Download Authorization Token if video is private/uploaded
-    useEffect(() => {
-        const fetchAuth = async () => {
-            if (!video?.videoUrl || !video.videoUrl.includes('backblazeb2.com')) {
-                console.log('Video URL not B2 or missing, skipping auth token fetch')
-                return
-            }
-
-            console.log('--- B2 Auth Token Sync ---')
-            console.log('Target URL:', video.videoUrl)
-
-            try {
-                // We ask for a token that covers the bucket/file
-                const res = await fetch(`/api/upload?type=download&duration=3600`)
-                if (res.ok) {
-                    const data = await res.json()
-                    console.log('B2 Token data received:', {
-                        hasToken: !!data.authorizationToken,
-                        downloadUrl: data.downloadUrl
-                    })
-                    setDownloadAuthToken(data.authorizationToken)
-                } else {
-                    const errText = await res.text()
-                    console.error('Failed to get B2 token. Status:', res.status, errText)
-                }
-            } catch (err) {
-                console.error('Failed to get B2 download auth exception:', err)
-            }
-        }
-        fetchAuth()
-    }, [video])
-
-    // Check like and follow status on mount
-    useEffect(() => {
-        if (!user || !id) return
-
-        // Check like status
-        const savedLikes = localStorage.getItem('kstreamer_user_likes')
-        if (savedLikes) {
-            const likes: string[] = JSON.parse(savedLikes)
-            setIsLiked(likes.includes(id))
-        }
-
-        // Check Following status
-        if (video) {
-            const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
-            setIsFollowed(followed.includes(video.streamerId))
-        }
-    }, [user, id, video])
-
-    // Toggle like
-    const toggleLike = () => {
-        if (!user) {
-            alert('찜하기를 하려면 로그인이 필요합니다.')
-            return
-        }
-
-        const savedLikes = localStorage.getItem('kstreamer_user_likes')
-        const currentLikes: string[] = savedLikes ? JSON.parse(savedLikes) : []
-        let updatedLikes: string[] = []
-
-        if (isLiked) {
-            updatedLikes = currentLikes.filter(likeId => likeId !== id)
-        } else if (id) {
-            updatedLikes = [id, ...currentLikes]
-
-            // Notification simulation
-            if (user && video) {
-                const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
-                notifications.unshift({
-                    id: Date.now().toString(),
-                    type: 'like',
-                    message: `${user.name}님이 '${video.title}' 영상을 찜했습니다.`,
-                    time: new Date().toISOString(),
-                    isRead: false
-                })
-                localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
-            }
-        }
-
-        localStorage.setItem('kstreamer_user_likes', JSON.stringify(updatedLikes))
-        setIsLiked(!isLiked)
+    // Check like status
+    const savedLikes = localStorage.getItem('kstreamer_user_likes')
+    if (savedLikes) {
+        const likes: string[] = JSON.parse(savedLikes)
+        setIsLiked(likes.includes(id))
     }
 
-    const handleFollowToggle = () => {
-        if (!user) {
-            alert('팔로우하려면 로그인이 필요합니다.')
-            return
-        }
-
+    // Check Following status
+    if (video) {
         const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
-        let newFollowed: string[] = []
+        setIsFollowed(followed.includes(video.streamerId))
+    }
+}, [user, id, video])
 
-        if (isFollowed) {
-            newFollowed = followed.filter((streamerId: string) => streamerId !== video?.streamerId)
-        } else if (video) {
-            newFollowed = [...followed, video.streamerId]
+// Toggle like
+const toggleLike = () => {
+    if (!user) {
+        alert('찜하기를 하려면 로그인이 필요합니다.')
+        return
+    }
 
-            // Notify Admin
-            if (user && video) {
-                const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
-                notifications.unshift({
-                    id: Date.now().toString(),
-                    type: 'follow',
-                    message: `${user.name}님이 ${video.streamerName}님을 팔로우했습니다.`,
-                    time: new Date().toISOString(),
-                    isRead: false
-                })
-                localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
-            }
+    const savedLikes = localStorage.getItem('kstreamer_user_likes')
+    const currentLikes: string[] = savedLikes ? JSON.parse(savedLikes) : []
+    let updatedLikes: string[] = []
+
+    if (isLiked) {
+        updatedLikes = currentLikes.filter(likeId => likeId !== id)
+        toggleVideoLikeState(id, false)
+    } else if (id) {
+        updatedLikes = [id, ...currentLikes]
+        toggleVideoLikeState(id, true)
+
+        // Notification simulation
+        if (user && video) {
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift({
+                id: Date.now().toString(),
+                type: 'like',
+                message: `${user.name}님이 '${video.title}' 영상을 찜했습니다.`,
+                time: new Date().toISOString(),
+                isRead: false
+            })
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
         }
-
-        localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(newFollowed))
-        setIsFollowed(!isFollowed)
     }
 
-    const isLocked = video?.isVip && (!user || user.membership === 'guest')
+    localStorage.setItem('kstreamer_user_likes', JSON.stringify(updatedLikes))
+    setIsLiked(!isLiked)
+}
 
-    const handleDownload = () => {
-        if (!video?.videoUrl) {
-            alert('이 영상은 다운로드할 수 없습니다.')
-            return
+const handleFollowToggle = () => {
+    if (!user) {
+        alert('팔로우하려면 로그인이 필요합니다.')
+        return
+    }
+
+    const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
+    let newFollowed: string[] = []
+
+    if (isFollowed) {
+        newFollowed = followed.filter((streamerId: string) => streamerId !== video?.streamerId)
+    } else if (video) {
+        newFollowed = [...followed, video.streamerId]
+
+        // Notify Admin
+        if (user && video) {
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift({
+                id: Date.now().toString(),
+                type: 'follow',
+                message: `${user.name}님이 ${video.streamerName}님을 팔로우했습니다.`,
+                time: new Date().toISOString(),
+                isRead: false
+            })
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
         }
-
-        const urlWithAuth = downloadAuthToken
-            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
-            : video.videoUrl
-
-        const link = document.createElement('a')
-        link.href = urlWithAuth
-        link.download = `${video.title || 'video'}.mp4`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
     }
 
-    if (!video) {
-        return (
-            <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-accent-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        )
+    localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(newFollowed))
+    setIsFollowed(!isFollowed)
+}
+
+const isLocked = video?.isVip && (!user || user.membership === 'guest')
+
+const handleDownload = () => {
+    if (!video?.videoUrl) {
+        alert('이 영상은 다운로드할 수 없습니다.')
+        return
     }
 
+    const urlWithAuth = downloadAuthToken
+        ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+        : video.videoUrl
+
+    const link = document.createElement('a')
+    link.href = urlWithAuth
+    link.download = `${video.title || 'video'}.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+}
+
+if (!video) {
     return (
-        <div className="min-h-screen bg-bg-primary">
-            <Header />
+        <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+            <div className="w-16 h-16 border-4 border-accent-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    )
+}
 
-            {/* Spacer for fixed header */}
-            <div className="h-[72px]" />
+return (
+    <div className="min-h-screen bg-bg-primary">
+        <Header />
 
-            <div className="max-w-[1800px] mx-auto px-6 py-8">
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
-                    {/* Left Column - Video */}
-                    <div>
-                        {/* Video Player */}
-                        <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
-                            <div className={`aspect-video relative flex items-center justify-center group ${!video.videoUrl ? `bg-gradient-to-br ${video.gradient}` : 'bg-black'}`}>
-                                {isLocked ? (
-                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
-                                        <div className="w-20 h-20 rounded-full bg-accent-primary/20 flex items-center justify-center mb-6 text-accent-primary text-4xl">
-                                            🔒
-                                        </div>
-                                        <h3 className="text-2xl font-bold mb-2">VIP 전용 콘텐츠</h3>
-                                        <p className="text-text-secondary max-w-sm mb-6">
-                                            이 영상은 VIP 회원만 시청할 수 있습니다. 지금 바로 프리미엄 멤버십으로 업그레이드하세요!
-                                        </p>
-                                        <Link href="/membership" className="gradient-button text-black px-8 py-3 rounded-full font-bold">
-                                            VIP 멤버십 가입하기
-                                        </Link>
+        {/* Spacer for fixed header */}
+        <div className="h-[72px]" />
+
+        <div className="max-w-[1800px] mx-auto px-6 py-8">
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
+                {/* Left Column - Video */}
+                <div>
+                    {/* Video Player */}
+                    <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
+                        <div className={`aspect-video relative flex items-center justify-center group ${!video.videoUrl ? `bg-gradient-to-br ${video.gradient}` : 'bg-black'}`}>
+                            {isLocked ? (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
+                                    <div className="w-20 h-20 rounded-full bg-accent-primary/20 flex items-center justify-center mb-6 text-accent-primary text-4xl">
+                                        🔒
                                     </div>
-                                ) : video.videoUrl ? (
-                                    <video
-                                        controls
-                                        autoPlay
-                                        className="w-full h-full"
-                                        src={downloadAuthToken && video.videoUrl.includes('backblazeb2.com')
-                                            ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
-                                            : video.videoUrl
-                                        }
-                                    />
-                                ) : (
-                                    <>
-                                        <div className="text-center p-8">
-                                            <p className="text-text-secondary mb-4 italic">(비디오 파일이 업로드되지 않은 데모 영상입니다)</p>
-                                            <div
-                                                className="w-20 h-20 rounded-full bg-accent-primary/90 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                                                style={{ boxShadow: '0 0 40px rgba(0, 255, 136, 0.5)' }}
-                                            >
-                                                <span className="text-black text-3xl ml-1">▶</span>
-                                            </div>
+                                    <h3 className="text-2xl font-bold mb-2">VIP 전용 콘텐츠</h3>
+                                    <p className="text-text-secondary max-w-sm mb-6">
+                                        이 영상은 VIP 회원만 시청할 수 있습니다. 지금 바로 프리미엄 멤버십으로 업그레이드하세요!
+                                    </p>
+                                    <Link href="/membership" className="gradient-button text-black px-8 py-3 rounded-full font-bold">
+                                        VIP 멤버십 가입하기
+                                    </Link>
+                                </div>
+                            ) : video.videoUrl ? (
+                                <video
+                                    controls
+                                    autoPlay
+                                    className="w-full h-full"
+                                    src={downloadAuthToken && video.videoUrl.includes('backblazeb2.com')
+                                        ? `${video.videoUrl}${video.videoUrl.includes('?') ? '&' : '?'}Authorization=${downloadAuthToken}`
+                                        : video.videoUrl
+                                    }
+                                />
+                            ) : (
+                                <>
+                                    <div className="text-center p-8">
+                                        <p className="text-text-secondary mb-4 italic">(비디오 파일이 업로드되지 않은 데모 영상입니다)</p>
+                                        <div
+                                            className="w-20 h-20 rounded-full bg-accent-primary/90 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                                            style={{ boxShadow: '0 0 40px rgba(0, 255, 136, 0.5)' }}
+                                        >
+                                            <span className="text-black text-3xl ml-1">▶</span>
                                         </div>
-                                    </>
-                                )}
-
-                                {video.isVip && (
-                                    <span className="absolute top-5 left-5 z-20 bg-accent-primary text-black px-4 py-2 rounded-full font-bold text-sm shadow-lg">
-                                        ⭐ VIP
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Video Info */}
-                        <div className="py-5">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h1 className="text-2xl font-semibold mb-3">{video.title}</h1>
-                                    <div className="flex flex-wrap gap-5 text-text-secondary text-sm mb-5">
-                                        <span>👁 {video.views} views</span>
-                                        <span>📅 {video.uploadedAt}</span>
-                                        <span>⏱ {video.duration}</span>
                                     </div>
-                                </div>
-                                <button
-                                    onClick={toggleLike}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-xl border transition-all font-bold ${isLiked
-                                        ? 'bg-accent-primary/20 border-accent-primary text-accent-primary'
-                                        : 'bg-bg-secondary border-white/10 hover:border-accent-primary hover:text-accent-primary'
-                                        }`}
-                                >
-                                    {isLiked ? '❤️ 찜한 영상' : '🤍 찜하기'}
-                                </button>
-                            </div>
+                                </>
+                            )}
 
-                            {/* Action Buttons */}
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={handleDownload}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all"
-                                >
-                                    📥 Download
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(window.location.href)
-                                        alert('주소가 복사되었습니다!')
-                                    }}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all"
-                                >
-                                    ↗️ Share
-                                </button>
-                                <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
-                                    ➕ Playlist
-                                </button>
-                            </div>
+                            {video.isVip && (
+                                <span className="absolute top-5 left-5 z-20 bg-accent-primary text-black px-4 py-2 rounded-full font-bold text-sm shadow-lg">
+                                    ⭐ VIP
+                                </span>
+                            )}
                         </div>
+                    </div>
 
-                        {/* Creator Section */}
-                        <div className="flex items-center justify-between p-5 bg-bg-secondary border border-white/5 rounded-xl my-5">
-                            <Link href={`/actors/${video.streamerId}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-                                <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${video.gradient}`} />
-                                <div>
-                                    <div className="font-semibold text-lg">@{video.streamerName} {streamer?.koreanName && <span className="text-text-secondary text-sm">({streamer.koreanName})</span>}</div>
-                                    <div className="text-sm text-text-secondary">{streamer?.videoCount || 0} Videos</div>
+                    {/* Video Info */}
+                    <div className="py-5">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h1 className="text-2xl font-semibold mb-3">{video.title}</h1>
+                                <div className="flex flex-wrap gap-5 text-text-secondary text-sm mb-5">
+                                    <span>👁 {video.views} views</span>
+                                    <span>📅 {video.uploadedAt}</span>
+                                    <span>⏱ {video.duration}</span>
                                 </div>
-                            </Link>
+                            </div>
                             <button
-                                onClick={handleFollowToggle}
-                                className={`px-7 py-3 rounded-full font-semibold transition-all ${isFollowed
-                                    ? 'bg-bg-primary border border-white/20 text-white hover:bg-white/5'
-                                    : 'bg-accent-primary text-black hover:scale-105'
+                                onClick={toggleLike}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-xl border transition-all font-bold ${isLiked
+                                    ? 'bg-accent-primary/20 border-accent-primary text-accent-primary'
+                                    : 'bg-bg-secondary border-white/10 hover:border-accent-primary hover:text-accent-primary'
                                     }`}
                             >
-                                {isFollowed ? 'Following' : 'Follow'}
+                                {isLiked ? '❤️ 찜한 영상' : '🤍 찜하기'}
                             </button>
                         </div>
 
-                        {/* Description */}
-                        <div className="bg-bg-secondary rounded-xl p-5 mb-8">
-                            <h4 className="font-semibold mb-3">설명</h4>
-                            <p className="text-text-secondary leading-relaxed">
-                                {video.streamerName}의 새로운 댄스 비디오입니다. {video.duration} 동안 이어지는 환상적인 퍼포먼스를 시청하세요!
-                                프리미엄 고화질로 제공되며, 실제 스트리머의 독점 콘텐츠를 감상하실 수 있습니다.
-                            </p>
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={handleDownload}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all"
+                            >
+                                📥 Download
+                            </button>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(window.location.href)
+                                    alert('주소가 복사되었습니다!')
+                                }}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all"
+                            >
+                                ↗️ Share
+                            </button>
+                            <button className="flex items-center gap-2 px-5 py-2.5 bg-bg-secondary border border-white/10 rounded-full hover:border-accent-primary hover:text-accent-primary transition-all">
+                                ➕ Playlist
+                            </button>
                         </div>
-
-                        {/* Comments System */}
-                        <CommentSection videoId={id} />
                     </div>
 
-                    {/* Right Column - Related Videos */}
-                    <aside>
-                        <h3 className="text-lg font-semibold mb-5">관련된 영상</h3>
+                    {/* Creator Section */}
+                    <div className="flex items-center justify-between p-5 bg-bg-secondary border border-white/5 rounded-xl my-5">
+                        <Link href={`/actors/${video.streamerId}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                            <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${video.gradient}`} />
+                            <div>
+                                <div className="font-semibold text-lg">@{video.streamerName} {streamer?.koreanName && <span className="text-text-secondary text-sm">({streamer.koreanName})</span>}</div>
+                                <div className="text-sm text-text-secondary">{streamer?.videoCount || 0} Videos</div>
+                            </div>
+                        </Link>
+                        <button
+                            onClick={handleFollowToggle}
+                            className={`px-7 py-3 rounded-full font-semibold transition-all ${isFollowed
+                                ? 'bg-bg-primary border border-white/20 text-white hover:bg-white/5'
+                                : 'bg-accent-primary text-black hover:scale-105'
+                                }`}
+                        >
+                            {isFollowed ? 'Following' : 'Follow'}
+                        </button>
+                    </div>
 
-                        <div className="space-y-4">
-                            {relatedVideos.map((v) => (
-                                <Link key={v.id} href={`/video/${v.id}`} className="flex gap-3 group">
-                                    <div className={`w-40 h-[90px] bg-gradient-to-br ${v.gradient} rounded-lg flex-shrink-0 relative overflow-hidden`}>
-                                        {v.isVip && (
-                                            <span className="absolute top-1 left-1 bg-accent-primary text-black px-1.5 py-0.5 rounded text-[10px] font-bold">
-                                                VIP
-                                            </span>
-                                        )}
-                                        <span className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px]">
-                                            {v.duration}
-                                        </span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-sm font-medium line-clamp-2 mb-1 group-hover:text-accent-primary transition-colors">
-                                            {v.title}
-                                        </h4>
-                                        <p className="text-xs text-text-secondary">@{v.streamerName}</p>
-                                        <p className="text-xs text-text-secondary">{v.views} views</p>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </aside>
+                    {/* Description */}
+                    <div className="bg-bg-secondary rounded-xl p-5 mb-8">
+                        <h4 className="font-semibold mb-3">설명</h4>
+                        <p className="text-text-secondary leading-relaxed">
+                            {video.streamerName}의 새로운 댄스 비디오입니다. {video.duration} 동안 이어지는 환상적인 퍼포먼스를 시청하세요!
+                            프리미엄 고화질로 제공되며, 실제 스트리머의 독점 콘텐츠를 감상하실 수 있습니다.
+                        </p>
+                    </div>
+
+                    {/* Comments System */}
+                    <CommentSection videoId={id} />
                 </div>
-            </div>
 
-            <Footer />
+                {/* Right Column - Related Videos */}
+                <aside>
+                    <h3 className="text-lg font-semibold mb-5">관련된 영상</h3>
+
+                    <div className="space-y-4">
+                        {relatedVideos.map((v) => (
+                            <Link key={v.id} href={`/video/${v.id}`} className="flex gap-3 group">
+                                <div className={`w-40 h-[90px] bg-gradient-to-br ${v.gradient} rounded-lg flex-shrink-0 relative overflow-hidden`}>
+                                    {v.isVip && (
+                                        <span className="absolute top-1 left-1 bg-accent-primary text-black px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                            VIP
+                                        </span>
+                                    )}
+                                    <span className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px]">
+                                        {v.duration}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-medium line-clamp-2 mb-1 group-hover:text-accent-primary transition-colors">
+                                        {v.title}
+                                    </h4>
+                                    <p className="text-xs text-text-secondary">@{v.streamerName}</p>
+                                    <p className="text-xs text-text-secondary">{v.views} views</p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </aside>
+            </div>
         </div>
-    )
+
+        <Footer />
+    </div>
+)
 }

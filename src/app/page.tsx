@@ -6,31 +6,31 @@ import VideoCard from '@/components/VideoCard'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useStreamers } from '@/contexts/StreamerContext'
-import { useState, useMemo } from 'react'
+import { useSiteSettings } from '@/contexts/SiteSettingsContext'
+import { useState, useMemo, useEffect } from 'react'
 
 export default function HomePage() {
     const t = useTranslations('membership')
     const tCommon = useTranslations('common')
     const { videos: rawVideos } = useStreamers()
+    const { incrementVisit } = useSiteSettings()
     const [sortBy, setSortBy] = useState<'popular' | 'newest'>('newest')
+
+    useEffect(() => {
+        incrementVisit()
+    }, [])
 
     const sortedVideos = useMemo(() => {
         const v = [...rawVideos]
         if (sortBy === 'newest') {
-            // New videos have 'Just now' or are later in the array if ID is incremental
-            // Real sorting would use createdAt.
             return v.sort((a, b) => {
                 const dateA = new Date(a.createdAt || 0).getTime()
                 const dateB = new Date(b.createdAt || 0).getTime()
                 return dateB - dateA
             })
         }
-        // Basic popularity sort (mock)
-        return v.sort((a, b) => {
-            const viewsA = parseInt(a.views.replace(/[^0-9]/g, '')) || 0
-            const viewsB = parseInt(b.views.replace(/[^0-9]/g, '')) || 0
-            return viewsB - viewsA
-        })
+        // Numeric popularity sort
+        return v.sort((a, b) => (b.views || 0) - (a.views || 0))
     }, [rawVideos, sortBy])
 
     return (
