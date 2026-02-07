@@ -77,6 +77,7 @@ export const metadata: Metadata = {
 
 import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, getLocale } from 'next-intl/server'
+import { ThemeContextProvider } from '@/components/ThemeContextProvider'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +90,7 @@ export default async function RootLayout({
     const messages = await getMessages()
 
     return (
-        <html lang={locale} className="dark">
+        <html lang={locale} suppressHydrationWarning>
             <head>
                 <WebSiteSchema
                     name="kStreamer dance"
@@ -102,16 +103,18 @@ export default async function RootLayout({
                 />
                 <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
             </head>
-            <body className="bg-bg-primary text-text-primary min-h-screen">
+            <body className="bg-bg-primary text-text-primary min-h-screen transition-colors duration-300">
                 <NextIntlClientProvider locale={locale} messages={messages}>
-                    <SiteSettingsProvider>
-                        <GoogleAnalytics />
-                        <AuthProvider>
-                            <StreamerProvider>
-                                {children}
-                            </StreamerProvider>
-                        </AuthProvider>
-                    </SiteSettingsProvider>
+                    <ThemeContextProvider>
+                        <SiteSettingsProvider>
+                            <GoogleAnalytics />
+                            <AuthProvider>
+                                <StreamerProvider>
+                                    {children}
+                                </StreamerProvider>
+                            </AuthProvider>
+                        </SiteSettingsProvider>
+                    </ThemeContextProvider>
                 </NextIntlClientProvider>
             </body>
         </html>

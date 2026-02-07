@@ -7,12 +7,19 @@ import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 import TopBanner from './TopBanner'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useTranslations } from 'next-intl'
+import { useTheme } from 'next-themes'
+import { useEffect } from 'react'
 
 export default function Header() {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
     const { user, logout, isLoading } = useAuth()
     const { settings } = useSiteSettings()
+    const { theme, setTheme, resolvedTheme } = useTheme()
+    const [mounted, setMounted] = useState(false)
+
+    // Avoid hydration mismatch
+    useEffect(() => setMounted(true), [])
     const t = useTranslations('common')
     const tAuth = useTranslations('auth')
 
@@ -72,6 +79,17 @@ export default function Header() {
                         <button className="text-xl hover:text-accent-primary transition-colors">
                             🔔
                         </button>
+
+                        {/* Theme Toggle */}
+                        {mounted && (
+                            <button
+                                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-all text-xl"
+                                title={resolvedTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                            >
+                                {resolvedTheme === 'dark' ? '☀️' : '🌙'}
+                            </button>
+                        )}
 
                         {/* Language Switcher */}
                         <LanguageSwitcher />
