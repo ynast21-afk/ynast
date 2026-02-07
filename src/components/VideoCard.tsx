@@ -7,7 +7,7 @@ interface VideoCardProps {
     id: string
     title: string
     creator: string
-    views: string
+    views: number
     duration: string
     isVip?: boolean
     gradient?: string
