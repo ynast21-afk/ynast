@@ -45,7 +45,7 @@ const colorPresets = [
 ]
 
 export default function AdminPage() {
-    console.log('--- ADMIN PAGE VERSION 1.6 (MULTI-PART ENABLED) ---')
+    console.log('--- ADMIN PAGE VERSION 1.7 (CORS HARDENED) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
@@ -181,11 +181,13 @@ export default function AdminPage() {
                         // Upload part
                         const uploadPartRes = await fetch(uploadUrl, {
                             method: 'POST',
+                            mode: 'cors',
                             headers: {
                                 'Authorization': authorizationToken,
                                 'X-Bz-Part-Number': (i + 1).toString(),
                                 'Content-Length': chunk.size.toString(),
                                 'X-Bz-Content-Sha1': sha1,
+                                'Content-Type': 'application/octet-stream',
                             },
                             body: chunk,
                         })
@@ -328,11 +330,13 @@ export default function AdminPage() {
 
                         const uploadPartRes = await fetch(uploadUrl, {
                             method: 'POST',
+                            mode: 'cors',
                             headers: {
                                 'Authorization': authorizationToken,
                                 'X-Bz-Part-Number': (j + 1).toString(),
                                 'Content-Length': chunk.size.toString(),
                                 'X-Bz-Content-Sha1': sha1,
+                                'Content-Type': 'application/octet-stream',
                             },
                             body: chunk,
                         })
@@ -987,7 +991,7 @@ export default function AdminPage() {
                                                     disabled={isUploading}
                                                     className={`gradient-button text-black rounded-lg font-semibold ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 >
-                                                    {isUploading ? '업로드 중...' : '영상 추가 (v1.6)'}
+                                                    {isUploading ? '업로드 중...' : '영상 추가 (v1.7)'}
                                                 </button>
                                             </div>
                                         )}
