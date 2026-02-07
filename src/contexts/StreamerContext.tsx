@@ -17,6 +17,7 @@ interface StreamerContextType {
     getStreamerById: (id: string) => Streamer | undefined
     importData: (data: { streamers: Streamer[], videos: Video[] }) => boolean
     downloadToken: string | null
+    activeBucketName: string
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined)
@@ -26,6 +27,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
     const [streamers, setStreamers] = useState<Streamer[]>([])
     const [videos, setVideos] = useState<Video[]>([])
     const [downloadToken, setDownloadToken] = useState<string | null>(null)
+    const [activeBucketName, setActiveBucketName] = useState<string>('yna-backup')
 
     // Load from localStorage
     useEffect(() => {
@@ -89,7 +91,10 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
                 if (res.ok) {
                     const data = await res.json()
                     setDownloadToken(data.authorizationToken)
-                    console.log('Global B2 Download Token Sync SUCCESS')
+                    if (data.bucketName) {
+                        setActiveBucketName(data.bucketName)
+                    }
+                    console.log('Global B2 Download Token Sync SUCCESS', { bucket: data.bucketName })
                 }
             } catch (err) {
                 console.error('Failed to get global B2 token:', err)
@@ -229,6 +234,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             getStreamerById,
             importData,
             downloadToken,
+            activeBucketName
         }}>
             {children}
         </StreamerContext.Provider>
