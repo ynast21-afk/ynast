@@ -181,8 +181,16 @@ export async function GET(request: NextRequest) {
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to update CORS: ' + await response.text());
-            return NextResponse.json({ success: 'CORS rules updated successfully!' });
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Failed to update CORS:', errorText);
+                return NextResponse.json({ error: 'Failed to update CORS: ' + errorText }, { status: 500 });
+            }
+
+            return NextResponse.json({
+                success: 'CORS rules updated successfully!',
+                details: 'B2 bucket has been configured to allow multi-part upload headers.'
+            });
         }
 
         if (type === 'upload') {
