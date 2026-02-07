@@ -28,59 +28,49 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
     const [videos, setVideos] = useState<Video[]>([])
     const [downloadToken, setDownloadToken] = useState<string | null>(null)
     const [activeBucketName, setActiveBucketName] = useState<string | null>(null)
+    const [isLoaded, setIsLoaded] = useState(false)
 
     // Load from localStorage
     useEffect(() => {
+        const isInitialized = localStorage.getItem('data_initialized')
         const savedStreamers = localStorage.getItem('streamers')
         const savedVideos = localStorage.getItem('videos')
 
-        console.log('--- StreamerProvider Sync ---')
-        console.log('Saved Streamers (Raw):', savedStreamers?.substring(0, 100))
-        console.log('Saved Videos (Raw):', savedVideos?.substring(0, 100))
+        console.log('--- StreamerProvider Init ---')
 
-        if (savedStreamers) {
-            const parsed = JSON.parse(savedStreamers)
-            // Merge initial with saved (prefer saved for user additions)
-            const combined = [...initialStreamers]
-            parsed.forEach((s: Streamer) => {
-                const existingIndex = combined.findIndex(c => c.id === s.id)
-                if (existingIndex !== -1) {
-                    // Update existing with saved version (if newer or modified)
-                    combined[existingIndex] = { ...combined[existingIndex], ...s }
-                } else {
-                    combined.push(s)
+        if (isInitialized) {
+            console.log('App already initialized. Loading user data...')
+            // Load Streamers
+            if (savedStreamers) {
+                try {
+                    setStreamers(JSON.parse(savedStreamers))
+                } catch (e) {
+                    console.error('Failed to parse streamers', e)
+                    setStreamers([])
                 }
-            })
-            console.log('Streamers after merge:', combined.length)
-            setStreamers(combined)
-        } else {
-            console.log('No saved streamers, using initial')
-            setStreamers(initialStreamers)
-        }
+            } else {
+                setStreamers([]) // User deleted everything
+            }
 
-        if (savedVideos) {
-            try {
-                const parsed = JSON.parse(savedVideos)
-                console.log('Parsed saved videos:', parsed.length)
-                const combined = [...initialVideos]
-                parsed.forEach((v: Video) => {
-                    const existingIndex = combined.findIndex(c => c.id === v.id)
-                    if (existingIndex !== -1) {
-                        combined[existingIndex] = { ...combined[existingIndex], ...v }
-                    } else {
-                        combined.push(v)
-                    }
-                })
-                console.log('Videos after merge:', combined.length)
-                setVideos(combined)
-            } catch (e) {
-                console.error('Failed to parse saved videos:', e)
-                setVideos(initialVideos)
+            // Load Videos
+            if (savedVideos) {
+                try {
+                    setVideos(JSON.parse(savedVideos))
+                } catch (e) {
+                    console.error('Failed to parse videos', e)
+                    setVideos([])
+                }
+            } else {
+                setVideos([]) // User deleted everything
             }
         } else {
-            console.log('No saved videos key "videos" found in localStorage, using initial')
+            console.log('First run detected. Seeding initial data...')
+            setStreamers(initialStreamers)
             setVideos(initialVideos)
+            localStorage.setItem('data_initialized', 'true')
         }
+
+        setIsLoaded(true)
     }, [])
 
     // Fetch session-wide B2 Download Authorization
@@ -108,22 +98,16 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
 
     // Save to localStorage
     useEffect(() => {
-        if (streamers.length > 0) {
-            console.log('Saving streamers to localStorage:', streamers.length)
-            localStorage.setItem('streamers', JSON.stringify(streamers))
-        } else {
-            console.log('Streamers empty, skipping save to avoid wipe')
-        }
-    }, [streamers])
+        if (!isLoaded) return
+        console.log('Saving streamers to localStorage:', streamers.length)
+        localStorage.setItem('streamers', JSON.stringify(streamers))
+    }, [streamers, isLoaded])
 
     useEffect(() => {
-        if (videos.length > 0) {
-            console.log('Saving videos to localStorage:', videos.length)
-            localStorage.setItem('videos', JSON.stringify(videos))
-        } else {
-            console.log('Videos empty, skipping save to avoid wipe')
-        }
-    }, [videos])
+        if (!isLoaded) return
+        console.log('Saving videos to localStorage:', videos.length)
+        localStorage.setItem('videos', JSON.stringify(videos))
+    }, [videos, isLoaded])
 
     const addStreamer = (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt'>) => {
         const newStreamer: Streamer = {
