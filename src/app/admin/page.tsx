@@ -46,7 +46,7 @@ const colorPresets = [
 ]
 
 export default function AdminPage() {
-    console.log('--- ADMIN PAGE VERSION 2.1 (FINAL CORS FIX) ---')
+    console.log('--- ADMIN PAGE VERSION 2.5 (DATA BACKUP) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
     const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
@@ -707,7 +707,7 @@ export default function AdminPage() {
                             {/* Storage Diagnostic Tool (Only visible in dev or for debugging) */}
                             <div className="bg-black/40 border border-blue-500/30 rounded-2xl p-6 mb-8">
                                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                                    <span className="text-blue-400">🔍</span> Storage Diagnostic (v1.2.1)
+                                    <span className="text-blue-400">🔍</span> Storage Diagnostic (v1.5.0)
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-mono">
                                     <div className="p-3 bg-black/60 rounded-lg">
