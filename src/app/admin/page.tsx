@@ -475,6 +475,37 @@ export default function AdminPage() {
                     downloadUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
                 }
 
+                // --- Auto-Generate Thumbnail (First Frame) ---
+                let thumbnailUrl: string | undefined = undefined
+                try {
+                    const thumbBlob = await createThumbnailFromFile(file)
+                    if (thumbBlob) {
+                        const thumbCredsRes = await fetch('/api/upload?type=upload')
+                        const thumbCreds = await thumbCredsRes.json()
+                        const thumbSha1 = await calculateSHA1(thumbBlob)
+                        const thumbName = `thumbnails/${Date.now()}_${file.name.substring(0, file.name.lastIndexOf('.')) || 'video'}.jpg`
+
+                        const thumbUploadRes = await fetch(thumbCreds.uploadUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': thumbCreds.authorizationToken,
+                                'X-Bz-File-Name': encodeURIComponent(thumbName),
+                                'Content-Type': 'image/jpeg',
+                                'Content-Length': thumbBlob.size.toString(),
+                                'X-Bz-Content-Sha1': thumbSha1,
+                            },
+                            body: thumbBlob,
+                        })
+
+                        if (thumbUploadRes.ok) {
+                            thumbnailUrl = `${thumbCreds.downloadUrl}/file/${thumbCreds.bucketName}/${thumbName}`
+                        }
+                    }
+                } catch (err) {
+                    console.error('Thumbnail generation failed:', err)
+                    // Continue without thumbnail (will fallback to gradient)
+                }
+
                 // Add video to list
                 addVideo({
                     // Fix: Correctly handle filenames with multiple dots (remove only the last extension)
@@ -488,6 +519,7 @@ export default function AdminPage() {
                     gradient: streamer.gradient,
                     uploadedAt: 'Just now',
                     videoUrl: downloadUrl,
+                    thumbnailUrl: thumbnailUrl, // Use generated thumbnail
                 })
 
                 setBatchProgress(((i + 1) / batchFiles.length) * 100)
