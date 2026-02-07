@@ -4,7 +4,11 @@ export const getValidGradient = (gradient?: string): string => {
         gradient === 'undefined' ||
         gradient === 'null' ||
         gradient.trim() === '' ||
+        gradient.length < 10 || // Too short to be a valid gradient
         !gradient.includes('from-');
 
-    return isJunk ? 'from-purple-600 to-blue-600' : gradient!;
+    if (isJunk) return 'from-purple-500 to-blue-500';
+
+    // If it's too dark (900), lighten it to 700/800 for better visibility in cards
+    return gradient!.replace(/-900/g, '-700');
 };
