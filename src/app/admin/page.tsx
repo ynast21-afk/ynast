@@ -141,8 +141,8 @@ export default function AdminPage() {
             setUploadProgress(1)
 
             try {
-                const CHUNK_SIZE = 50 * 1024 * 1024 // 50MB
-                const isLargeFile = videoFile.size > CHUNK_SIZE * 2
+                const CHUNK_SIZE = 10 * 1024 * 1024 // 10MB
+                const isLargeFile = videoFile.size > 5 * 1024 * 1024 // 5MB
 
                 if (isLargeFile) {
                     console.log('Initiating Multi-part upload...')
@@ -296,8 +296,8 @@ export default function AdminPage() {
             let downloadUrl = ''
 
             try {
-                const CHUNK_SIZE = 50 * 1024 * 1024 // 50MB
-                const isLargeFile = file.size > CHUNK_SIZE * 2
+                const CHUNK_SIZE = 10 * 1024 * 1024 // 10MB
+                const isLargeFile = file.size > 5 * 1024 * 1024 // 5MB
 
                 if (isLargeFile) {
                     // --- Multi-part Upload Flow ---

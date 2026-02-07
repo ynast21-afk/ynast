@@ -112,57 +112,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ...result, downloadUrl })
         }
 
-        const file = formData.get('file') as File
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-        }
-
-        // Get upload URL
-        const uploadUrl = await getUploadUrl(auth)
-
-        // Read file content
-        const arrayBuffer = await file.arrayBuffer()
-        const uint8Array = new Uint8Array(arrayBuffer)
-
-        // Calculate SHA1 hash
-        const sha1 = crypto.createHash('sha1').update(uint8Array).digest('hex')
-
-        // Generate unique filename
-        const timestamp = Date.now()
-        const ext = file.name.split('.').pop()
-        const fileName = `${folder}/${timestamp}_${file.name}`
-
-        // Upload to B2
-        const uploadResponse = await fetch(uploadUrl.uploadUrl, {
-            method: 'POST',
-            headers: {
-                'Authorization': uploadUrl.authorizationToken,
-                'X-Bz-File-Name': encodeURIComponent(fileName),
-                'Content-Type': file.type || 'application/octet-stream',
-                'X-Bz-Content-Sha1': sha1,
-            },
-            body: uint8Array,
-        })
-
-        if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            console.error('B2 upload error:', errorText)
-            throw new Error('Failed to upload to B2')
-        }
-
-        const uploadResult = await uploadResponse.json()
-
-        // Construct the download URL
-        const downloadUrl = `${auth.downloadUrl}/file/${process.env.B2_BUCKET_NAME}/${fileName}`
-
-        return NextResponse.json({
-            success: true,
-            fileId: uploadResult.fileId,
-            fileName: uploadResult.fileName,
-            contentType: uploadResult.contentType,
-            contentLength: uploadResult.contentLength,
-            downloadUrl,
-        })
+        return NextResponse.json({ error: 'Direct upload is required for files' }, { status: 400 })
 
     } catch (error) {
         console.error('Upload error:', error)
