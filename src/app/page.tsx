@@ -37,10 +37,10 @@ export default function HomePage() {
         <div className="min-h-screen">
             <Header />
 
-            {/* DEBUG MARKER V1.2.5 */}
+            {/* DEBUG MARKER V1.2.6 */}
             <div className="fixed top-32 right-10 z-[9999] flex flex-col gap-2">
                 <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-bold shadow-2xl animate-pulse">
-                    v1.2.5 (LOGS ACTIVE)
+                    v1.2.6 (LOGS ACTIVE)
                 </div>
                 <div className="bg-black/90 text-green-400 p-3 rounded-lg border border-green-500/50 shadow-xl text-xs font-mono">
                     <div className="font-bold border-b border-green-500/30 mb-1 pb-1">DATA STATUS</div>
@@ -52,50 +52,34 @@ export default function HomePage() {
             <div className="h-[120px]" />
 
             {/* Hero Section */}
-            <section className="px-6 lg:px-10 py-12">
-                <div className="flex flex-col lg:flex-row gap-8 items-center max-w-7xl mx-auto">
-                    {/* Featured Video */}
-                    <div className="flex-[2] relative rounded-2xl overflow-hidden aspect-video bg-gradient-to-br from-indigo-500/20 to-purple-500/20 dark:from-indigo-950 dark:to-purple-950 border border-[var(--border-color)]">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-6xl">🎬</span>
-                        </div>
-                        {/* Play Button */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div
-                                className="w-20 h-20 rounded-full bg-accent-primary flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                                style={{ boxShadow: '0 0 40px rgba(0, 255, 136, 0.5)' }}
-                            >
-                                <span className="text-black text-3xl ml-1">▶</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Hero Info */}
-                    <div className="flex-1 p-4">
-                        <h1 className="text-3xl lg:text-4xl font-bold mb-4">{t('title')}</h1>
-                        <p className="text-text-secondary mb-6">
+            <section className="px-6 lg:px-10 py-16 flex items-center justify-center">
+                <div className="max-w-4xl mx-auto text-center">
+                    {/* Hero Info centered */}
+                    <div className="p-4">
+                        <h1 className="text-4xl lg:text-6xl font-bold mb-6 tracking-tight">{t('title')}</h1>
+                        <p className="text-lg lg:text-xl text-text-secondary mb-10 max-w-2xl mx-auto">
                             {t('subtitle')}
                         </p>
 
-                        {/* Stats */}
-                        <div className="flex gap-8 mb-8">
-                            <div className="text-center">
-                                <div className="text-3xl font-bold text-accent-primary">75K+</div>
-                                <div className="text-sm text-text-secondary">Videos</div>
+                        {/* Stats centered */}
+                        <div className="flex justify-center gap-12 mb-12">
+                            <div className="text-center group">
+                                <div className="text-4xl font-bold text-accent-primary group-hover:scale-110 transition-transform">75K+</div>
+                                <div className="text-sm text-text-secondary mt-1">Videos</div>
                             </div>
-                            <div className="text-center">
-                                <div className="text-3xl font-bold text-accent-primary">400+</div>
-                                <div className="text-sm text-text-secondary">Creators</div>
+                            <div className="text-center group">
+                                <div className="text-4xl font-bold text-accent-primary group-hover:scale-110 transition-transform">400+</div>
+                                <div className="text-sm text-text-secondary mt-1">Creators</div>
                             </div>
-                            <div className="text-center">
-                                <div className="text-3xl font-bold text-accent-primary">∞</div>
-                                <div className="text-sm text-text-secondary">VIP Access</div>
+                            <div className="text-center group">
+                                <div className="text-4xl font-bold text-accent-primary group-hover:scale-110 transition-transform">∞</div>
+                                <div className="text-sm text-text-secondary mt-1">VIP Access</div>
                             </div>
                         </div>
 
                         <Link
                             href="/membership"
-                            className="inline-block gradient-button text-black px-10 py-4 rounded-full font-bold text-lg animate-pulse-glow"
+                            className="inline-block gradient-button text-black px-12 py-5 rounded-full font-bold text-xl animate-pulse-glow shadow-[0_0_30px_rgba(0,255,136,0.3)] hover:shadow-[0_0_50px_rgba(0,255,136,0.5)] transition-all"
                         >
                             {t('getStarted')}
                         </Link>
