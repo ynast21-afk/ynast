@@ -34,4 +34,10 @@ module.exports = {
         },
     },
     plugins: [],
+    safelist: [
+        {
+            pattern: /(from|to)-(pink|purple|blue|indigo|cyan|teal|amber|orange|rose|violet|emerald|slate|gray|red|fuchsia)-(400|500|600|700)/,
+        },
+        'bg-gradient-to-br',
+    ],
 }
