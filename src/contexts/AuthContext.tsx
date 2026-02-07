@@ -136,10 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const loginWithGoogle = async (): Promise<boolean> => {
         setIsLoading(true)
         return new Promise((resolve) => {
-            const client_id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+            const client_id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '52612991978-08f546e87gqo2a05m3n14lkevdhqemia.apps.googleusercontent.com'
 
             if (!client_id) {
-                alert('Vercel 설정에서 Google Client ID(환경변수)가 설정되지 않았습니다. 관리자 설정에서 NEXT_PUBLIC_GOOGLE_CLIENT_ID를 확인해주세요.')
+                // This case is now technically impossible with the fallback, 
+                // but kept for logic safety if the fallback were empty.
+                alert('Google Client ID가 설정되지 않았습니다.')
                 setIsLoading(false)
                 resolve(false)
                 return
