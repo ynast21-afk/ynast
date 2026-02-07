@@ -37,10 +37,10 @@ export default function HomePage() {
         <div className="min-h-screen">
             <Header />
 
-            {/* DEBUG MARKER V1.2.1 */}
-            <div className="fixed top-20 left-10 z-[9999] flex flex-col gap-2">
+            {/* DEBUG MARKER V1.2.5 */}
+            <div className="fixed top-32 right-10 z-[9999] flex flex-col gap-2">
                 <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-bold shadow-2xl animate-pulse">
-                    v1.2.4 (LOGS ACTIVE)
+                    v1.2.5 (LOGS ACTIVE)
                 </div>
                 <div className="bg-black/90 text-green-400 p-3 rounded-lg border border-green-500/50 shadow-xl text-xs font-mono">
                     <div className="font-bold border-b border-green-500/30 mb-1 pb-1">DATA STATUS</div>
