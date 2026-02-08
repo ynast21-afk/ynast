@@ -66,15 +66,26 @@ export default function ActorsPage() {
                                         🎬 {streamer.videoCount}
                                     </div>
 
-                                    {/* Profile placeholder */}
+                                    {/* Profile Image */}
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-6xl opacity-50">👤</span>
+                                        {streamer.profileImage ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={streamer.profileImage}
+                                                alt={streamer.name}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                            />
+                                        ) : (
+                                            <span className="text-6xl opacity-50">👤</span>
+                                        )}
                                     </div>
 
                                     {/* Hover overlay */}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10">
                                         <div className="text-center">
-                                            <span className="text-white text-sm">View Videos</span>
+                                            <span className="text-white text-sm font-bold border border-white px-4 py-2 rounded-full hover:bg-white hover:text-black transition-colors">
+                                                View Videos
+                                            </span>
                                         </div>
                                     </div>
                                 </div>

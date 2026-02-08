@@ -75,28 +75,23 @@ export default function VideoCard({
     const handleMouseEnter = () => {
         setIsHovering(true)
         if (videoRef.current) {
-            // Random start
-            videoRef.current.currentTime = Math.random() * durationInSeconds
+            videoRef.current.currentTime = 0
             videoRef.current.play().catch(() => { })
-
-            // Interval for random frames
-            intervalRef.current = setInterval(() => {
-                if (videoRef.current) {
-                    videoRef.current.currentTime = Math.random() * durationInSeconds
-                }
-            }, 800)
         }
     }
 
     const handleMouseLeave = () => {
         setIsHovering(false)
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-        }
         if (videoRef.current) {
             videoRef.current.pause()
-            videoRef.current.currentTime = 0 // or 0.5
+            videoRef.current.currentTime = 0
+        }
+    }
+
+    const handleTimeUpdate = () => {
+        if (videoRef.current && videoRef.current.currentTime >= 5) {
+            videoRef.current.currentTime = 0
+            videoRef.current.play().catch(() => { })
         }
     }
 
