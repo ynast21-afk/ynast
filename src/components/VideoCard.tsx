@@ -88,12 +88,29 @@ export default function VideoCard({
         }
     }
 
-    const handleTimeUpdate = () => {
-        if (videoRef.current && videoRef.current.currentTime >= 5) {
-            videoRef.current.currentTime = 0
-            videoRef.current.play().catch(() => { })
+    useEffect(() => {
+        let animationFrameId: number = 0
+
+        const checkTime = () => {
+            if (videoRef.current) {
+                if (videoRef.current.currentTime >= 5) {
+                    videoRef.current.currentTime = 0
+                    videoRef.current.play().catch(() => { })
+                }
+                animationFrameId = requestAnimationFrame(checkTime)
+            }
         }
-    }
+
+        if (isHovering) {
+            checkTime()
+        } else {
+            cancelAnimationFrame(animationFrameId)
+        }
+
+        return () => {
+            cancelAnimationFrame(animationFrameId)
+        }
+    }, [isHovering])
 
     return (
         <Link href={`/video/${id}`} className="group block">
