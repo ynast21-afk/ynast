@@ -18,7 +18,7 @@ export default function HomePage() {
 
     useEffect(() => {
         incrementVisit()
-    }, [])
+    }, [incrementVisit])
 
     const sortedVideos = useMemo(() => {
         const v = [...rawVideos]

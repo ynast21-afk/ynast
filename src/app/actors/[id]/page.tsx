@@ -23,7 +23,7 @@ export default function ActorDetailPage() {
                     <div className="text-center">
                         <span className="text-6xl mb-4 block">❓</span>
                         <h1 className="text-2xl font-bold mb-2">Actor Not Found</h1>
-                        <p className="text-text-secondary mb-6">The actor you're looking for doesn't exist.</p>
+                        <p className="text-text-secondary mb-6">The actor you&apos;re looking for doesn&apos;t exist.</p>
                         <Link href="/actors" className="text-accent-primary hover:underline">
                             ← Back to Actors
                         </Link>
@@ -97,7 +97,7 @@ export default function ActorDetailPage() {
                         <div className="text-center py-20 bg-bg-secondary rounded-2xl">
                             <span className="text-6xl mb-4 block">📹</span>
                             <h3 className="text-xl font-bold mb-2">No Videos Yet</h3>
-                            <p className="text-text-secondary">This actor hasn't uploaded any videos yet.</p>
+                            <p className="text-text-secondary">This actor hasn&apos;t uploaded any videos yet.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">

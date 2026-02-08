@@ -71,7 +71,7 @@ export default function ContactPage() {
                     {/* Title */}
                     <h1 className="text-3xl font-bold text-center mb-4">Contact Us</h1>
                     <p className="text-text-secondary text-center mb-10">
-                        Have a question or need help? Send us a message and we'll respond as soon as possible.
+                        Have a question or need help? Send us a message and we&apos;ll respond as soon as possible.
                     </p>
 
                     {submitted ? (

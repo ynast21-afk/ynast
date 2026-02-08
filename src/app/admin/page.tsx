@@ -718,7 +718,7 @@ export default function AdminPage() {
                     <div className="bg-bg-secondary rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10">
                         <h3 className="text-xl font-bold mb-4 text-red-400">⚠️ 삭제 확인</h3>
                         <p className="text-text-secondary mb-6">
-                            <span className="text-white font-semibold">"{deleteModal.name}"</span>
+                            <span className="text-white font-semibold">&quot;{deleteModal.name}&quot;</span>
                             {deleteModal.type === 'streamer' ? '를 삭제하시겠습니까? 해당 스트리머의 모든 비디오도 함께 삭제됩니다.' : '를 삭제하시겠습니까?'}
                         </p>
                         <div className="flex gap-3">
@@ -1412,18 +1412,33 @@ export default function AdminPage() {
                                         {streamers.map(s => (
                                             <div key={s.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="relative w-12 h-12 rounded-full overflow-hidden">
-                                                        {s.profileImage ? (
+                                                    <div className="relative w-12 h-12 rounded-full overflow-hidden group/icon cursor-pointer">
+                                                        {/* Base Gradient (Always visible as fallback) */}
+                                                        <div className={`absolute inset-0 bg-gradient-to-br ${s.gradient}`} />
+
+                                                        {s.profileImage && (
                                                             // eslint-disable-next-line @next/next/no-img-element
-                                                            <img src={s.profileImage} alt={s.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className={`w-full h-full bg-gradient-to-br ${s.gradient}`} />
+                                                            <img
+                                                                src={s.profileImage}
+                                                                alt={s.name}
+                                                                className="absolute inset-0 w-full h-full object-cover bg-gray-800"
+                                                                onError={(e) => {
+                                                                    console.error(`Failed to load profile image for ${s.name}:`, s.profileImage);
+                                                                    e.currentTarget.style.display = 'none';
+                                                                }}
+                                                            />
                                                         )}
+
+                                                        {/* Edit Overlay */}
+                                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/icon:opacity-100 flex items-center justify-center transition-opacity">
+                                                            <span className="text-[10px] text-white font-bold">EDIT</span>
+                                                        </div>
+
                                                         {/* Hidden File Input for Profile Image */}
                                                         <input
                                                             type="file"
                                                             accept="image/*"
-                                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                                             onChange={async (e) => {
                                                                 const file = e.target.files?.[0]
                                                                 if (!file) return

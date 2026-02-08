@@ -67,17 +67,26 @@ export default function ActorsPage() {
                                     </div>
 
                                     {/* Profile Image */}
-                                    <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white">
                                         {streamer.profileImage ? (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img
                                                 src={streamer.profileImage}
                                                 alt={streamer.name}
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none'
+                                                    e.currentTarget.parentElement?.classList.add('fallback-shown')
+                                                }}
                                             />
-                                        ) : (
-                                            <span className="text-6xl opacity-50">👤</span>
-                                        )}
+                                        ) : null}
+                                        <span className={`text-6xl opacity-50 absolute ${streamer.profileImage ? 'hidden fallback-icon' : ''}`}>👤</span>
+                                        {/* Style hack to show icon if image fails */}
+                                        <style jsx>{`
+                                                .fallback-shown .fallback-icon {
+                                                    display: block !important;
+                                                }
+                                            `}</style>
                                     </div>
 
                                     {/* Hover overlay */}
