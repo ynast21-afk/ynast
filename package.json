@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "validate": "tsc --noEmit && next lint && next build"
   },
   "dependencies": {
     "@paypal/react-paypal-js": "^8.9.2",
