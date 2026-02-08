@@ -1,4 +1,5 @@
-import { B2_APPLICATION_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_ID } from '@/utils/env'
+import crypto from 'crypto'
+import 'server-only'
 
 export interface B2AuthResponse {
     accountId: string
@@ -94,7 +95,7 @@ export async function saveDatabase(data: any): Promise<boolean> {
 
         // 2. Upload File
         const jsonString = JSON.stringify(data)
-        const sha1 = require('crypto').createHash('sha1').update(jsonString).digest('hex')
+        const sha1 = crypto.createHash('sha1').update(jsonString).digest('hex')
 
         const uploadRes = await fetch(uploadUrl, {
             method: 'POST',
