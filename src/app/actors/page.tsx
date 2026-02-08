@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useStreamers } from '@/contexts/StreamerContext'
 
 export default function ActorsPage() {
-    const { streamers } = useStreamers()
+    const { streamers, downloadToken } = useStreamers()
 
     // 비디오 수 기준 정렬 (인기순)
     const sortedStreamers = [...streamers].sort((a, b) => b.videoCount - a.videoCount)
@@ -71,7 +71,10 @@ export default function ActorsPage() {
                                         {streamer.profileImage ? (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img
-                                                src={streamer.profileImage}
+                                                src={streamer.profileImage.includes('backblazeb2.com') && downloadToken
+                                                    ? `${streamer.profileImage}${streamer.profileImage.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
+                                                    : streamer.profileImage
+                                                }
                                                 alt={streamer.name}
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 onError={(e) => {

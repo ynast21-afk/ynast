@@ -1419,7 +1419,10 @@ export default function AdminPage() {
                                                         {s.profileImage && (
                                                             // eslint-disable-next-line @next/next/no-img-element
                                                             <img
-                                                                src={s.profileImage}
+                                                                src={s.profileImage.includes('backblazeb2.com') && downloadToken
+                                                                    ? `${s.profileImage}${s.profileImage.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
+                                                                    : s.profileImage
+                                                                }
                                                                 alt={s.name}
                                                                 className="absolute inset-0 w-full h-full object-cover bg-gray-800"
                                                                 onError={(e) => {
