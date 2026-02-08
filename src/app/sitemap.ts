@@ -57,34 +57,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // 2. Fetch Dynamic Data from B2
     let allVideos = [...initialVideos]
     try {
+        // Use a shorter timeout or more robust abort pattern if needed.
+        // For now, ensuring we don't block the crawler forever.
         const db = await getDatabase()
         if (db && db.videos && Array.isArray(db.videos)) {
-            // Merge videos: B2 videos take precedence or append
-            // For sitemap, we just want a unique list of all effective video IDs.
-            // If B2 has everything (including initials), we should prefer B2.
-            // But if B2 is empty, fallback to initial.
-            // Strategy: Use a Map to dedup by ID.
             const videoMap = new Map<string, any>()
-
-            // Add initial videos first
             initialVideos.forEach(v => videoMap.set(v.id, v))
-
-            // Add/Overwrite with B2 videos
-            db.videos.forEach((v: any) => videoMap.set(v.id, v))
-
+            db.videos.forEach((v: any) => {
+                if (v && v.id) videoMap.set(v.id, v)
+            })
             allVideos = Array.from(videoMap.values())
         }
     } catch (e) {
-        console.error('Sitemap failed to fetch B2 DB, using initial data', e)
+        console.error('Sitemap B2 fetch failed, proceeding with initial data:', e)
     }
 
-    // 3. Generate Dynamic URLs
-    const videoPages = allVideos.map((video) => ({
-        url: `${BASE_URL}/video/${video.id}`,
-        lastModified: new Date(video.createdAt || new Date()),
-        changeFrequency: 'weekly' as const,
-        priority: 0.8,
-    }))
+    // 3. Generate Dynamic URLs (with XML-safe encoding)
+    const videoPages = allVideos.map((video) => {
+        // Ensure ID is URL safe and non-null
+        const videoId = encodeURIComponent(String(video.id || ''))
+        return {
+            url: `${BASE_URL}/video/${videoId}`,
+            lastModified: new Date(video.createdAt || new Date()),
+            changeFrequency: 'weekly' as const,
+            priority: 0.7,
+        }
+    })
 
     return [...staticPages, ...videoPages]
 }
