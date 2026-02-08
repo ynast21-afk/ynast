@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 
 // ========================================
 // 타입 정의
@@ -424,13 +424,20 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         )
     }
 
-    const incrementVisit = () => {
+    const lastVisitTimeRef = useRef<number>(0)
+
+    const incrementVisit = useCallback(() => {
+        const now = Date.now()
+        // 5-second cooldown to prevent infinite loops
+        if (now - lastVisitTimeRef.current < 5000) return
+
+        lastVisitTimeRef.current = now
         setStats(prev => ({
             ...prev,
             totalVisits: prev.totalVisits + 1,
             todayVisits: prev.todayVisits + 1,
         }))
-    }
+    }, [])
 
     const addInquiry = (inquiry: Omit<Inquiry, 'id' | 'createdAt' | 'status'>) => {
         const newInquiry: Inquiry = {
