@@ -20,6 +20,7 @@ interface StreamerContextType {
     activeBucketName: string | null
     migrateToB2: () => Promise<boolean>
     isServerSynced: boolean
+    updateStreamer: (id: string, data: Partial<Streamer>) => void
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined)
@@ -201,6 +202,13 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
         }))
     }
 
+    const updateStreamer = (id: string, data: Partial<Streamer>) => {
+        updateState((prevS, prevV) => ({
+            s: prevS.map(s => s.id === id ? { ...s, ...data } : s),
+            v: prevV
+        }))
+    }
+
     const getStreamerVideos = (streamerId: string) => videos.filter(v => v.streamerId === streamerId)
     const getStreamerById = (id: string) => streamers.find(s => s.id === id)
 
@@ -257,7 +265,8 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             downloadToken,
             activeBucketName,
             migrateToB2,
-            isServerSynced
+            isServerSynced,
+            updateStreamer
         }}>
             {children}
         </StreamerContext.Provider>

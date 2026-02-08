@@ -48,7 +48,7 @@ const colorPresets = [
 export default function AdminPage() {
     console.log('--- ADMIN PAGE VERSION 2.5 (DATA BACKUP) ---')
     const { user, isLoading: authLoading, isAdmin } = useAuth()
-    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData, downloadToken, migrateToB2, isServerSynced } = useStreamers()
+    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData, downloadToken, migrateToB2, isServerSynced, updateStreamer } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
@@ -1412,9 +1412,66 @@ export default function AdminPage() {
                                         {streamers.map(s => (
                                             <div key={s.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${s.gradient}`}></div>
+                                                    <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                                                        {s.profileImage ? (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img src={s.profileImage} alt={s.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className={`w-full h-full bg-gradient-to-br ${s.gradient}`} />
+                                                        )}
+                                                        {/* Hidden File Input for Profile Image */}
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0]
+                                                                if (!file) return
+
+                                                                if (confirm(`'${s.name}'의 프로필 사진을 변경하시겠습니까?`)) {
+                                                                    try {
+                                                                        // Reuse existing upload logic flow
+                                                                        const credsRes = await fetch('/api/upload?type=upload')
+                                                                        const creds = await credsRes.json()
+                                                                        const sha1 = await calculateSHA1(file)
+                                                                        const fileName = `profiles/${Date.now()}_${file.name}`
+
+                                                                        const uploadRes = await fetch(creds.uploadUrl, {
+                                                                            method: 'POST',
+                                                                            headers: {
+                                                                                'Authorization': creds.authorizationToken,
+                                                                                'X-Bz-File-Name': encodeURIComponent(fileName),
+                                                                                'Content-Type': file.type,
+                                                                                'Content-Length': file.size.toString(),
+                                                                                'X-Bz-Content-Sha1': sha1,
+                                                                            },
+                                                                            body: file,
+                                                                        })
+
+                                                                        if (uploadRes.ok) {
+                                                                            const imageUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
+                                                                            updateStreamer(s.id, { profileImage: imageUrl })
+                                                                            alert('✅ 프로필 사진이 변경되었습니다!')
+                                                                        } else {
+                                                                            throw new Error('Upload failed')
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error(err)
+                                                                        alert('❌ 사진 업로드 실패')
+                                                                    }
+                                                                }
+                                                            }}
+                                                            title="프로필 사진 변경"
+                                                        />
+                                                    </div>
                                                     <div>
-                                                        <p className="font-medium">{s.name} {s.koreanName && <span className="text-text-secondary">({s.koreanName})</span>}</p>
+                                                        <p className="font-medium flex items-center gap-2">
+                                                            {s.name}
+                                                            {s.koreanName && <span className="text-text-secondary">({s.koreanName})</span>}
+                                                            <span className="text-[10px] bg-accent-primary/20 text-accent-primary px-1.5 py-0.5 rounded">
+                                                                Click Icon to Edit
+                                                            </span>
+                                                        </p>
                                                         <p className="text-sm text-text-secondary">{s.videoCount} videos</p>
                                                     </div>
                                                 </div>

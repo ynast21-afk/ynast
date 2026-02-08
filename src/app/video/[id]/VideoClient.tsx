@@ -216,7 +216,6 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                                 ) : video.videoUrl ? (
                                     <video
                                         controls
-                                        autoPlay
                                         className="w-full h-full"
                                         src={downloadToken && rawVideoUrl.includes('backblazeb2.com')
                                             ? `${rawVideoUrl}${rawVideoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`

@@ -30,9 +30,10 @@ export default function VideoCard({
     uploadedAt,
     aspectRatio = 'video'
 }: VideoCardProps) {
-    const [isHovered, setIsHovered] = useState(false)
+    const [isHovering, setIsHovering] = useState(false)
     const { downloadToken, activeBucketName } = useStreamers()
     const videoRef = useRef<HTMLVideoElement>(null)
+    const intervalRef = useRef<NodeJS.Timeout | null>(null)
     const displayGradient = getValidGradient(gradient)
 
     const fixB2Url = (url: string) => {
@@ -51,56 +52,76 @@ export default function VideoCard({
         return url
     }
 
+    const parseDuration = (durationStr: string): number => {
+        if (!durationStr || durationStr === '?') return 60
+        const parts = durationStr.split(':').map(Number)
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        if (parts.length === 2) return parts[0] * 60 + parts[1]
+        return 60
+    }
+
+    const durationInSeconds = parseDuration(duration)
+
     // Only prepare the video source if hovered (Lazy Loading) or if we need it for an immediate preview
     const rawVideoUrl = fixB2Url(videoUrl || "")
-    const videoSrcWithAuth = (isHovered || !thumbnailUrl) && rawVideoUrl && rawVideoUrl.includes('backblazeb2.com') && downloadToken
+    const videoSrcWithAuth = (isHovering || !thumbnailUrl) && rawVideoUrl && rawVideoUrl.includes('backblazeb2.com') && downloadToken
         ? `${rawVideoUrl}${rawVideoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
-        : (isHovered || !thumbnailUrl) ? rawVideoUrl : ""
+        : (isHovering || !thumbnailUrl) ? rawVideoUrl : ""
 
-    // 썸네일 스타일: URL이 있으면 이미지, 없으면 그라데이션
     const backgroundStyle = thumbnailUrl
         ? { backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
         : getGradientStyle(displayGradient)
 
-    useEffect(() => {
-        if (isHovered && videoRef.current) {
-            console.log(`[VideoCard Debug] Hovering on: ${title}`)
-            console.log(`[VideoCard Debug] videoUrl: ${videoUrl || 'NONE'}`)
-            console.log(`[VideoCard Debug] downloadToken present: ${!!downloadToken}`)
-            console.log(`[VideoCard Debug] Final Src: ${videoSrcWithAuth || 'NONE'}`)
+    const handleMouseEnter = () => {
+        setIsHovering(true)
+        if (videoRef.current) {
+            // Random start
+            videoRef.current.currentTime = Math.random() * durationInSeconds
+            videoRef.current.play().catch(() => { })
 
-            videoRef.current.play().catch(err => {
-                console.warn('[VideoCard Debug] Play error:', err)
-            })
-        } else if (!isHovered && videoRef.current) {
-            videoRef.current.pause()
-            videoRef.current.currentTime = 0
+            // Interval for random frames
+            intervalRef.current = setInterval(() => {
+                if (videoRef.current) {
+                    videoRef.current.currentTime = Math.random() * durationInSeconds
+                }
+            }, 800)
         }
-    }, [isHovered, videoUrl, downloadToken, title, videoSrcWithAuth])
+    }
+
+    const handleMouseLeave = () => {
+        setIsHovering(false)
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+        }
+        if (videoRef.current) {
+            videoRef.current.pause()
+            videoRef.current.currentTime = 0 // or 0.5
+        }
+    }
 
     return (
         <Link href={`/video/${id}`} className="group block">
             <div
                 className="bg-[#1a1a1a] rounded-xl overflow-hidden card-hover cursor-pointer border border-white/5 relative"
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
             >
                 {/* Thumbnail / Preview Area */}
-                {/* Thumbnail / Gradient Background */}
                 <div
                     className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-500 overflow-hidden bg-black`}
-                    style={backgroundStyle}
+                    style={!isHovering ? backgroundStyle : undefined}
                 >
-                    {/* 만약 썸네일 이미지가 로딩되기 전이라면 그라데이션을 보여주기 위한 백업 레이어 */}
+                    {/* Gradient Fallback */}
                     <div className="absolute inset-0 -z-10" style={getGradientStyle(displayGradient)} />
-                    {/* Video Element (Hover or no thumbnail fallback) */}
+
+                    {/* Video Element for Preview */}
                     {videoUrl && (
-                        <div className={`absolute inset-0 z-10 transition-opacity duration-300 ${isHovered || !thumbnailUrl ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className={`absolute inset-0 z-10 transition-opacity duration-300 ${isHovering || !thumbnailUrl ? 'opacity-100' : 'opacity-0'}`}>
                             <video
                                 ref={videoRef}
                                 src={videoSrcWithAuth}
                                 muted
-                                loop
                                 playsInline
                                 preload="metadata"
                                 className="w-full h-full object-cover"
@@ -130,7 +151,7 @@ export default function VideoCard({
                         {duration}
                     </span>
 
-                    {/* Uploaded Time (Contextual) */}
+                    {/* Uploaded Time */}
                     {uploadedAt && (
                         <span className="absolute bottom-2 left-2 z-20 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] text-white/80">
                             {uploadedAt}
@@ -138,7 +159,7 @@ export default function VideoCard({
                     )}
 
                     {/* Play Button Icon Overlay (Subtle) */}
-                    {!isHovered && (
+                    {!isHovering && (
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 z-30">
                             <div className="w-10 h-10 rounded-full bg-accent-primary/80 flex items-center justify-center shadow-2xl scale-90 group-hover:scale-100 transition-transform">
                                 <span className="text-black text-lg ml-0.5">▶</span>
