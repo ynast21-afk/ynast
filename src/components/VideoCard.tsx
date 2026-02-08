@@ -68,8 +68,13 @@ export default function VideoCard({
         ? `${rawVideoUrl}${rawVideoUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
         : (isHovering || !thumbnailUrl) ? rawVideoUrl : ""
 
+    const rawThumbnailUrl = fixB2Url(thumbnailUrl || "")
+    const thumbnailWithAuth = rawThumbnailUrl && rawThumbnailUrl.includes('backblazeb2.com') && downloadToken
+        ? `${rawThumbnailUrl}${rawThumbnailUrl.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
+        : rawThumbnailUrl
+
     const backgroundStyle = thumbnailUrl
-        ? { backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        ? { backgroundImage: `url(${thumbnailWithAuth})`, backgroundSize: 'cover', backgroundPosition: 'center' }
         : getGradientStyle(displayGradient)
 
     const handleMouseEnter = () => {
@@ -90,19 +95,25 @@ export default function VideoCard({
 
     useEffect(() => {
         let animationFrameId: number = 0
+        let lastResetTime = Date.now()
 
         const checkTime = () => {
-            if (videoRef.current) {
-                if (videoRef.current.currentTime >= 5) {
+            if (videoRef.current && isHovering) {
+                const currentTime = videoRef.current.currentTime
+                if (currentTime >= 5 || (Date.now() - lastResetTime > 5500)) {
                     videoRef.current.currentTime = 0
+                    lastResetTime = Date.now()
                     videoRef.current.play().catch(() => { })
                 }
                 animationFrameId = requestAnimationFrame(checkTime)
             }
         }
 
-        if (isHovering) {
-            checkTime()
+        if (isHovering && videoRef.current) {
+            videoRef.current.currentTime = 0
+            lastResetTime = Date.now()
+            videoRef.current.play().catch(() => { })
+            animationFrameId = requestAnimationFrame(checkTime)
         } else {
             cancelAnimationFrame(animationFrameId)
         }

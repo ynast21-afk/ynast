@@ -9,7 +9,7 @@ import { useParams } from 'next/navigation'
 
 export default function ActorDetailPage() {
     const { id } = useParams()
-    const { getStreamerById, getStreamerVideos } = useStreamers()
+    const { getStreamerById, getStreamerVideos, downloadToken } = useStreamers()
 
     const streamer = getStreamerById(id as string)
     const videos = getStreamerVideos(id as string)
@@ -56,7 +56,14 @@ export default function ActorDetailPage() {
                         <div className={`relative w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br ${streamer.gradient}`}>
                             {streamer.profileImage ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={streamer.profileImage} alt={streamer.name} className="w-full h-full object-cover" />
+                                <img
+                                    src={streamer.profileImage.includes('backblazeb2.com') && downloadToken
+                                        ? `${streamer.profileImage}${streamer.profileImage.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
+                                        : streamer.profileImage
+                                    }
+                                    alt={streamer.name}
+                                    className="w-full h-full object-cover"
+                                />
                             ) : (
                                 <span className="text-4xl">👤</span>
                             )}
