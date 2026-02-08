@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
+const BASE_URL = 'https://kdance.xyz'
 
 export default function robots(): MetadataRoute.Robots {
     return {
@@ -11,6 +11,6 @@ export default function robots(): MetadataRoute.Robots {
                 disallow: ['/admin/', '/api/'],
             },
         ],
-        sitemap: `${BASE_URL}/sitemap.xml`,
+        sitemap: 'https://kdance.xyz/sitemap.xml',
     }
 }
