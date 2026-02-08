@@ -2,6 +2,9 @@ import { MetadataRoute } from 'next'
 import { initialVideos } from '@/data/initialData'
 import { getDatabase } from '@/lib/b2'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const BASE_URL = process.env.NODE_ENV === 'production' ? 'https://kdance.xyz' : (process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz')
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
