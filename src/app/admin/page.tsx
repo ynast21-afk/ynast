@@ -1797,6 +1797,36 @@ export default function AdminPage() {
                                                         </button>
                                                     </div>
                                                 </div>
+
+                                                {/* Server Migration Section */}
+                                                <div className="pt-6 border-t border-white/10 mt-6">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-white mb-1">
+                                                                Server Data Migration
+                                                                {isServerSynced && <span className="ml-2 text-xs bg-green-500 text-black px-2 py-0.5 rounded-full font-bold">SYNCED</span>}
+                                                            </h3>
+                                                            <p className="text-xs text-text-tertiary">
+                                                                Move your local data to B2 Cloud Storage for SEO and Multi-device access.
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!confirm('Upload all local data to B2 Server? This will overwrite existing server data.')) return
+                                                                const success = await migrateToB2()
+                                                                if (success) alert('✅ Migration Successful! Data is now on server.')
+                                                                else alert('❌ Migration Failed. Check console.')
+                                                            }}
+                                                            disabled={isServerSynced}
+                                                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${isServerSynced
+                                                                ? 'bg-green-500/20 text-green-500 cursor-default'
+                                                                : 'bg-accent-primary hover:bg-accent-secondary text-black shadow-lg hover:scale-105'
+                                                                }`}
+                                                        >
+                                                            {isServerSynced ? 'Running on Server' : 'Migrate to Server'}
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 

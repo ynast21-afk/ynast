@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
 
 import { Streamer, Video, initialStreamers, initialVideos } from '@/data/initialData'
 
@@ -18,6 +18,8 @@ interface StreamerContextType {
     importData: (data: { streamers: Streamer[], videos: Video[] }) => boolean
     downloadToken: string | null
     activeBucketName: string | null
+    migrateToB2: () => Promise<boolean>
+    isServerSynced: boolean
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined)
@@ -29,51 +31,61 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
     const [downloadToken, setDownloadToken] = useState<string | null>(null)
     const [activeBucketName, setActiveBucketName] = useState<string | null>(null)
     const [isLoaded, setIsLoaded] = useState(false)
+    const [isServerSynced, setIsServerSynced] = useState(false)
 
-    // Load from localStorage
+    // Use refs to access latest state in async operations without dependency cycles
+    const stateRef = useRef({ streamers, videos })
     useEffect(() => {
-        const isInitialized = localStorage.getItem('data_initialized')
-        const savedStreamers = localStorage.getItem('streamers')
-        const savedVideos = localStorage.getItem('videos')
+        stateRef.current = { streamers, videos }
+    }, [streamers, videos])
 
-        console.log('--- StreamerProvider Init ---')
+    // Load Data (Server First -> Local Fallback)
+    useEffect(() => {
+        const initData = async () => {
+            console.log('--- StreamerProvider Init ---')
+            let loadedFromServer = false
 
-        if (isInitialized) {
-            console.log('App already initialized. Loading user data...')
-            // Load Streamers
-            if (savedStreamers) {
-                try {
-                    setStreamers(JSON.parse(savedStreamers))
-                } catch (e) {
-                    console.error('Failed to parse streamers', e)
-                    setStreamers([])
+            try {
+                // 1. Try Server DB
+                const res = await fetch('/api/db', { cache: 'no-store' })
+                if (res.ok) {
+                    const dbData = await res.json()
+                    if (dbData && dbData.streamers && dbData.videos) {
+                        console.log('Loaded data from Server DB')
+                        setStreamers(dbData.streamers)
+                        setVideos(dbData.videos)
+                        loadedFromServer = true
+                        setIsServerSynced(true)
+                    }
                 }
-            } else {
-                setStreamers([]) // User deleted everything
+            } catch (e) {
+                console.error('Failed to load from Server DB', e)
             }
 
-            // Load Videos
-            if (savedVideos) {
-                try {
-                    setVideos(JSON.parse(savedVideos))
-                } catch (e) {
-                    console.error('Failed to parse videos', e)
-                    setVideos([])
+            if (!loadedFromServer) {
+                // 2. LocalStorage Fallback
+                const isInitialized = localStorage.getItem('data_initialized')
+                const savedStreamers = localStorage.getItem('streamers')
+                const savedVideos = localStorage.getItem('videos')
+
+                if (isInitialized) {
+                    console.log('Loading local user data...')
+                    if (savedStreamers) setStreamers(JSON.parse(savedStreamers))
+                    if (savedVideos) setVideos(JSON.parse(savedVideos))
+                } else {
+                    console.log('First run detected. Seeding initial data...')
+                    setStreamers(initialStreamers)
+                    setVideos(initialVideos)
+                    localStorage.setItem('data_initialized', 'true')
                 }
-            } else {
-                setVideos([]) // User deleted everything
             }
-        } else {
-            console.log('First run detected. Seeding initial data...')
-            setStreamers(initialStreamers)
-            setVideos(initialVideos)
-            localStorage.setItem('data_initialized', 'true')
+
+            setIsLoaded(true)
         }
-
-        setIsLoaded(true)
+        initData()
     }, [])
 
-    // Fetch session-wide B2 Download Authorization
+    // Fetch session-wide B2 Download Authorization (Existing Logic)
     useEffect(() => {
         const fetchToken = async () => {
             try {
@@ -81,127 +93,152 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
                 if (res.ok) {
                     const data = await res.json()
                     setDownloadToken(data.authorizationToken)
-                    if (data.bucketName) {
-                        setActiveBucketName(data.bucketName)
-                    }
-                    console.log('Global B2 Download Token Sync SUCCESS', { bucket: data.bucketName })
+                    if (data.bucketName) setActiveBucketName(data.bucketName)
                 }
-            } catch (err) {
-                console.error('Failed to get global B2 token:', err)
-            }
+            } catch (err) { console.error(err) }
         }
         fetchToken()
-        // Refresh every 50 minutes
         const interval = setInterval(fetchToken, 50 * 60 * 1000)
         return () => clearInterval(interval)
     }, [])
 
-    // Save to localStorage
-    useEffect(() => {
-        if (!isLoaded) return
-        console.log('Saving streamers to localStorage:', streamers.length)
-        localStorage.setItem('streamers', JSON.stringify(streamers))
-    }, [streamers, isLoaded])
+    // Auto-Save Logic
+    const saveData = async (newStreamers: Streamer[], newVideos: Video[]) => {
+        // Always save to LocalStorage as backup/cache
+        localStorage.setItem('streamers', JSON.stringify(newStreamers))
+        localStorage.setItem('videos', JSON.stringify(newVideos))
 
-    useEffect(() => {
-        if (!isLoaded) return
-        console.log('Saving videos to localStorage:', videos.length)
-        localStorage.setItem('videos', JSON.stringify(videos))
-    }, [videos, isLoaded])
+        // If we are in "Server Mode" (migrated), sync to B2
+        if (isServerSynced) {
+            try {
+                await fetch('/api/db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ streamers: newStreamers, videos: newVideos })
+                })
+                console.log('Synced to Server DB')
+            } catch (e) {
+                console.error('Background Sync Failed', e)
+            }
+        }
+    }
+
+    // Helper wrapper to update state and trigger save
+    const updateState = (
+        updater: (prevS: Streamer[], prevV: Video[]) => { s: Streamer[], v: Video[] }
+    ) => {
+        const { s, v } = updater(stateRef.current.streamers, stateRef.current.videos)
+        setStreamers(s)
+        setVideos(v)
+        saveData(s, v)
+    }
 
     const addStreamer = (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt'>) => {
-        const newStreamer: Streamer = {
-            ...streamer,
-            id: Date.now().toString(),
-            videoCount: 0,
-            createdAt: new Date().toISOString().split('T')[0],
-        }
-        setStreamers([...streamers, newStreamer])
+        updateState((prevS, prevV) => {
+            const newStreamer: Streamer = {
+                ...streamer,
+                id: Date.now().toString(),
+                videoCount: 0,
+                createdAt: new Date().toISOString().split('T')[0],
+            }
+            return { s: [...prevS, newStreamer], v: prevV }
+        })
     }
 
     const removeStreamer = (id: string) => {
-        setStreamers(streamers.filter(s => s.id !== id))
-        // 해당 스트리머의 비디오도 삭제
-        setVideos(videos.filter(v => v.streamerId !== id))
+        updateState((prevS, prevV) => {
+            return {
+                s: prevS.filter(s => s.id !== id),
+                v: prevV.filter(v => v.streamerId !== id)
+            }
+        })
     }
 
     const addVideo = (video: Omit<Video, 'id' | 'createdAt'>) => {
-        const newVideo: Video = {
-            ...video,
-            id: Date.now().toString(),
-            createdAt: new Date().toISOString().split('T')[0],
-        }
-        setVideos([newVideo, ...videos]) // 최신순으로 맨 앞에 추가
-
-        // 스트리머 비디오 수 증가
-        setStreamers(streamers.map(s =>
-            s.id === video.streamerId
-                ? { ...s, videoCount: s.videoCount + 1 }
-                : s
-        ))
+        updateState((prevS, prevV) => {
+            const newVideo: Video = {
+                ...video,
+                id: Date.now().toString(),
+                createdAt: new Date().toISOString().split('T')[0],
+            }
+            // Update Streamer count
+            const newStreamers = prevS.map(s =>
+                s.id === video.streamerId
+                    ? { ...s, videoCount: s.videoCount + 1 }
+                    : s
+            )
+            return { s: newStreamers, v: [newVideo, ...prevV] }
+        })
     }
 
     const removeVideo = (id: string) => {
-        const video = videos.find(v => v.id === id)
-        if (video) {
-            setVideos(videos.filter(v => v.id !== id))
-            // 스트리머 비디오 수 감소
-            setStreamers(streamers.map(s =>
-                s.id === video.streamerId
+        updateState((prevS, prevV) => {
+            const target = prevV.find(v => v.id === id)
+            if (!target) return { s: prevS, v: prevV }
+
+            const newStreamers = prevS.map(s =>
+                s.id === target.streamerId
                     ? { ...s, videoCount: Math.max(0, s.videoCount - 1) }
                     : s
-            ))
-        }
+            )
+            return { s: newStreamers, v: prevV.filter(v => v.id !== id) }
+        })
     }
 
     const incrementVideoView = (videoId: string) => {
-        setVideos(prev => prev.map(v =>
-            v.id === videoId ? { ...v, views: v.views + 1 } : v
-        ))
+        // Optimistic update, but maybe throttle server sync?
+        // For simplicity, we sync. It's just a text file.
+        updateState((prevS, prevV) => ({
+            s: prevS,
+            v: prevV.map(v => v.id === videoId ? { ...v, views: v.views + 1 } : v)
+        }))
     }
 
     const toggleVideoLike = (videoId: string, isLiked: boolean) => {
-        setVideos(prev => prev.map(v =>
-            v.id === videoId ? { ...v, likes: v.likes + (isLiked ? 1 : -1) } : v
-        ))
+        updateState((prevS, prevV) => ({
+            s: prevS,
+            v: prevV.map(v => v.id === videoId ? { ...v, likes: v.likes + (isLiked ? 1 : -1) } : v)
+        }))
     }
 
-    const getStreamerVideos = (streamerId: string) => {
-        return videos.filter(v => v.streamerId === streamerId)
-    }
-
-    const getStreamerById = (id: string) => {
-        return streamers.find(s => s.id === id)
-    }
+    const getStreamerVideos = (streamerId: string) => videos.filter(v => v.streamerId === streamerId)
+    const getStreamerById = (id: string) => streamers.find(s => s.id === id)
 
     const importData = (data: { streamers: Streamer[], videos: Video[] }) => {
-        if (!data.streamers || !data.videos) {
-            console.error('Invalid import data structure')
-            return false
-        }
-
-        // Merge streamers
-        setStreamers(prev => {
-            const combined = [...prev]
+        if (!data.streamers || !data.videos) return false
+        updateState((prevS, prevV) => {
+            // Merge logic (simplified)
+            // Just replacing or appending? Use previous logic roughly
+            // Actually, import usually implies "load backup". Let's merge.
+            const newS = [...prevS]
             data.streamers.forEach(s => {
-                const index = combined.findIndex(item => item.id === s.id)
-                if (index !== -1) combined[index] = s
-                else combined.push(s)
+                if (!newS.find(ex => ex.id === s.id)) newS.push(s)
             })
-            return combined
-        })
-
-        // Merge videos
-        setVideos(prev => {
-            const combined = [...prev]
+            const newV = [...prevV]
             data.videos.forEach(v => {
-                const index = combined.findIndex(item => item.id === v.id)
-                if (index !== -1) combined[index] = v
-                else combined.push(v)
+                if (!newV.find(ex => ex.id === v.id)) newV.push(v)
             })
-            return combined
+            return { s: newS, v: newV }
         })
         return true
+    }
+
+    const migrateToB2 = async () => {
+        try {
+            const res = await fetch('/api/db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ streamers, videos })
+            })
+            if (res.ok) {
+                setIsServerSynced(true)
+                return true
+            }
+            return false
+        } catch (e) {
+            console.error(e)
+            return false
+        }
     }
 
     return (
@@ -218,7 +255,9 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             getStreamerById,
             importData,
             downloadToken,
-            activeBucketName
+            activeBucketName,
+            migrateToB2,
+            isServerSynced
         }}>
             {children}
         </StreamerContext.Provider>
