@@ -4,12 +4,32 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
 import { useStreamers } from '@/contexts/StreamerContext'
+import { useState } from 'react'
+import { getMediaUrl } from '@/utils/b2url'
+
+type SortOption = 'popular' | 'name' | 'newest'
 
 export default function ActorsPage() {
-    const { streamers, downloadToken } = useStreamers()
+    const { streamers, downloadToken, downloadUrl, activeBucketName } = useStreamers()
+    const [sortBy, setSortBy] = useState<SortOption>('popular')
 
-    // 비디오 수 기준 정렬 (인기순)
-    const sortedStreamers = [...streamers].sort((a, b) => b.videoCount - a.videoCount)
+    const sortedStreamers = [...streamers].sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                return (a.name || '').localeCompare(b.name || '')
+            case 'newest':
+                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            case 'popular':
+            default:
+                return b.videoCount - a.videoCount
+        }
+    })
+
+    const sortButtons: { key: SortOption; icon: string; label: string }[] = [
+        { key: 'popular', icon: '🔥', label: 'Most Popular' },
+        { key: 'name', icon: '📝', label: 'Name A-Z' },
+        { key: 'newest', icon: '⏰', label: 'Newest' },
+    ]
 
     return (
         <div className="min-h-screen bg-bg-primary">
@@ -39,15 +59,18 @@ export default function ActorsPage() {
                         {/* Sort Options */}
                         <div className="flex items-center gap-2">
                             <span className="text-text-secondary text-sm">Sort by:</span>
-                            <button className="px-4 py-2 bg-accent-primary text-black rounded-full text-sm font-medium">
-                                🔥 Most Popular
-                            </button>
-                            <button className="px-4 py-2 bg-bg-secondary rounded-full text-sm hover:bg-bg-tertiary transition-colors">
-                                📝 Name A-Z
-                            </button>
-                            <button className="px-4 py-2 bg-bg-secondary rounded-full text-sm hover:bg-bg-tertiary transition-colors">
-                                ⏰ Newest
-                            </button>
+                            {sortButtons.map(({ key, icon, label }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSortBy(key)}
+                                    className={`px-4 py-2 rounded-full text-sm transition-colors ${sortBy === key
+                                            ? 'bg-accent-primary text-black font-medium'
+                                            : 'bg-bg-secondary hover:bg-bg-tertiary'
+                                        }`}
+                                >
+                                    {icon} {label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -70,10 +93,12 @@ export default function ActorsPage() {
                                         {streamer.profileImage ? (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img
-                                                src={streamer.profileImage.includes('backblazeb2.com') && downloadToken
-                                                    ? `${streamer.profileImage}${streamer.profileImage.includes('?') ? '&' : '?'}Authorization=${downloadToken}`
-                                                    : streamer.profileImage
-                                                }
+                                                src={getMediaUrl({
+                                                    url: streamer.profileImage,
+                                                    token: downloadToken,
+                                                    activeBucketName,
+                                                    downloadUrl
+                                                })}
                                                 alt={streamer.name}
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 onError={(e) => {

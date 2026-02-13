@@ -12,7 +12,11 @@
         "settings": "设置",
         "language": "语言",
         "korean": "한국어",
-        "english": "English"
+        "english": "English",
+        "all": "全部",
+        "searchPlaceholder": "搜索视频、演员...",
+        "searchMinChars": "请输入至少2个字符",
+        "noResults": "未找到结果。"
     },
     "membership": {
         "title": "VIP 会员",

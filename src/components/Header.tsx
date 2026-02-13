@@ -98,7 +98,7 @@ export default function Header() {
                                             <input
                                                 autoFocus
                                                 type="text"
-                                                placeholder="동영상, 배우 검색..."
+                                                placeholder={t('searchPlaceholder') || 'Search videos, actors...'}
                                                 className="w-full bg-bg-primary border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-accent-primary transition-colors"
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -114,7 +114,7 @@ export default function Header() {
                                                     className={`flex-1 py-2 text-xs font-medium transition-colors relative ${searchTab === tab ? 'text-accent-primary' : 'text-text-secondary hover:text-white'
                                                         }`}
                                                 >
-                                                    {tab === 'all' ? '전체' : tab === 'video' ? '동영상' : '배우'}
+                                                    {tab === 'all' ? t('all') : tab === 'video' ? t('videos') : t('actors')}
                                                     {searchTab === tab && (
                                                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary" />
                                                     )}
@@ -127,7 +127,7 @@ export default function Header() {
                                             {searchQuery.length < 2 ? (
                                                 <div className="py-12 text-center text-text-secondary">
                                                     <div className="text-3xl mb-3 opacity-30">🔍</div>
-                                                    <p className="text-sm">2자 이상 입력하세요</p>
+                                                    <p className="text-sm">{t('searchMinChars') || '2자 이상 입력하세요'}</p>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-1">
@@ -151,7 +151,7 @@ export default function Header() {
                                                         const totalCount = filteredVideos.length + filteredActors.length
 
                                                         if (totalCount === 0) {
-                                                            return <p className="py-8 text-center text-text-secondary text-sm">결과가 없습니다.</p>
+                                                            return <p className="py-8 text-center text-text-secondary text-sm">{t('noResults') || '결과가 없습니다.'}</p>
                                                         }
 
                                                         return (

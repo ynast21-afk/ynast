@@ -62,6 +62,42 @@ function MyPageContent() {
             } else {
                 setFollowedStreamers([])
             }
+
+            // Load watch history
+            const savedWatchHistory = localStorage.getItem('kstreamer_watch_history')
+            if (savedWatchHistory) {
+                try {
+                    const historyEntries: { videoId: string; watchedAt: string; progress: number }[] = JSON.parse(savedWatchHistory)
+                    const historyVideos = historyEntries
+                        .map(entry => {
+                            const video = videos.find(v => v.id === entry.videoId)
+                            if (video) return { ...video, watchedAt: entry.watchedAt, watchProgress: entry.progress }
+                            return null
+                        })
+                        .filter(Boolean)
+                    setWatchHistory(historyVideos)
+                } catch { setWatchHistory([]) }
+            } else {
+                setWatchHistory([])
+            }
+
+            // Load download history
+            const savedDownloads = localStorage.getItem('kstreamer_download_history')
+            if (savedDownloads) {
+                try {
+                    const downloadEntries: { videoId: string; downloadedAt: string }[] = JSON.parse(savedDownloads)
+                    const downloadVideos = downloadEntries
+                        .map(entry => {
+                            const video = videos.find(v => v.id === entry.videoId)
+                            if (video) return { ...video, downloadedAt: entry.downloadedAt }
+                            return null
+                        })
+                        .filter(Boolean)
+                    setDownloads(downloadVideos)
+                } catch { setDownloads([]) }
+            } else {
+                setDownloads([])
+            }
         }
 
         loadData()
@@ -192,7 +228,7 @@ function MyPageContent() {
 
                                             {isExpiring && !isExpired && (
                                                 <p className={`text-xs mt-2 ${isExpiringSoon ? 'text-red-400' : 'text-yellow-400'}`}>
-                                                    ⚠️ 멤버십이 곧 만료됩니다. 갱신하려면 <Link href="/pricing" className="underline">여기를 클릭</Link>하세요.
+                                                    ⚠️ 멤버십이 곧 만료됩니다. 갱신하려면 <Link href="/membership" className="underline">여기를 클릭</Link>하세요.
                                                 </p>
                                             )}
                                         </div>
@@ -273,7 +309,7 @@ function MyPageContent() {
                                     프리미엄 콘텐츠를 즐기려면 멤버십을 업그레이드하세요
                                 </p>
                                 <Link
-                                    href="/pricing"
+                                    href="/membership"
                                     className="inline-block px-6 py-2 bg-accent-primary text-black font-bold rounded-full text-sm hover:opacity-90 transition-all"
                                 >
                                     멤버십 업그레이드 →
@@ -383,37 +419,55 @@ function MyPageContent() {
 
                 {activeTab === 'history' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {watchHistory.map((video) => (
-                            <Link key={video.id} href={`/video/${video.id}`} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 hover:border-accent-primary/50 transition-all">
-                                <div className={`aspect-video relative bg-gradient-to-br ${video.gradient}`}>
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <span className="bg-white/10 backdrop-blur-md p-3 rounded-full text-white">▶ 다시보기</span>
+                        {watchHistory.length === 0 ? (
+                            <div className="col-span-full py-20 text-center bg-bg-secondary rounded-2xl border border-dashed border-white/10">
+                                <p className="text-text-secondary italic font-medium">시청 기록이 없습니다.</p>
+                                <Link href="/" className="mt-4 inline-block text-accent-primary hover:underline">영상 둘러보기</Link>
+                            </div>
+                        ) : (
+                            watchHistory.map((video: any) => (
+                                <Link key={video.id} href={`/video/${video.id}`} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 hover:border-accent-primary/50 transition-all">
+                                    <div className={`aspect-video relative bg-gradient-to-br ${video.gradient}`}>
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <span className="bg-white/10 backdrop-blur-md p-3 rounded-full text-white">▶ 다시보기</span>
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 h-1 bg-accent-primary" style={{ width: `${Math.round((video.watchProgress || 0) * 100)}%` }}></div>
                                     </div>
-                                    <div className="absolute bottom-0 left-0 h-1 bg-accent-primary" style={{ width: '70%' }}></div>
-                                </div>
-                                <div className="p-4">
-                                    <h3 className="font-semibold line-clamp-1 group-hover:text-accent-primary transition-colors">{video.title}</h3>
-                                    <p className="text-text-secondary text-sm mt-1">70% 시청함</p>
-                                </div>
-                            </Link>
-                        ))}
+                                    <div className="p-4">
+                                        <h3 className="font-semibold line-clamp-1 group-hover:text-accent-primary transition-colors">{video.title}</h3>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <p className="text-text-secondary text-sm">{Math.round((video.watchProgress || 0) * 100)}% 시청함</p>
+                                            {video.watchedAt && <p className="text-text-tertiary text-xs">{formatDate(video.watchedAt)}</p>}
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))
+                        )}
                     </div>
                 )}
 
                 {activeTab === 'downloads' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {downloads.map((video) => (
-                            <div key={video.id} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 p-4 flex gap-4 items-center">
-                                <div className={`w-20 aspect-video rounded-lg flex-shrink-0 bg-gradient-to-br ${video.gradient}`}></div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-sm line-clamp-1">{video.title}</h3>
-                                    <p className="text-text-tertiary text-xs">1.2 GB • MP4</p>
-                                </div>
-                                <button className="p-2 bg-white/5 hover:bg-accent-primary hover:text-black rounded-lg transition-all">
-                                    ⬇️
-                                </button>
+                        {downloads.length === 0 ? (
+                            <div className="col-span-full py-20 text-center bg-bg-secondary rounded-2xl border border-dashed border-white/10">
+                                <p className="text-text-secondary italic font-medium">다운로드 기록이 없습니다.</p>
+                                <Link href="/" className="mt-4 inline-block text-accent-primary hover:underline">영상 둘러보기</Link>
                             </div>
-                        ))}
+                        ) : (
+                            downloads.map((video: any) => (
+                                <div key={video.id} className="group bg-bg-secondary rounded-xl overflow-hidden border border-white/5 p-4 flex gap-4 items-center">
+                                    <div className={`w-20 aspect-video rounded-lg flex-shrink-0 bg-gradient-to-br ${video.gradient}`}></div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-sm line-clamp-1">{video.title}</h3>
+                                        <p className="text-text-tertiary text-xs">@{video.streamerName} • {video.duration}</p>
+                                        {video.downloadedAt && <p className="text-text-tertiary text-[10px] mt-0.5">{formatDate(video.downloadedAt)}</p>}
+                                    </div>
+                                    <Link href={`/video/${video.id}`} className="p-2 bg-white/5 hover:bg-accent-primary hover:text-black rounded-lg transition-all">
+                                        ▶️
+                                    </Link>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
 

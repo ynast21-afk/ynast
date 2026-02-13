@@ -40,6 +40,20 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         if (id && lastViewedIdRef.current !== id) {
             incrementVideoView(id)
             lastViewedIdRef.current = id
+
+            // Save to watch history
+            try {
+                const savedHistory = localStorage.getItem('kstreamer_watch_history')
+                const history: { videoId: string; watchedAt: string; progress: number }[] = savedHistory ? JSON.parse(savedHistory) : []
+                // Remove existing entry for this video if present
+                const filtered = history.filter(entry => entry.videoId !== id)
+                // Add new entry at the beginning
+                filtered.unshift({ videoId: id, watchedAt: new Date().toISOString(), progress: 0.5 })
+                // Keep max 100 entries
+                localStorage.setItem('kstreamer_watch_history', JSON.stringify(filtered.slice(0, 100)))
+            } catch (e) {
+                console.error('Failed to save watch history:', e)
+            }
         }
     }, [id, incrementVideoView])
 
@@ -185,6 +199,17 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+
+        // Save to download history
+        try {
+            const savedDownloads = localStorage.getItem('kstreamer_download_history')
+            const downloads: { videoId: string; downloadedAt: string }[] = savedDownloads ? JSON.parse(savedDownloads) : []
+            const filtered = downloads.filter(entry => entry.videoId !== id)
+            filtered.unshift({ videoId: id, downloadedAt: new Date().toISOString() })
+            localStorage.setItem('kstreamer_download_history', JSON.stringify(filtered.slice(0, 100)))
+        } catch (e) {
+            console.error('Failed to save download history:', e)
+        }
     }
 
     if (!video) {
@@ -396,7 +421,7 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                                 <div>
                                     <div className="font-semibold text-lg">@{video.streamerName} {streamer?.koreanName && <span className="text-text-secondary text-sm">({streamer.koreanName})</span>}</div>
                                     <div className="text-sm text-text-secondary">{streamer?.videoCount || 0} Videos</div>
-                                    Props: {video.duration} 동안 이어지는 환상적인 퍼포먼스를 시청하세요!
+                                    <span className="text-sm text-text-secondary">{video.duration} 동안 이어지는 환상적인 퍼포먼스를 시청하세요!</span>
                                 </div>
                             </Link>
                             <button

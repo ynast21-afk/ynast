@@ -12,7 +12,11 @@
     "settings": "설정",
     "language": "언어",
     "korean": "한국어",
-    "english": "English"
+    "english": "English",
+    "all": "전체",
+    "searchPlaceholder": "동영상, 배우 검색...",
+    "searchMinChars": "2자 이상 입력하세요",
+    "noResults": "결과가 없습니다."
   },
   "membership": {
     "title": "VIP 멤버십",

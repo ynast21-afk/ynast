@@ -12,7 +12,11 @@
         "settings": "Ajustes",
         "language": "Idioma",
         "korean": "한국어",
-        "english": "English"
+        "english": "English",
+        "all": "Todo",
+        "searchPlaceholder": "Buscar videos, actores...",
+        "searchMinChars": "Ingrese al menos 2 caracteres",
+        "noResults": "No se encontraron resultados."
     },
     "membership": {
         "title": "Membresía VIP",

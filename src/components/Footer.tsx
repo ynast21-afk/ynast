@@ -78,7 +78,7 @@ export default function Footer() {
                 {/* Bottom */}
                 <div className="flex flex-col md:flex-row justify-between items-center mt-10 pt-6 border-t border-white/10 text-xs text-text-secondary">
                     <div className="flex flex-col gap-1 items-center md:items-start">
-                        <span>© 2026 kStreamer dance. {tFooter('rights')}</span>
+                        <span>© {new Date().getFullYear()} kStreamer dance. {tFooter('rights')}</span>
                         <span className="opacity-70">Address: 264, Dongbaekjukjeon-daero, Giheung-gu, Yongin-si, Gyeonggi-do, Republic of Korea 17013</span>
                     </div>
                     <span>All models are 18 years of age or older</span>

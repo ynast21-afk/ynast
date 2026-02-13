@@ -5,8 +5,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
-// 관리자 이메일 확인용
-const ADMIN_EMAIL = 'ynast21@gmail.com'
+// 관리자 이메일 확인용 (환경 변수 또는 폴백)
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'ynast21@gmail.com'
 
 export default function LoginPage() {
     const [email, setEmail] = useState('')

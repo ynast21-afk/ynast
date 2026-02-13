@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface Comment {
@@ -136,7 +137,7 @@ export default function CommentSection({ videoId }: CommentSectionProps) {
                                             {new Date(comment.createdAt).toLocaleDateString()}
                                         </span>
                                     </div>
-                                    {(user?.id === comment.authorId || user?.membership === 'vip') && (
+                                    {(user?.id === comment.authorId || user?.role === 'admin' || user?.role === 'moderator') && (
                                         <button
                                             onClick={() => handleDeleteComment(comment.id)}
                                             className="text-xs text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:underline"
@@ -160,5 +161,3 @@ export default function CommentSection({ videoId }: CommentSectionProps) {
         </div>
     )
 }
-
-import Link from 'next/link'
