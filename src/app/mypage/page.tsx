@@ -100,7 +100,55 @@ function MyPageContent() {
             }
         }
 
+        // Helper to generate token
+        function getToken(user: any) {
+            try {
+                return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
+            } catch (e) {
+                return ''
+            }
+        }
+
         loadData()
+
+        // Sync from Server (B2)
+        if (user) {
+            const token = getToken(user)
+            if (token) {
+                fetch('/api/user/history', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (!data) return
+
+                        if (data.watchHistory && Array.isArray(data.watchHistory)) {
+                            const historyVideos = data.watchHistory
+                                .map((entry: any) => {
+                                    const video = videos.find(v => v.id === entry.videoId)
+                                    // @ts-ignore
+                                    if (video) return { ...video, watchedAt: entry.watchedAt, watchProgress: entry.progress }
+                                    return null
+                                })
+                                .filter(Boolean)
+                            if (historyVideos.length > 0) setWatchHistory(historyVideos)
+                        }
+
+                        if (data.downloadHistory && Array.isArray(data.downloadHistory)) {
+                            const downloadVideos = data.downloadHistory
+                                .map((entry: any) => {
+                                    const video = videos.find(v => v.id === entry.videoId)
+                                    // @ts-ignore
+                                    if (video) return { ...video, downloadedAt: entry.downloadedAt }
+                                    return null
+                                })
+                                .filter(Boolean)
+                            if (downloadVideos.length > 0) setDownloads(downloadVideos)
+                        }
+                    })
+                    .catch(err => console.error('Failed to sync history:', err))
+            }
+        }
 
         // Listen for storage changes from other tabs/components
         window.addEventListener('storage', loadData)

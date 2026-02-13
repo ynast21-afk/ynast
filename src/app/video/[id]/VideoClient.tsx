@@ -22,6 +22,16 @@ interface VideoClientProps {
     fallbackId?: string
 }
 
+// Helper to generate token for API calls
+function getToken(user: any) {
+    try {
+        return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
+    } catch (e) {
+        console.error('Token generation error:', e)
+        return ''
+    }
+}
+
 export default function VideoClient({ video: initialVideo, streamer: initialStreamer, relatedVideos, fallbackId }: VideoClientProps) {
     const { videos: allVideos, streamers, incrementVideoView, toggleVideoLike: toggleVideoLikeState, downloadToken, downloadUrl, activeBucketName } = useStreamers()
     const [video, setVideo] = useState<Video | undefined>(initialVideo)
@@ -41,21 +51,41 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
             incrementVideoView(id)
             lastViewedIdRef.current = id
 
-            // Save to watch history
+            const now = new Date().toISOString()
+            const historyItem = { videoId: id, watchedAt: now, progress: 0.5 }
+
+            // Save to watch history (Local)
             try {
                 const savedHistory = localStorage.getItem('kstreamer_watch_history')
                 const history: { videoId: string; watchedAt: string; progress: number }[] = savedHistory ? JSON.parse(savedHistory) : []
                 // Remove existing entry for this video if present
                 const filtered = history.filter(entry => entry.videoId !== id)
                 // Add new entry at the beginning
-                filtered.unshift({ videoId: id, watchedAt: new Date().toISOString(), progress: 0.5 })
+                filtered.unshift(historyItem)
                 // Keep max 100 entries
                 localStorage.setItem('kstreamer_watch_history', JSON.stringify(filtered.slice(0, 100)))
             } catch (e) {
                 console.error('Failed to save watch history:', e)
             }
+
+            // Sync with Server (B2)
+            if (user) {
+                fetch('/api/user/history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken(user)}`
+                    },
+                    body: JSON.stringify({
+                        type: 'watch',
+                        item: historyItem
+                    })
+                }).catch(err => console.error('Failed to sync watch history:', err))
+            }
         }
-    }, [id, incrementVideoView])
+    }, [id, incrementVideoView, user])
+
+
 
     // Reset video error state when video changes
     useEffect(() => {
@@ -175,7 +205,12 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     const isStreamingLocked = !hasAccess(video?.minStreamingLevel, user?.membership)
     const isDownloadLocked = !hasAccess(video?.minDownloadLevel, user?.membership)
 
-    const handleDownload = () => {
+    const handleDownload = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
+
         if (isDownloadLocked) {
             alert(`${(video?.minDownloadLevel || 'vip').toUpperCase()} 회원 전용 다운로드 혜택입니다. 멤버십을 업그레이드 해주세요!`)
             return
@@ -200,15 +235,33 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         link.click()
         document.body.removeChild(link)
 
-        // Save to download history
+        const now = new Date().toISOString()
+        const downloadItem = { videoId: id, downloadedAt: now }
+
+        // Save to download history (Local)
         try {
             const savedDownloads = localStorage.getItem('kstreamer_download_history')
             const downloads: { videoId: string; downloadedAt: string }[] = savedDownloads ? JSON.parse(savedDownloads) : []
             const filtered = downloads.filter(entry => entry.videoId !== id)
-            filtered.unshift({ videoId: id, downloadedAt: new Date().toISOString() })
+            filtered.unshift(downloadItem)
             localStorage.setItem('kstreamer_download_history', JSON.stringify(filtered.slice(0, 100)))
         } catch (e) {
             console.error('Failed to save download history:', e)
+        }
+
+        // Sync with Server (B2)
+        if (user) {
+            fetch('/api/user/history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getToken(user)}`
+                },
+                body: JSON.stringify({
+                    type: 'download',
+                    item: downloadItem
+                })
+            }).catch(err => console.error('Failed to sync download history:', err))
         }
     }
 
