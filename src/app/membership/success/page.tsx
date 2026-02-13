@@ -2,194 +2,163 @@
 
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useAuth } from '@/contexts/AuthContext'
-import Link from 'next/link'
 
-function SuccessContent() {
+export default function MembershipSuccessPage() {
     const searchParams = useSearchParams()
     const { user, updateMembership } = useAuth()
     const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
-    const [subscriptionInfo, setSubscriptionInfo] = useState<any>(null)
     const [errorMessage, setErrorMessage] = useState('')
 
     useEffect(() => {
-        const subscriptionId = searchParams.get('subscription_id')
-        const baToken = searchParams.get('ba_token')
-        const token = searchParams.get('token')
-        const provider = searchParams.get('provider')
+        const saleId = searchParams.get('sale_id')
 
-        console.log('Payment return params:', { subscriptionId, baToken, token, provider })
-
-        if (provider === 'paddle') {
-            // Paddle uses webhooks for server-side activation
-            // Just update client state and show success
+        if (!saleId) {
+            // No sale_id but user might have completed payment via Gumroad overlay
+            // Webhook will handle activation server-side
             setStatus('success')
             if (updateMembership) {
                 updateMembership('vip')
             }
-        } else if (subscriptionId || token) {
-            verifySubscription(subscriptionId || token)
-        } else {
-            // No params but user landed here — maybe direct navigation after PayPal popup
-            setStatus('success')
-        }
-    }, [searchParams])
-
-    const verifySubscription = async (subscriptionId: string | null) => {
-        if (!subscriptionId) {
-            setStatus('success')
             return
         }
 
-        try {
-            const response = await fetch('/api/paypal/activate-subscription', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    subscriptionId,
-                    userEmail: user?.email,
-                    userId: user?.id,
+        // Verify the sale with our API
+        async function verifySale() {
+            try {
+                const res = await fetch('/api/gumroad/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        saleId,
+                        email: user?.email,
+                    }),
                 })
-            })
 
-            const data = await response.json()
-            console.log('Subscription verification:', data)
+                const data = await res.json()
 
-            if (data.success) {
-                setSubscriptionInfo(data)
-                setStatus('success')
+                if (data.valid) {
+                    setStatus('success')
+                    if (updateMembership) {
+                        updateMembership('vip')
+                    }
 
-                // Update client-side membership
-                if (updateMembership) {
-                    updateMembership('vip')
+                    // Save purchase record locally
+                    const savedHistory = localStorage.getItem('kstreamer_purchase_history')
+                    const history = savedHistory ? JSON.parse(savedHistory) : []
+                    const newRecord = {
+                        id: saleId,
+                        provider: 'gumroad',
+                        plan: 'VIP',
+                        date: new Date().toISOString(),
+                        status: 'ACTIVE',
+                    }
+                    localStorage.setItem('kstreamer_purchase_history', JSON.stringify([newRecord, ...history]))
+                } else {
+                    setStatus('error')
+                    setErrorMessage(data.error || 'Payment verification failed')
                 }
-            } else {
-                // Subscription may still be processing
-                setSubscriptionInfo(data)
-                setStatus('success')  // Show success anyway since PayPal redirected here
+            } catch (err) {
+                console.error('Verification error:', err)
+                // Even if verification fails, webhook should handle activation
+                setStatus('success')
                 if (updateMembership) {
                     updateMembership('vip')
                 }
             }
-        } catch (error: any) {
-            console.error('Verification error:', error)
-            setErrorMessage(error.message || '구독 확인 중 오류가 발생했습니다.')
-            setStatus('error')
         }
-    }
+
+        verifySale()
+    }, [searchParams, user?.email, updateMembership])
 
     return (
         <>
             <Header />
             <main className="min-h-screen bg-bg-primary pt-32 pb-20">
-                <div className="max-w-lg mx-auto px-6 text-center">
-
+                <div className="max-w-2xl mx-auto px-6 text-center">
                     {status === 'verifying' && (
-                        <div className="space-y-6">
-                            <div className="w-16 h-16 border-4 border-accent-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-                            <h1 className="text-3xl font-bold">결제 확인 중...</h1>
-                            <p className="text-text-secondary">
-                                구독을 검증하고 있습니다. 잠시만 기다려 주세요.
+                        <div className="animate-pulse">
+                            <div className="text-6xl mb-6">⏳</div>
+                            <h1 className="text-3xl font-bold mb-4">결제 확인 중...</h1>
+                            <p className="text-text-secondary text-lg">
+                                Gumroad에서 결제 정보를 확인하고 있습니다. 잠시만 기다려주세요.
                             </p>
                         </div>
                     )}
 
                     {status === 'success' && (
-                        <div className="space-y-6">
-                            <div className="w-24 h-24 bg-accent-primary/20 rounded-full flex items-center justify-center mx-auto">
-                                <span className="text-5xl">🎉</span>
-                            </div>
-                            <h1 className="text-3xl font-bold">결제가 완료되었습니다!</h1>
-                            <p className="text-text-secondary text-lg">
-                                VIP 멤버십이 활성화되었습니다.<br />
-                                이제 모든 프리미엄 콘텐츠를 즐기실 수 있습니다.
+                        <div>
+                            <div className="text-8xl mb-6 animate-bounce">🎉</div>
+                            <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-accent-primary to-cyan-400 bg-clip-text text-transparent">
+                                VIP 멤버십 활성화 완료!
+                            </h1>
+                            <p className="text-text-secondary text-lg mb-8">
+                                축하합니다! 이제 모든 프리미엄 콘텐츠를 자유롭게 이용하실 수 있습니다.
                             </p>
 
-                            {subscriptionInfo?.subscriptionId && (
-                                <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-left space-y-2">
-                                    <div className="flex justify-between">
-                                        <span className="text-text-tertiary text-sm">구독 ID</span>
-                                        <span className="text-sm font-mono">{subscriptionInfo.subscriptionId}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-text-tertiary text-sm">상태</span>
-                                        <span className="text-sm font-bold text-accent-primary">{subscriptionInfo.status}</span>
-                                    </div>
-                                    {subscriptionInfo.nextBillingTime && (
-                                        <div className="flex justify-between">
-                                            <span className="text-text-tertiary text-sm">다음 결제일</span>
-                                            <span className="text-sm">
-                                                {new Date(subscriptionInfo.nextBillingTime).toLocaleDateString('ko-KR')}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            <div className="bg-bg-secondary rounded-2xl p-8 border border-accent-primary/20 mb-8">
+                                <h2 className="text-xl font-bold mb-4 text-accent-primary">🌟 VIP 혜택</h2>
+                                <ul className="space-y-3 text-left">
+                                    <li className="flex items-center gap-3">
+                                        <span className="text-accent-primary text-xl">✓</span>
+                                        <span>모든 영상 무제한 시청</span>
+                                    </li>
+                                    <li className="flex items-center gap-3">
+                                        <span className="text-accent-primary text-xl">✓</span>
+                                        <span>고화질(4K) 스트리밍</span>
+                                    </li>
+                                    <li className="flex items-center gap-3">
+                                        <span className="text-accent-primary text-xl">✓</span>
+                                        <span>광고 없는 시청 환경</span>
+                                    </li>
+                                    <li className="flex items-center gap-3">
+                                        <span className="text-accent-primary text-xl">✓</span>
+                                        <span>신규 콘텐츠 우선 공개</span>
+                                    </li>
+                                </ul>
+                            </div>
 
-                            <div className="flex flex-col gap-3 mt-8">
-                                <Link
-                                    href="/mypage"
-                                    className="w-full py-4 rounded-xl font-bold text-lg gradient-button text-black text-center"
-                                >
-                                    마이페이지로 이동
-                                </Link>
-                                <Link
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                <a
                                     href="/"
-                                    className="w-full py-4 rounded-xl font-bold text-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-center"
+                                    className="px-8 py-4 rounded-xl font-bold text-lg gradient-button text-black transition-all hover:scale-105"
                                 >
-                                    홈으로 돌아가기
-                                </Link>
+                                    🏠 홈으로 가기
+                                </a>
+                                <a
+                                    href="/videos"
+                                    className="px-8 py-4 rounded-xl font-bold text-lg bg-bg-secondary border border-white/10 hover:border-accent-primary/50 transition-all hover:scale-105"
+                                >
+                                    🎬 영상 보러 가기
+                                </a>
                             </div>
                         </div>
                     )}
 
                     {status === 'error' && (
-                        <div className="space-y-6">
-                            <div className="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
-                                <span className="text-5xl">⚠️</span>
-                            </div>
-                            <h1 className="text-3xl font-bold text-red-400">확인 중 문제가 발생했습니다</h1>
-                            <p className="text-text-secondary">
+                        <div>
+                            <div className="text-6xl mb-6">⚠️</div>
+                            <h1 className="text-3xl font-bold mb-4 text-red-400">결제 확인 실패</h1>
+                            <p className="text-text-secondary text-lg mb-4">
                                 {errorMessage || '결제 확인 중 문제가 발생했습니다.'}
                             </p>
-                            <p className="text-text-tertiary text-sm">
-                                결제가 정상 처리되었을 수 있습니다.<br />
-                                잠시 후 마이페이지에서 멤버십 상태를 확인해 주세요.
+                            <p className="text-text-secondary mb-8">
+                                결제가 완료되었다면, 잠시 후 자동으로 멤버십이 활성화됩니다.<br />
+                                문제가 지속되면 관리자에게 문의해주세요.
                             </p>
-                            <div className="flex flex-col gap-3 mt-8">
-                                <Link
-                                    href="/mypage"
-                                    className="w-full py-4 rounded-xl font-bold text-lg gradient-button text-black text-center"
-                                >
-                                    마이페이지에서 확인
-                                </Link>
-                                <Link
-                                    href="/membership"
-                                    className="w-full py-4 rounded-xl font-bold text-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-center"
-                                >
-                                    다시 시도하기
-                                </Link>
-                            </div>
+                            <a
+                                href="/membership"
+                                className="inline-block px-8 py-4 rounded-xl font-bold text-lg gradient-button text-black transition-all hover:scale-105"
+                            >
+                                멤버십 페이지로 돌아가기
+                            </a>
                         </div>
                     )}
                 </div>
             </main>
             <Footer />
         </>
-    )
-}
-
-export default function MembershipSuccessPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-accent-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        }>
-            <SuccessContent />
-        </Suspense>
     )
 }

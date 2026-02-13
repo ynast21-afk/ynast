@@ -17,7 +17,7 @@ export interface User {
     role: UserRole
     avatar?: string
     subscriptionId?: string
-    subscriptionProvider?: 'paypal' | 'paddle' | 'lemon' | string
+    subscriptionProvider?: 'gumroad' | 'paypal' | 'paddle' | 'lemon' | string
     subscriptionEnd?: string
     isBanned: boolean
     banReason?: string

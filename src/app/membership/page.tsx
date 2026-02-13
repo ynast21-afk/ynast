@@ -1,54 +1,36 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { useAuth, MembershipLevel } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
-import { PayPalScriptProvider } from '@paypal/react-paypal-js'
-import RealPayPalButton from '@/components/RealPayPalButton'
-import PaddleCheckoutButton from '@/components/PaddleCheckoutButton'
-
-// Helper to generate token for API calls
-function getToken(user: any) {
-    try {
-        return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
-    } catch (e) {
-        return ''
-    }
-}
-
-// Membership plans are now dynamically managed via SiteSettingsContext
+import Script from 'next/script'
 
 const faqs = [
     {
         q: 'How do I cancel my subscription?',
-        a: 'You can cancel anytime from your account settings. Your access continues until the end of your billing period.',
+        a: 'You can cancel anytime from your Gumroad account. Your access continues until the end of your billing period.',
     },
     {
         q: 'Can I change my plan?',
-        a: 'Yes! Upgrade or downgrade anytime. Changes take effect on your next billing cycle.',
+        a: 'Yes! You can upgrade or downgrade anytime through your Gumroad subscription settings.',
     },
     {
         q: 'What payment methods do you accept?',
-        a: 'We accept PayPal, all major credit cards through PayPal, and cryptocurrency.',
+        a: 'Gumroad accepts all major credit cards, debit cards, and PayPal worldwide.',
     },
     {
         q: 'Is there a free trial?',
-        a: 'New members get access to 10 free videos. VIP and Premium+ include a 7-day trial period.',
+        a: 'New members get access to 10 free videos. VIP includes full access to all premium content.',
     },
 ]
 
-// PayPal Client ID from environment variable (never hardcode credentials in source)
-const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || ""
+const GUMROAD_PRODUCT_URL = process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_URL || ''
 
 export default function MembershipPage() {
     const { settings } = useSiteSettings()
-    const { user, updateMembership } = useAuth()
-    const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
-    const [showPayment, setShowPayment] = useState(false)
-    const [paymentProvider, setPaymentProvider] = useState<'paypal' | 'lemon' | 'paddle' | null>(null)
-    const [isCreatingCheckout, setIsCreatingCheckout] = useState(false)
+    const { user } = useAuth()
 
     // VIP Plan Data from Context
     const vipPlan = settings.pricing.vip
@@ -58,156 +40,42 @@ export default function MembershipPage() {
         price: vipPlan.monthlyPrice.toString(),
         period: 'month',
         features: vipPlan.features,
-        popular: true,
-        color: 'from-accent-primary to-cyan-400',
         description: vipPlan.description
     }
 
-    const handleSelectPlan = (provider: 'paypal' | 'lemon' | 'paddle') => {
+    // Build Gumroad URL with user info for auto-fill
+    const buildGumroadUrl = () => {
+        const url = new URL(GUMROAD_PRODUCT_URL || 'https://gumroad.com')
+        if (user?.email) {
+            url.searchParams.set('email', user.email)
+        }
+        // Set wanted=true to signal "I want this"
+        url.searchParams.set('wanted', 'true')
+        return url.toString()
+    }
+
+    const handleSubscribe = () => {
         if (!user) {
             alert('Please login first to subscribe!')
             window.location.href = '/login'
             return
         }
-        setPaymentProvider(provider)
 
-        if (provider === 'lemon') {
-            handleLemonPayment()
-        } else if (provider === 'paddle') {
-            // Paddle overlay checkout is handled by the PaddleCheckoutButton component
+        if (!GUMROAD_PRODUCT_URL) {
+            alert('Payment system is being configured. Please try again later.')
             return
-        } else {
-            setSelectedPlan('vip')
-            setShowPayment(true)
-        }
-    }
-
-    const handleLemonPayment = async () => {
-        setIsCreatingCheckout(true)
-        try {
-            const variantId = process.env.NEXT_PUBLIC_LEMON_SQUEEZY_VIP_VARIANT_ID || "371131" // Default or from env
-            const res = await fetch('/api/lemon/create-checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    variantId,
-                    userEmail: user?.email,
-                    userName: user?.name,
-                    userId: user?.id
-                })
-            })
-            const data = await res.json()
-            if (!res.ok) {
-                throw new Error(data.error || 'Failed to initialize Lemon Squeezy checkout')
-            }
-            if (data.checkoutUrl) {
-                window.location.href = data.checkoutUrl
-            } else {
-                throw new Error('Invalid response from server')
-            }
-        } catch (e: any) {
-            console.error('Lemon Squeezy Error:', e)
-            alert(`Payment Error: ${e.message}`)
-        } finally {
-            setIsCreatingCheckout(false)
-        }
-    }
-
-    const handlePaymentSuccess = async (details: any) => {
-        console.log("Subscription Success:", details)
-
-        // Record purchase history
-        const savedHistory = localStorage.getItem('kstreamer_purchase_history')
-        const history = savedHistory ? JSON.parse(savedHistory) : []
-        const newRecord = {
-            id: details.subscriptionID || details.id,
-            amount: plan.price,
-            date: new Date().toISOString(),
-            status: details.status || 'ACTIVE',
-            plan: plan.name,
-            provider: 'paypal'
-        }
-        localStorage.setItem('kstreamer_purchase_history', JSON.stringify([newRecord, ...history]))
-
-        // Sync purchase to B2
-        if (user) {
-            const token = getToken(user)
-            if (token) {
-                fetch('/api/user/purchases', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ purchase: newRecord })
-                }).catch(err => console.error('Failed to sync purchase:', err))
-            }
         }
 
-        // Activate subscription on server (update user membership in B2)
-        try {
-            const activateRes = await fetch('/api/paypal/activate-subscription', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    subscriptionId: details.subscriptionID,
-                    userEmail: user?.email,
-                    userId: user?.id
-                })
-            })
-            const activateData = await activateRes.json()
-            console.log('Server activation result:', activateData)
-        } catch (e) {
-            console.error('Server activation failed:', e)
-        }
-
-        // Update client-side membership
-        if (updateMembership) {
-            updateMembership('vip')
-        }
-
-        alert('🎉 VIP 멤버십이 성공적으로 활성화되었습니다!')
-        setShowPayment(false)
-        setSelectedPlan(null)
+        // Open in new tab or redirect
+        window.open(buildGumroadUrl(), '_blank')
     }
 
     return (
-        <PayPalScriptProvider options={{
-            clientId: PAYPAL_CLIENT_ID,
-            currency: "USD",
-            intent: "subscription",
-            vault: true
-        }}>
+        <>
+            {/* Gumroad JS for overlay checkout (optional) */}
+            <Script src="https://gumroad.com/js/gumroad.js" strategy="lazyOnload" />
+
             <Header />
-
-            {/* Payment Modal */}
-            {showPayment && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-bg-secondary w-full max-w-md rounded-2xl p-6 border border-white/10 shadow-2xl relative">
-                        <button
-                            onClick={() => setShowPayment(false)}
-                            className="absolute top-4 right-4 text-white/50 hover:text-white"
-                        >
-                            ✕
-                        </button>
-
-                        <h2 className="text-2xl font-bold mb-2">Complete Payment</h2>
-                        <div className="bg-black/40 p-4 rounded-xl mb-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-text-secondary">Plan</span>
-                                <span className="font-bold">VIP PLAN</span>
-                            </div>
-                            <div className="flex justify-between items-center text-accent-primary font-bold text-lg">
-                                <span>Total</span>
-                                <span>${plan.price}/{plan.period}</span>
-                            </div>
-                        </div>
-
-                        <RealPayPalButton
-                            price={plan.price}
-                            planName={plan.name}
-                            onSuccess={handlePaymentSuccess}
-                        />
-                    </div>
-                </div>
-            )}
 
             <main className="min-h-screen bg-bg-primary pt-32 pb-20">
                 <div className="max-w-6xl mx-auto px-6">
@@ -248,33 +116,36 @@ export default function MembershipPage() {
                                 ))}
                             </ul>
 
-                            <div className="flex flex-col gap-3">
-                                <button
-                                    onClick={() => handleSelectPlan('paypal')}
-                                    disabled={isCreatingCheckout}
-                                    className="w-full py-4 rounded-xl font-bold text-xl transition-all gradient-button text-black shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40 flex items-center justify-center gap-2"
-                                >
-                                    Subscribe with PayPal
-                                </button>
-                                <button
-                                    onClick={() => handleSelectPlan('lemon')}
-                                    disabled={isCreatingCheckout}
-                                    className="w-full py-4 rounded-xl font-bold text-xl transition-all bg-[#FFC700] text-black hover:bg-[#e6b400] transition-colors shadow-lg flex items-center justify-center gap-2"
-                                >
-                                    {isCreatingCheckout ? 'Initializing...' : 'Subscribe with Lemon Squeezy'}
-                                </button>
-                                <PaddleCheckoutButton
-                                    userEmail={user?.email}
-                                    userId={user?.id}
-                                    onSuccess={() => {
-                                        if (updateMembership) {
-                                            updateMembership('vip')
-                                        }
-                                        alert('🎉 VIP 멤버십이 성공적으로 활성화되었습니다!')
-                                    }}
-                                />
-                            </div>
+                            {/* Single Gumroad Subscribe Button */}
+                            <button
+                                onClick={handleSubscribe}
+                                className="w-full py-4 rounded-xl font-bold text-xl transition-all gradient-button text-black shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                                </svg>
+                                Subscribe Now
+                            </button>
+
+                            <p className="text-center text-text-secondary text-sm mt-4">
+                                🔒 Secure payment via Gumroad · Cancel anytime
+                            </p>
                         </div>
+                    </div>
+
+                    {/* Payment Methods Info */}
+                    <div className="max-w-md mx-auto mb-16 text-center">
+                        <p className="text-text-secondary text-sm mb-3">Accepted Payment Methods</p>
+                        <div className="flex items-center justify-center gap-4 text-2xl opacity-60">
+                            <span title="Visa">💳</span>
+                            <span title="Mastercard">💳</span>
+                            <span title="PayPal">🅿️</span>
+                            <span title="Apple Pay">🍎</span>
+                            <span title="Google Pay">🤖</span>
+                        </div>
+                        <p className="text-text-secondary text-xs mt-2">
+                            Gumroad supports credit cards, debit cards, PayPal, and more worldwide
+                        </p>
                     </div>
 
                     {/* FAQ Section */}
@@ -292,6 +163,6 @@ export default function MembershipPage() {
                 </div>
             </main>
             <Footer />
-        </PayPalScriptProvider>
+        </>
     )
 }
