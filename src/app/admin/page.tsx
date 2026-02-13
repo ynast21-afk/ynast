@@ -203,10 +203,22 @@ export default function AdminPage() {
     const [notifications, setNotifications] = useState<any[]>([])
 
     useEffect(() => {
+        // 1. Load from localStorage cache first (instant)
         const saved = localStorage.getItem('kstreamer_admin_notifications')
         if (saved) {
             setNotifications(JSON.parse(saved).slice(0, 20))
         }
+
+        // 2. Load from B2 server (async, overwrite with server truth)
+        fetch('/api/admin/notifications')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data?.notifications && Array.isArray(data.notifications)) {
+                    setNotifications(data.notifications.slice(0, 20))
+                    localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(data.notifications))
+                }
+            })
+            .catch(err => console.error('Failed to fetch notifications from server:', err))
 
         if (activeTab === 'data') {
             fetchBackups()
@@ -260,6 +272,12 @@ export default function AdminPage() {
     const clearNotifications = () => {
         localStorage.setItem('kstreamer_admin_notifications', '[]')
         setNotifications([])
+        // Sync to B2
+        fetch('/api/admin/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'clear' })
+        }).catch(err => console.error('Failed to clear notifications on server:', err))
     }
 
     // Capture frames from video file and detect duration

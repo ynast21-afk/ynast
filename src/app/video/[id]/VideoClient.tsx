@@ -118,19 +118,54 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     useEffect(() => {
         if (!user || !id) return
 
-        // Check like status
+        // 1. Check from localStorage cache first (instant)
         const savedLikes = localStorage.getItem('kstreamer_user_likes')
         if (savedLikes) {
             const likes: string[] = JSON.parse(savedLikes)
             setIsLiked(likes.includes(id))
         }
 
-        // Check Following status
         if (video) {
             const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
             setIsFollowed(followed.includes(video.streamerId))
         }
+
+        // 2. Load from B2 server (async, overwrite with server truth)
+        const token = getToken(user)
+        if (token) {
+            fetch('/api/user/social', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (data) {
+                        if (data.likes) {
+                            setIsLiked(data.likes.includes(id))
+                            localStorage.setItem('kstreamer_user_likes', JSON.stringify(data.likes))
+                        }
+                        if (data.follows && video) {
+                            setIsFollowed(data.follows.includes(video.streamerId))
+                            localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(data.follows))
+                        }
+                    }
+                })
+                .catch(err => console.error('Failed to load social data from server:', err))
+        }
     }, [user, id, video])
+
+    // Helper: send notification to both localStorage cache and B2
+    const sendNotification = (notification: any) => {
+        try {
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift(notification)
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+        } catch { /* ignore */ }
+        fetch('/api/admin/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notification })
+        }).catch(err => console.error('Failed to sync notification:', err))
+    }
 
     // Toggle like
     const toggleLike = () => {
@@ -142,6 +177,7 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         const savedLikes = localStorage.getItem('kstreamer_user_likes')
         const currentLikes: string[] = savedLikes ? JSON.parse(savedLikes) : []
         let updatedLikes: string[] = []
+        const newLikedState = !isLiked
 
         if (isLiked) {
             updatedLikes = currentLikes.filter(likeId => likeId !== id)
@@ -150,24 +186,33 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
             updatedLikes = [id, ...currentLikes]
             toggleVideoLikeState(id, true)
 
-            // Notification simulation
-            if (user && video) {
-                const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
-                notifications.unshift({
+            // Notification
+            if (video) {
+                sendNotification({
                     id: Date.now().toString(),
                     type: 'like',
                     message: `${user.name}님이 '${video.title}' 영상을 찜했습니다.`,
                     time: new Date().toISOString(),
                     isRead: false
                 })
-                localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
             }
         }
 
+        // Save to localStorage cache
         localStorage.setItem('kstreamer_user_likes', JSON.stringify(updatedLikes))
-        window.dispatchEvent(new Event('storage')) // Trigger re-sync for other tabs
-        window.dispatchEvent(new CustomEvent('kstreamer_wishlist_updated')) // Trigger re-sync for current tab
-        setIsLiked(!isLiked)
+        window.dispatchEvent(new Event('storage'))
+        window.dispatchEvent(new CustomEvent('kstreamer_wishlist_updated'))
+        setIsLiked(newLikedState)
+
+        // Sync to B2
+        const token = getToken(user)
+        if (token) {
+            fetch('/api/user/social', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ type: 'like', action: newLikedState ? 'add' : 'remove', targetId: id })
+            }).catch(err => console.error('Failed to sync like:', err))
+        }
     }
 
     const handleFollowToggle = () => {
@@ -178,28 +223,36 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
 
         const followed = JSON.parse(localStorage.getItem('kstreamer_followed_streamers') || '[]')
         let newFollowed: string[] = []
+        const newFollowedState = !isFollowed
 
         if (isFollowed) {
             newFollowed = followed.filter((streamerId: string) => streamerId !== video?.streamerId)
         } else if (video) {
             newFollowed = [...followed, video.streamerId]
 
-            // Notify Admin
-            if (user && video) {
-                const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
-                notifications.unshift({
-                    id: Date.now().toString(),
-                    type: 'follow',
-                    message: `${user.name}님이 ${video.streamerName}님을 팔로우했습니다.`,
-                    time: new Date().toISOString(),
-                    isRead: false
-                })
-                localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
-            }
+            // Notification
+            sendNotification({
+                id: Date.now().toString(),
+                type: 'follow',
+                message: `${user.name}님이 ${video.streamerName}님을 팔로우했습니다.`,
+                time: new Date().toISOString(),
+                isRead: false
+            })
         }
 
+        // Save to localStorage cache
         localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(newFollowed))
-        setIsFollowed(!isFollowed)
+        setIsFollowed(newFollowedState)
+
+        // Sync to B2
+        const token = getToken(user)
+        if (token && video) {
+            fetch('/api/user/social', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ type: 'follow', action: newFollowedState ? 'add' : 'remove', targetId: video.streamerId })
+            }).catch(err => console.error('Failed to sync follow:', err))
+        }
     }
 
     const isStreamingLocked = !hasAccess(video?.minStreamingLevel, user?.membership)

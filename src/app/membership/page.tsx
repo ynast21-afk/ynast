@@ -9,6 +9,15 @@ import { PayPalScriptProvider } from '@paypal/react-paypal-js'
 import RealPayPalButton from '@/components/RealPayPalButton'
 import PaddleCheckoutButton from '@/components/PaddleCheckoutButton'
 
+// Helper to generate token for API calls
+function getToken(user: any) {
+    try {
+        return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
+    } catch (e) {
+        return ''
+    }
+}
+
 // Membership plans are now dynamically managed via SiteSettingsContext
 
 const faqs = [
@@ -119,6 +128,18 @@ export default function MembershipPage() {
             provider: 'paypal'
         }
         localStorage.setItem('kstreamer_purchase_history', JSON.stringify([newRecord, ...history]))
+
+        // Sync purchase to B2
+        if (user) {
+            const token = getToken(user)
+            if (token) {
+                fetch('/api/user/purchases', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ purchase: newRecord })
+                }).catch(err => console.error('Failed to sync purchase:', err))
+            }
+        }
 
         // Activate subscription on server (update user membership in B2)
         try {

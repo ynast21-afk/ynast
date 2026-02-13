@@ -111,10 +111,11 @@ function MyPageContent() {
 
         loadData()
 
-        // Sync from Server (B2)
+        // Sync from Server (B2) - all user data
         if (user) {
             const token = getToken(user)
             if (token) {
+                // 1. Sync watch/download history
                 fetch('/api/user/history', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
@@ -147,6 +148,38 @@ function MyPageContent() {
                         }
                     })
                     .catch(err => console.error('Failed to sync history:', err))
+
+                // 2. Sync likes & follows
+                fetch('/api/user/social', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (!data) return
+
+                        if (data.likes && Array.isArray(data.likes)) {
+                            localStorage.setItem('kstreamer_user_likes', JSON.stringify(data.likes))
+                            setLikedVideos(videos.filter(v => data.likes.includes(v.id)))
+                        }
+                        if (data.follows && Array.isArray(data.follows)) {
+                            localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(data.follows))
+                            setFollowedStreamers(streamers.filter(s => data.follows.includes(s.id)))
+                        }
+                    })
+                    .catch(err => console.error('Failed to sync social data:', err))
+
+                // 3. Sync purchase history
+                fetch('/api/user/purchases', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (data?.purchases && Array.isArray(data.purchases) && data.purchases.length > 0) {
+                            localStorage.setItem('kstreamer_purchase_history', JSON.stringify(data.purchases))
+                            setPurchaseHistory(data.purchases)
+                        }
+                    })
+                    .catch(err => console.error('Failed to sync purchases:', err))
             }
         }
 

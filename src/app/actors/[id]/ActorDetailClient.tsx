@@ -11,6 +11,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { hasAccess } from '@/utils/membership'
 import { getMediaUrl } from '@/utils/b2url'
 
+// Helper to generate token for API calls
+function getToken(user: any) {
+    try {
+        return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
+    } catch (e) {
+        return ''
+    }
+}
+
 interface ActorDetailClientProps {
     streamer: any
     videos: any[]
@@ -28,6 +37,7 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
     const [followerCount, setFollowerCount] = useState(1200 + (streamer.name.length * 56))
 
     useEffect(() => {
+        // 1. Load from localStorage cache first (instant)
         const savedFollows = localStorage.getItem('kstreamer_followed_streamers')
         if (savedFollows) {
             const followedIds = JSON.parse(savedFollows)
@@ -35,7 +45,25 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
                 setIsFollowing(true)
             }
         }
-    }, [streamer.id])
+
+        // 2. Load from B2 server (async)
+        if (user) {
+            const token = getToken(user)
+            if (token) {
+                fetch('/api/user/social', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (data?.follows) {
+                            setIsFollowing(data.follows.includes(streamer.id))
+                            localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(data.follows))
+                        }
+                    })
+                    .catch(err => console.error('Failed to load follows from server:', err))
+            }
+        }
+    }, [streamer.id, user])
 
     const handleFollow = () => {
         if (!user) {
@@ -45,6 +73,7 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
 
         const savedFollows = localStorage.getItem('kstreamer_followed_streamers')
         let followedIds = savedFollows ? JSON.parse(savedFollows) : []
+        const newFollowingState = !isFollowing
 
         if (isFollowing) {
             // Unfollow
@@ -58,7 +87,18 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
             setIsFollowing(true)
         }
 
+        // Save to localStorage cache
         localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(followedIds))
+
+        // Sync to B2
+        const token = getToken(user)
+        if (token) {
+            fetch('/api/user/social', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ type: 'follow', action: newFollowingState ? 'add' : 'remove', targetId: streamer.id })
+            }).catch(err => console.error('Failed to sync follow:', err))
+        }
     }
 
     return (

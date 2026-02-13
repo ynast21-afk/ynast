@@ -4,6 +4,24 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Helper to generate token for API calls
+function getToken(user: any) {
+    try {
+        return btoa(unescape(encodeURIComponent(JSON.stringify(user))))
+    } catch (e) {
+        return ''
+    }
+}
+
+// Helper to send admin notification to B2
+function sendNotification(notification: any) {
+    fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification })
+    }).catch(err => console.error('Failed to sync notification:', err))
+}
+
 interface Comment {
     id: string
     videoId: string
@@ -23,8 +41,9 @@ export default function CommentSection({ videoId }: CommentSectionProps) {
     const [comments, setComments] = useState<Comment[]>([])
     const [newComment, setNewComment] = useState('')
 
-    // Load comments from localStorage
+    // Load comments from B2 (with localStorage fallback)
     useEffect(() => {
+        // 1. Load from localStorage first (instant)
         const savedComments = localStorage.getItem('kstreamer_comments')
         if (savedComments) {
             try {
@@ -34,6 +53,22 @@ export default function CommentSection({ videoId }: CommentSectionProps) {
                 console.error('Failed to load comments:', e)
             }
         }
+
+        // 2. Load from server (B2)
+        fetch(`/api/comments?videoId=${encodeURIComponent(videoId)}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data?.comments && Array.isArray(data.comments)) {
+                    setComments(data.comments)
+                    // Update localStorage cache
+                    try {
+                        const existing = JSON.parse(localStorage.getItem('kstreamer_comments') || '[]')
+                        const otherComments = existing.filter((c: any) => c.videoId !== videoId)
+                        localStorage.setItem('kstreamer_comments', JSON.stringify([...data.comments, ...otherComments]))
+                    } catch { /* ignore */ }
+                }
+            })
+            .catch(err => console.error('Failed to fetch comments from server:', err))
     }, [videoId])
 
     const handleAddComment = () => {
@@ -53,36 +88,61 @@ export default function CommentSection({ videoId }: CommentSectionProps) {
             likes: 0
         }
 
-        const savedComments = localStorage.getItem('kstreamer_comments')
-        const allComments = savedComments ? JSON.parse(savedComments) : []
-        const updatedAll = [comment, ...allComments]
-        localStorage.setItem('kstreamer_comments', JSON.stringify(updatedAll))
-
+        // Update local state immediately
         setComments(prev => [comment, ...prev])
         setNewComment('')
 
-        // Admin notification simulation
-        const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
-        notifications.unshift({
+        // Save to localStorage (cache)
+        try {
+            const savedComments = localStorage.getItem('kstreamer_comments')
+            const allComments = savedComments ? JSON.parse(savedComments) : []
+            const updatedAll = [comment, ...allComments]
+            localStorage.setItem('kstreamer_comments', JSON.stringify(updatedAll))
+        } catch { /* ignore */ }
+
+        // Sync to B2
+        fetch('/api/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment })
+        }).catch(err => console.error('Failed to sync comment:', err))
+
+        // Admin notification (both localStorage cache and B2)
+        const notification = {
             id: Date.now().toString(),
             type: 'comment',
             message: `${user.name}님이 새로운 댓글을 남겼습니다.`,
             time: new Date().toISOString(),
             isRead: false
-        })
-        localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+        }
+        try {
+            const notifications = JSON.parse(localStorage.getItem('kstreamer_admin_notifications') || '[]')
+            notifications.unshift(notification)
+            localStorage.setItem('kstreamer_admin_notifications', JSON.stringify(notifications))
+        } catch { /* ignore */ }
+        sendNotification(notification)
     }
 
     const handleDeleteComment = (commentId: string) => {
         if (!confirm('댓글을 삭제하시겠습니까?')) return
 
-        const savedComments = localStorage.getItem('kstreamer_comments')
-        if (savedComments) {
-            const allComments: Comment[] = JSON.parse(savedComments)
-            const updatedAll = allComments.filter(c => c.id !== commentId)
-            localStorage.setItem('kstreamer_comments', JSON.stringify(updatedAll))
-            setComments(prev => prev.filter(c => c.id !== commentId))
-        }
+        // Update local state immediately
+        setComments(prev => prev.filter(c => c.id !== commentId))
+
+        // Update localStorage cache
+        try {
+            const savedComments = localStorage.getItem('kstreamer_comments')
+            if (savedComments) {
+                const allComments: Comment[] = JSON.parse(savedComments)
+                const updatedAll = allComments.filter(c => c.id !== commentId)
+                localStorage.setItem('kstreamer_comments', JSON.stringify(updatedAll))
+            }
+        } catch { /* ignore */ }
+
+        // Sync delete to B2
+        fetch(`/api/comments?commentId=${encodeURIComponent(commentId)}`, {
+            method: 'DELETE'
+        }).catch(err => console.error('Failed to sync comment deletion:', err))
     }
 
     return (
