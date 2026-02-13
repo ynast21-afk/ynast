@@ -11,6 +11,7 @@ interface StreamerContextType {
     addStreamer: (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt'>) => Promise<boolean>
     removeStreamer: (id: string) => Promise<boolean>
     addVideo: (video: Omit<Video, 'id' | 'createdAt'>) => Promise<boolean>
+    addVideoAtomic: (video: Omit<Video, 'id' | 'createdAt'>) => Promise<{ success: boolean; video?: Video }>
     removeVideo: (id: string) => Promise<boolean>
     incrementVideoView: (videoId: string) => void
     toggleVideoLike: (videoId: string, isLiked: boolean) => void
@@ -292,6 +293,56 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
         return saved
     }, [streamers, videos, saveToServer])
 
+    /**
+     * Atomic video add - sends only the new video to the server.
+     * The server reads the latest DB, appends, and saves.
+     * This prevents race conditions during batch uploads.
+     */
+    const addVideoAtomic = useCallback(async (video: Omit<Video, 'id' | 'createdAt'>): Promise<{ success: boolean; video?: Video }> => {
+        try {
+            const adminToken = typeof window !== 'undefined'
+                ? (localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token'))
+                : null
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+            if (adminToken) {
+                headers['x-admin-token'] = adminToken
+            } else {
+                const token = getAuthToken()
+                if (token) headers['Authorization'] = `Bearer ${token}`
+            }
+
+            const res = await fetch('/api/db/add-video', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ video, streamerId: video.streamerId })
+            })
+
+            if (!res.ok) {
+                const errText = await res.text().catch(() => 'Unknown error')
+                console.error(`❌ Atomic addVideo failed (${res.status}):`, errText)
+                return { success: false }
+            }
+
+            const result = await res.json()
+            const newVideo = result.video as Video
+
+            // Update local state to reflect the new video
+            setVideos(prev => [newVideo, ...prev])
+            setStreamers(prev => prev.map(s =>
+                s.id === video.streamerId
+                    ? { ...s, videoCount: (s.videoCount || 0) + 1 }
+                    : s
+            ))
+
+            console.log(`✅ [addVideoAtomic] Added "${newVideo.title}" (total: ${result.totalVideos})`)
+            return { success: true, video: newVideo }
+        } catch (e) {
+            console.error('❌ Atomic addVideo error:', e)
+            return { success: false }
+        }
+    }, [])
+
     const migrateToB2 = useCallback(async (): Promise<boolean> => {
         return saveToServer(streamers, videos)
     }, [streamers, videos, saveToServer])
@@ -303,6 +354,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             addStreamer,
             removeStreamer,
             addVideo,
+            addVideoAtomic,
             removeVideo,
             incrementVideoView,
             toggleVideoLike,

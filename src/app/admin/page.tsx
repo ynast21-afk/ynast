@@ -107,7 +107,7 @@ export default function AdminPage() {
         console.log('[fetchWithAuth v2.8.2] URL:', url, 'hasToken:', !!token, 'source:', adminToken ? 'context' : 'storage')
         return fetch(url, { ...options, headers: headers as HeadersInit })
     }
-    const { streamers, videos, addStreamer, removeStreamer, addVideo, removeVideo, importData, downloadToken, migrateToB2, isServerSynced, updateStreamer, updateVideo } = useStreamers()
+    const { streamers, videos, addStreamer, removeStreamer, addVideo, addVideoAtomic, removeVideo, importData, downloadToken, migrateToB2, isServerSynced, updateStreamer, updateVideo } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateVideoDisplay, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
@@ -973,8 +973,8 @@ export default function AdminPage() {
                     b2VideoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
                 }
 
-                // Add video to list
-                await addVideo({
+                // Add video to list (ATOMIC - prevents race condition in batch uploads)
+                const atomicResult = await addVideoAtomic({
                     title,
                     streamerId: targetStreamerId,
                     streamerName: streamer?.name || 'Unknown',
@@ -994,6 +994,7 @@ export default function AdminPage() {
                         ...(item.tags ? item.tags.split(/[,\#]+/).map(t => t.trim()).filter(Boolean) : [])
                     ]))
                 })
+                if (!atomicResult.success) throw new Error('Failed to save video to database')
 
                 setBatchProgress(((i + 1) / pendingItems.length) * 100)
                 setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'completed', progress: 100 } : it))
