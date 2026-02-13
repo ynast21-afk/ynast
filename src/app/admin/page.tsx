@@ -8,6 +8,12 @@ import { useAuth, getAuthToken } from '@/contexts/AuthContext'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 import { resolveContentType, isVideoFile, getAcceptedVideoExtensions } from '@/utils/mimeTypes'
 import UserManagementPanel from '@/components/UserManagementPanel'
+import dynamic from 'next/dynamic'
+
+const AdminDashboardCharts = dynamic(() => import('@/components/AdminDashboardCharts'), {
+    ssr: false,
+    loading: () => <div className="animate-pulse text-center py-10 text-text-secondary">📊 차트 로딩 중...</div>
+})
 
 // ========================================
 // 관리자 페이지 탭 정의
@@ -1374,6 +1380,9 @@ export default function AdminPage() {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* ===== 통계 그래프 (B2 데이터 기반) ===== */}
+                                    <AdminDashboardCharts />
                                 </div>
                             )}
 
