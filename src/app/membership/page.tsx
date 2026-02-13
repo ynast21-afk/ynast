@@ -5,6 +5,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSiteSettings } from '@/contexts/SiteSettingsContext'
+import PaddleCheckoutButton from '@/components/PaddleCheckoutButton'
 import Script from 'next/script'
 
 const faqs = [
@@ -116,19 +117,29 @@ export default function MembershipPage() {
                                 ))}
                             </ul>
 
-                            {/* Single Gumroad Subscribe Button */}
+                            {/* Paddle Card Payment */}
+                            <PaddleCheckoutButton
+                                userEmail={user?.email}
+                                userId={user?.id}
+                                onSuccess={() => {
+                                    alert('🎉 VIP 멤버십이 성공적으로 활성화되었습니다!')
+                                    window.location.href = '/membership/success?provider=paddle'
+                                }}
+                            />
+
+                            {/* Gumroad Payment */}
                             <button
                                 onClick={handleSubscribe}
-                                className="w-full py-4 rounded-xl font-bold text-xl transition-all gradient-button text-black shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
+                                className="w-full py-4 rounded-xl font-bold text-xl transition-all bg-[#FF90E8] hover:bg-[#ff6bde] text-black shadow-lg flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                                 </svg>
-                                Subscribe Now
+                                Subscribe with Gumroad
                             </button>
 
                             <p className="text-center text-text-secondary text-sm mt-4">
-                                🔒 Secure payment via Gumroad · Cancel anytime
+                                🔒 Secure payment via Paddle or Gumroad · Cancel anytime
                             </p>
                         </div>
                     </div>
