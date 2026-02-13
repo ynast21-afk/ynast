@@ -1,0 +1,60 @@
+{
+    "common": {
+        "login": "Iniciar sesión",
+        "signup": "Registrarse",
+        "logout": "Cerrar sesión",
+        "home": "Inicio",
+        "membership": "Membresía",
+        "videos": "Videos",
+        "actors": "Actores",
+        "contact": "Contacto",
+        "admin": "Admin",
+        "settings": "Ajustes",
+        "language": "Idioma",
+        "korean": "한국어",
+        "english": "English"
+    },
+    "membership": {
+        "title": "Membresía VIP",
+        "subtitle": "Comience la experiencia definitiva de K-Dance",
+        "getStarted": "Empezar ahora",
+        "monthly": "Mensual",
+        "yearly": "Anual",
+        "perMonth": "/ mes",
+        "perYear": "/ año",
+        "features": "Características",
+        "recommended": "RECOMENDADO",
+        "completePayment": "Completar pago",
+        "plan": "Plan",
+        "total": "Total"
+    },
+    "auth": {
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "confirmPassword": "Confirmar contraseña",
+        "name": "Nombre",
+        "loginTitle": "Iniciar sesión",
+        "signupTitle": "Registrarse",
+        "forgotPassword": "¿Olvidó su contraseña?",
+        "noAccount": "¿No tiene una cuenta?",
+        "hasAccount": "¿Ya tiene una cuenta?",
+        "loginFailed": "Error al iniciar sesión",
+        "signupSuccess": "Registro exitoso"
+    },
+    "faq": {
+        "title": "Preguntas frecuentes",
+        "cancelQuestion": "¿Cómo cancelo mi suscripción?",
+        "cancelAnswer": "Puede cancelar en cualquier momento desde los ajustes de su cuenta. Su acceso continuará hasta el final de su período de facturación.",
+        "changePlanQuestion": "¿Puedo cambiar mi plan?",
+        "changePlanAnswer": "¡Sí! Puede mejorar o reducir su plan en cualquier momento. Los cambios se aplicarán en su próximo ciclo de facturación.",
+        "paymentQuestion": "¿Qué métodos de pago aceptan?",
+        "paymentAnswer": "Aceptamos PayPal, las principales tarjetas de crédito a través de PayPal y criptomonedas.",
+        "trialQuestion": "¿Hay una prueba gratuita?",
+        "trialAnswer": "Los nuevos miembros obtienen acceso a 10 videos gratuitos. VIP y Premium+ incluyen un período de prueba de 7 días."
+    },
+    "footer": {
+        "rights": "Todos los derechos reservados.",
+        "privacy": "Política de privacidad",
+        "terms": "Términos de servicio"
+    }
+}

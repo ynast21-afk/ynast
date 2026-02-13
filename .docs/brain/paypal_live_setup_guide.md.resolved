@@ -1,0 +1,50 @@
+# PayPal Live Subscription Setup Guide
+
+현재 발생하는 "오류가 발생한 것 같습니다" 메시지는 **PayPal 설정(Plan ID)과 배포 환경(Live/Sandbox)의 불일치** 때문일 가능성이 99%입니다.
+아래 단계에 따라 **실제 결제(Live)** 환경을 설정해주세요.
+
+## 1. PayPal Live App 생성 (이미 하셨다면 확인만)
+1. [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications/live)에 접속합니다.
+2. **Live** 탭이 선택되었는지 확인합니다.
+3. 사용 중인 App(예: `kStreamer Live`)을 클릭합니다.
+4. **Client ID**와 **Secret Key**를 복사해 둡니다.
+
+## 2. 실제 구독 상품(Plan) 만들기
+**주의**: Sandbox(테스트)에서 만든 Plan ID는 Live(실제)에서 사용할 수 없습니다. **새로 만들어야 합니다.**
+
+### 방법 A: PayPal 웹사이트에서 만들기 (가장 쉬움)
+1. [PayPal Business 계정](https://www.paypal.com/businessmanage/subscriptions/plans)으로 로그인합니다.
+2. **구독(Subscription)** 메뉴로 이동하여 **'요금제 만들기(Create Plan)'**를 클릭합니다.
+3. 상품명: `kStreamer VIP Membership`
+4. 가격: `$19.99` (원하는 가격)
+5. 주기: `매월(Monthly)`
+6. 요금제를 생성하고 저장합니다.
+7. 생성된 요금제 목록에서 **'Plan ID'**를 복사하세요. (예: `P-123456789...` 형태)
+
+## 3. Vercel 환경 변수 업데이트
+Vercel 대시보드 > StreamVault 프로젝트 > **Settings > Environment Variables** 로 이동하여 다음 값들을 수정/추가하세요.
+
+| 변수명 | 값 (Value) | 설명 |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | `[Live Client ID 복사한 것]` | 앱 식별자 |
+| `PAYPAL_CLIENT_ID` | `[Live Client ID 복사한 것]` | 서버 API용 (동일) |
+| `PAYPAL_CLIENT_SECRET` | `[Live Secret Key 복사한 것]` | 서버 API 보안 키 |
+| `NEXT_PUBLIC_PAYPAL_VIP_PLAN_ID` | `[새로 만든 Live Plan ID]` | **가장 중요!** |
+| `PAYPAL_API_BASE` | `https://api-m.paypal.com` | **반드시 수정** (sandbox 아님) |
+
+> **Tip**: 기존에 `PAYPAL_API_BASE`가 `https://api-m.sandbox.paypal.com`으로 되어 있다면 꼭 지우거나 덮어써야 합니다.
+
+## 4. 재배포 (Redeploy)
+환경 변수를 바꾸면 **반드시 재배포**를 해야 적용됩니다.
+1. Vercel 대시보드 > **Deployments** 탭
+2. 가장 최근 배포 우측 점 3개 메뉴 > **Redeploy** 클릭
+3. "Use existing build cache" 체크 해제(권장) 후 Redeploy
+
+---
+
+### 🚨 배포 실패 해결 내역
+아울러, 방금 **코드 내의 버그(타입 에러)를 발견하여 수정**했습니다.
+- **증상**: 배포 시 빌드 에러가 발생하여 최신 코드가 반영되지 않았음.
+- **해결**: [PayPalSubscriptionButton.tsx](file:///C:/Users/user/.gemini/antigravity/scratch/streamvault/src/components/PayPalSubscriptionButton.tsx) 파일 수정 완료.
+
+이제 GitHub에 푸시된 수정 사항이 적용되면 배포도 정상적으로 성공할 것입니다.

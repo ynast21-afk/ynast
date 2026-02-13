@@ -1,0 +1,60 @@
+{
+    "common": {
+        "login": "Login",
+        "signup": "Sign Up",
+        "logout": "Logout",
+        "home": "Home",
+        "membership": "Membership",
+        "videos": "Videos",
+        "actors": "Actors",
+        "contact": "Contact",
+        "admin": "Admin",
+        "settings": "Settings",
+        "language": "Language",
+        "korean": "한국어",
+        "english": "English"
+    },
+    "membership": {
+        "title": "VIP Membership",
+        "subtitle": "Start the ultimate K-Dance experience",
+        "getStarted": "Get Started Now",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "perMonth": "/ month",
+        "perYear": "/ year",
+        "features": "Features",
+        "recommended": "RECOMMENDED",
+        "completePayment": "Complete Payment",
+        "plan": "Plan",
+        "total": "Total"
+    },
+    "auth": {
+        "email": "Email",
+        "password": "Password",
+        "confirmPassword": "Confirm Password",
+        "name": "Name",
+        "loginTitle": "Login",
+        "signupTitle": "Sign Up",
+        "forgotPassword": "Forgot Password?",
+        "noAccount": "Don't have an account?",
+        "hasAccount": "Already have an account?",
+        "loginFailed": "Login failed",
+        "signupSuccess": "Sign up successful"
+    },
+    "faq": {
+        "title": "Frequently Asked Questions",
+        "cancelQuestion": "How do I cancel my subscription?",
+        "cancelAnswer": "You can cancel anytime from your account settings. Your access continues until the end of your billing period.",
+        "changePlanQuestion": "Can I change my plan?",
+        "changePlanAnswer": "Yes! Upgrade or downgrade anytime. Changes take effect on your next billing cycle.",
+        "paymentQuestion": "What payment methods do you accept?",
+        "paymentAnswer": "We accept PayPal, all major credit cards through PayPal, and cryptocurrency.",
+        "trialQuestion": "Is there a free trial?",
+        "trialAnswer": "New members get access to 10 free videos. VIP and Premium+ include a 7-day trial period."
+    },
+    "footer": {
+        "rights": "All rights reserved.",
+        "privacy": "Privacy Policy",
+        "terms": "Terms of Service"
+    }
+}

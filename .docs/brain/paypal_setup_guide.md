@@ -1,0 +1,45 @@
+# PayPal 결제 연동 가이드
+
+현재 프로젝트는 **PayPal Business 계정**과 **Developer Portal** 설정이 필요합니다.
+테스트 모드(Sandbox)와 실결제 모드(Live)를 모두 지원하도록 코드가 작성되어 있으나, 실제 수익을 창출하려면 **Live** 키를 발급받아 Vercel에 등록해야 합니다.
+
+## 1. PayPal Business 계정 생성
+개인 계정이 아닌 **비즈니스 계정**이 필요합니다.
+1. [PayPal 가입 페이지](https://www.paypal.com/kr/webapps/mpp/account-selection) 접속
+2. **비즈니스 계정** 선택 후 가입 진행
+   - 사업자 등록증이 없어도 개인 판매자로 가입 가능할 수 있으나, 페이팔 정책에 따라 다를 수 있습니다.
+   - 계좌 연동 및 이메일 인증을 완료해야 합니다.
+
+## 2. Developer Dashboard에서 앱 생성
+1. [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) 접속 및 로그인
+2. **Apps & Credentials** 메뉴 클릭
+3. 상단의 토글 스위치 확인:
+   - **Sandbox**: 개발 및 테스트용 (가상 머니)
+   - **Live**: 실제 결제용 (실제 돈) -> **오픈 시에는 Live 선택**
+4. **Create App** 버튼 클릭
+   - App Name 예시: `StreamVault-Payment`
+   - App Type: `Merchant`
+5. 생성된 앱을 클릭하여 상세 정보 확인
+   - **Client ID**: 클라이언트용 식별자
+   - **Secret 1**: 서버용 비밀키 (절대 노출 금지)
+
+## 3. Vercel 환경 변수 설정
+Vercel 대시보드 > 해당 프로젝트 > **Settings** > **Environment Variables**에 다음 키들을 추가해야 합니다.
+
+| 변수명 (Key) | 값 (Value) | 설명 |
+|---|---|---|
+| `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | (Live Client ID 복사) | 클라이언트(브라우저)에서 버튼을 띄울 때 사용 |
+| `PAYPAL_CLIENT_ID` | (Live Client ID 복사) | 서버 API에서 토큰 발급 시 사용 |
+| `PAYPAL_CLIENT_SECRET` | (Live Secret Key 복사) | 서버 API에서 토큰 발급 시 사용 |
+| `PAYPAL_API_BASE` | `https://api-m.paypal.com` | 실결제용 API 주소 (Live) |
+
+> **주의**: 테스트 중이라면 `PAYPAL_API_BASE`를 `https://api-m.sandbox.paypal.com`으로 설정하고 Sandbox 키를 넣어야 합니다.
+
+## 4. 구독(Subscription) 상품 생성 (필수)
+단순 결제가 아니라 "정기 구독" 기능이므로, 페이팔 대시보드에서 **Plan(구독 플랜)**을 생성하고 그 ID를 코드에 넣어야 할 수도 있습니다.
+*현재 코드는 `plan_id`를 동적으로 생성하거나 고정된 ID를 사용하고 있는지 확인이 필요합니다.*
+(코드 확인 결과: `src/app/membership/page.tsx`에 `plan_id`가 하드코딩 되어 있거나, 버튼 생성 시 `createSubscription` 함수 내부에서 정의됩니다.)
+
+---
+**요약**:
+페이팔 비즈니스 계정 가입 -> Developer 사이트에서 Live 앱 생성 -> Client ID/Secret 발급 -> Vercel 환경변수 등록 -> 배포

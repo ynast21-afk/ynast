@@ -1,0 +1,9 @@
+
+> streamvault@2.3.1.0 lint
+> next lint
+
+
+./src/hooks/useInView.ts
+20:53  Warning: The ref value 'ref.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'ref.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules

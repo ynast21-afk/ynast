@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamVault - Premium Video Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --accent-primary: #00ff88;
+            --accent-secondary: #ff00ff;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+        }
+        
+        body {
+            font-family: 'Spline Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 40px;
+            background: rgba(10, 10, 10, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-primary);
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+        
+        .nav {
+            display: flex;
+            gap: 32px;
+        }
+        
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        .nav a:hover, .nav a.active {
+            color: var(--accent-primary);
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .btn-premium {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: #000;
+            padding: 10px 24px;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .btn-premium:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+        
+        /* Sub Nav */
+        .sub-nav {
+            display: flex;
+            gap: 24px;
+            padding: 12px 40px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .sub-nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .sub-nav a:hover {
+            color: var(--accent-primary);
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 60px 40px;
+            display: flex;
+            gap: 40px;
+            align-items: center;
+        }
+        
+        .hero-video {
+            flex: 2;
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+        }
+        
+        .hero-video img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .play-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: rgba(0, 255, 136, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+        }
+        
+        .play-btn::after {
+            content: '';
+            border-style: solid;
+            border-width: 15px 0 15px 25px;
+            border-color: transparent transparent transparent #000;
+            margin-left: 5px;
+        }
+        
+        .hero-info {
+            flex: 1;
+            padding: 20px;
+        }
+        
+        .hero-info h1 {
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 24px;
+            margin: 24px 0;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .btn-vip {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: #000;
+            padding: 16px 40px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 18px;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 255, 136, 0.4); }
+            50% { box-shadow: 0 0 50px rgba(0, 255, 136, 0.6); }
+        }
+        
+        /* Filters */
+        .filters {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+        }
+        
+        .filter-tabs {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .filter-tab {
+            padding: 8px 20px;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .filter-tab.active {
+            background: var(--accent-primary);
+            color: #000;
+        }
+        
+        .sort-options {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .sort-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--text-secondary);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        
+        .sort-btn.active {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+        
+        /* Video Grid */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 20px;
+            padding: 20px 40px;
+        }
+        
+        .video-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.2);
+        }
+        
+        .video-thumbnail {
+            position: relative;
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .badge-views {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .badge-duration {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .badge-vip {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--accent-primary);
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        
+        .video-info {
+            padding: 12px;
+        }
+        
+        .video-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .video-creator {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--bg-secondary);
+            padding: 40px;
+            margin-top: 60px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+        }
+        
+        .footer-brand h3 {
+            color: var(--accent-primary);
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        
+        .footer-brand p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .footer-section h4 {
+            margin-bottom: 16px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .footer-section a {
+            display: block;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .footer-section a:hover {
+            color: var(--accent-primary);
+        }
+        
+        .footer-bottom {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .video-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        
+        @media (max-width: 1024px) {
+            .video-grid { grid-template-columns: repeat(3, 1fr); }
+            .hero { flex-direction: column; }
+        }
+        
+        @media (max-width: 768px) {
+            .video-grid { grid-template-columns: repeat(2, 1fr); }
+            .nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">StreamVault</div>
+        <nav class="nav">
+            <a href="#" class="active">Videos</a>
+            <a href="02_membership.html">Premium</a>
+            <a href="#">Creators</a>
+            <a href="#">Community</a>
+            <a href="#">Playlists</a>
+        </nav>
+        <div class="header-right">
+            <span style="cursor: pointer;">🔍</span>
+            <span style="cursor: pointer;">🔔</span>
+            <a href="02_membership.html" class="btn-premium">VIP Membership</a>
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-secondary);"></div>
+        </div>
+    </header>
+    
+    <!-- Sub Navigation -->
+    <div class="sub-nav">
+        <a href="#">🎰 Roulette</a>
+        <a href="#">🧩 Extension</a>
+        <a href="#">📱 Shorts</a>
+        <a href="#">📤 Submit Video</a>
+        <a href="#">🏷️ Tags</a>
+        <a href="#">⋯ More</a>
+    </div>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-video">
+            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1a1a2e, #16213e); display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 48px;">🎬</span>
+            </div>
+            <div class="play-btn"></div>
+        </div>
+        <div class="hero-info">
+            <h1>Unlock Premium Content</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">Access exclusive videos from top creators worldwide</p>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">75K+</div>
+                    <div class="stat-label">Videos</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">400+</div>
+                    <div class="stat-label">Creators</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">∞</div>
+                    <div class="stat-label">VIP Access</div>
+                </div>
+            </div>
+            <a href="02_membership.html" class="btn-vip">Get VIP Access</a>
+        </div>
+    </section>
+    
+    <!-- Filters -->
+    <div class="filters">
+        <div class="filter-tabs">
+            <div class="filter-tab active">All Videos</div>
+            <div class="filter-tab">Trending</div>
+            <div class="filter-tab">New Releases</div>
+        </div>
+        <div class="sort-options">
+            <span style="color: var(--text-secondary);">Sort:</span>
+            <button class="sort-btn active">Most Popular</button>
+            <button class="sort-btn">Newest</button>
+            <button class="sort-btn">Name A-Z</button>
+        </div>
+    </div>
+    
+    <!-- Video Grid -->
+    <div class="video-grid">
+        <!-- Video Cards -->
+        <div class="video-card" onclick="location.href='03_player.html'">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #4a1a4a, #1a4a4a);"></div>
+                <span class="badge-views">👁 1.2K</span>
+                <span class="badge-duration">12:45</span>
+                <span class="badge-vip">VIP</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Cyberpunk City Night Walk 8K</div>
+                <div class="video-creator">@NeonWalker</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #2a1a4a, #1a2a4a);"></div>
+                <span class="badge-views">👁 3.5K</span>
+                <span class="badge-duration">08:32</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Digital Art Masterclass</div>
+                <div class="video-creator">@ArtistPro</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1a3a4a, #2a1a3a);"></div>
+                <span class="badge-views">👁 890</span>
+                <span class="badge-duration">15:20</span>
+                <span class="badge-vip">VIP</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Synthwave Mix 2024</div>
+                <div class="video-creator">@LofiGirl</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #3a2a1a, #1a3a2a);"></div>
+                <span class="badge-views">👁 2.1K</span>
+                <span class="badge-duration">22:10</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Tokyo Night Life Guide</div>
+                <div class="video-creator">@TravelWithMe</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #2a2a3a, #3a2a2a);"></div>
+                <span class="badge-views">👁 5.6K</span>
+                <span class="badge-duration">45:30</span>
+                <span class="badge-vip">VIP</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Hardware Teardown Series</div>
+                <div class="video-creator">@TechInsider</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1a2a2a, #2a3a3a);"></div>
+                <span class="badge-views">👁 1.8K</span>
+                <span class="badge-duration">18:45</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Future Tech Preview 2025</div>
+                <div class="video-creator">@FutureTech</div>
+            </div>
+        </div>
+        
+        <!-- More cards... -->
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #3a1a2a, #2a1a3a);"></div>
+                <span class="badge-views">👁 4.2K</span>
+                <span class="badge-duration">10:15</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Dance Choreography Vol.3</div>
+                <div class="video-creator">@DanceQueen</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1a4a3a, #3a1a4a);"></div>
+                <span class="badge-views">👁 780</span>
+                <span class="badge-duration">25:00</span>
+                <span class="badge-vip">VIP</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Coding Live Session</div>
+                <div class="video-creator">@DevMaster</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #4a2a1a, #1a2a4a);"></div>
+                <span class="badge-views">👁 3.3K</span>
+                <span class="badge-duration">06:40</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Morning Workout Routine</div>
+                <div class="video-creator">@FitLife</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #2a3a1a, #1a2a3a);"></div>
+                <span class="badge-views">👁 920</span>
+                <span class="badge-duration">33:20</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Gaming Highlights EP.42</div>
+                <div class="video-creator">@ProGamer</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #3a3a2a, #2a2a3a);"></div>
+                <span class="badge-views">👁 1.5K</span>
+                <span class="badge-duration">14:55</span>
+                <span class="badge-vip">VIP</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">ASMR Relaxation Session</div>
+                <div class="video-creator">@SoftSounds</div>
+            </div>
+        </div>
+        
+        <div class="video-card">
+            <div class="video-thumbnail">
+                <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #1a3a3a, #3a1a1a);"></div>
+                <span class="badge-views">👁 2.7K</span>
+                <span class="badge-duration">28:15</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">Street Food Adventures</div>
+                <div class="video-creator">@FoodieExplorer</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h3>StreamVault</h3>
+                <p>Discover the best premium video content. Your premium destination for exclusive streams and downloads.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <a href="#">All Videos</a>
+                <a href="#">Popular Creators</a>
+                <a href="02_membership.html">VIP Membership</a>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <a href="#">Terms of Service</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">DMCA</a>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <a href="#">FAQ</a>
+                <a href="#">Contact</a>
+                <a href="#">Report</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>© 2026 StreamVault. All rights reserved.</span>
+            <span>All models are 18 years of age or older</span>
+        </div>
+    </footer>
+</body>
+</html>

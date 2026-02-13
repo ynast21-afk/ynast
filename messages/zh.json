@@ -1,0 +1,60 @@
+{
+    "common": {
+        "login": "登录",
+        "signup": "注册",
+        "logout": "登出",
+        "home": "首页",
+        "membership": "会员",
+        "videos": "视频",
+        "actors": "演员",
+        "contact": "联系我们",
+        "admin": "管理员",
+        "settings": "设置",
+        "language": "语言",
+        "korean": "한국어",
+        "english": "English"
+    },
+    "membership": {
+        "title": "VIP 会员",
+        "subtitle": "开启极致 K-Dance 体验",
+        "getStarted": "立即开始",
+        "monthly": "月度",
+        "yearly": "年度",
+        "perMonth": "/ 月",
+        "perYear": "/ 年",
+        "features": "权益",
+        "recommended": "推荐",
+        "completePayment": "支付完成",
+        "plan": "方案",
+        "total": "总计"
+    },
+    "auth": {
+        "email": "邮箱",
+        "password": "密码",
+        "confirmPassword": "确认密码",
+        "name": "姓名",
+        "loginTitle": "登录",
+        "signupTitle": "注册",
+        "forgotPassword": "忘记密码？",
+        "noAccount": "还没有账号？",
+        "hasAccount": "已经有账号了？",
+        "loginFailed": "登录失败",
+        "signupSuccess": "注册成功"
+    },
+    "faq": {
+        "title": "常见问题",
+        "cancelQuestion": "如何取消订阅？",
+        "cancelAnswer": "您可以随时在账户设置中取消。您的权限将保留至当前计费周期结束。",
+        "changePlanQuestion": "我可以更改方案吗？",
+        "changePlanAnswer": "是的！随时可以升级或降级。更改将在下一个计费周期生效。",
+        "paymentQuestion": "接受哪些支付方式？",
+        "paymentAnswer": "我们接受 PayPal、通过 PayPal 的所有主流信用卡以及加密货币。",
+        "trialQuestion": "有免费试用吗？",
+        "trialAnswer": "新成员可以观看 10 个免费视频。VIP 和 Premium+ 包含 7 天试用期。"
+    },
+    "footer": {
+        "rights": "All rights reserved.",
+        "privacy": "隐私政策",
+        "terms": "服务条款"
+    }
+}

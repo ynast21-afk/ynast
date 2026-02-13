@@ -1,0 +1,26 @@
+# Header Layout and Link Fixes
+
+## Goal
+1. Fix the layout overlap where the fixed header (including sub-nav) covers the top of video content.
+2. Link the "Tags" button in the sub-header to the correct `/tags` page.
+
+## Proposed Changes
+
+### [Component] [Header](file:///C:/Users/user/.gemini/antigravity/scratch/streamvault/src/components/Header.tsx)
+- Change `fixed` to `sticky` where appropriate, or wrap in a container to ensure it takes up space in the document flow.
+- Update "Tags" link from `/coming-soon` to `/tags`.
+
+### [Page] [Home Page](file:///C:/Users/user/.gemini/antigravity/scratch/streamvault/src/app/page.tsx)
+- Adjust or remove the hardcoded spacer if the Header is changed to `sticky`.
+
+### [Page] [Other Pages]
+- Check `videos/page.tsx`, [actors/page.tsx](file:///C:/Users/user/.gemini/antigravity/scratch/streamvault/src/app/actors/page.tsx), etc., for similar overlap issues.
+
+## Verification Plan
+### Automated Tests
+- N/A
+
+### Manual Verification
+1. Open the home page and verify the header does not overlap the video content.
+2. Click the "Tags" button in the sub-header and verify it navigates to the Tags page.
+3. Check mobile view to ensure no regressions.
