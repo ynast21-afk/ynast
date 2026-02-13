@@ -16,6 +16,10 @@ async function getActorData(id: string) {
     if (db && db.streamers) {
         const streamer = db.streamers.find((s: any) => s.id === id)
         if (streamer) {
+            // Ensure followers field exists for legacy data
+            if (typeof streamer.followers === 'undefined') {
+                streamer.followers = 0
+            }
             const videos = db.videos?.filter((v: any) => v.streamerId === id) || []
             return { streamer, videos, downloadToken: db.downloadToken || null }
         }

@@ -8,13 +8,14 @@ import { getAuthToken } from './AuthContext'
 interface StreamerContextType {
     streamers: Streamer[]
     videos: Video[]
-    addStreamer: (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt'>) => Promise<boolean>
+    addStreamer: (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt' | 'followers'>) => Promise<boolean>
     removeStreamer: (id: string) => Promise<boolean>
     addVideo: (video: Omit<Video, 'id' | 'createdAt'>) => Promise<boolean>
     addVideoAtomic: (video: Omit<Video, 'id' | 'createdAt'>) => Promise<{ success: boolean; video?: Video }>
     removeVideo: (id: string) => Promise<boolean>
     incrementVideoView: (videoId: string) => void
     toggleVideoLike: (videoId: string, isLiked: boolean) => void
+    toggleStreamerFollow: (streamerId: string, isFollowed: boolean) => void
     getStreamerVideos: (streamerId: string) => Video[]
     getStreamerById: (id: string) => Streamer | undefined
     importData: (data: { streamers: Streamer[], videos: Video[] }) => Promise<boolean>
@@ -157,11 +158,12 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
     // If save fails, state is NOT updated (prevents desync)
     // ============================================================
 
-    const addStreamer = useCallback(async (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt'>): Promise<boolean> => {
+    const addStreamer = useCallback(async (streamer: Omit<Streamer, 'id' | 'videoCount' | 'createdAt' | 'followers'>): Promise<boolean> => {
         const newStreamer: Streamer = {
             ...streamer,
             id: Date.now().toString(),
             videoCount: 0,
+            followers: 0,
             createdAt: new Date().toISOString().split('T')[0],
         }
         const newStreamers = [...streamers, newStreamer]
@@ -270,6 +272,18 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
         }).catch(e => console.error('Stats sync failed:', e))
     }, [])
 
+    const toggleStreamerFollow = useCallback((streamerId: string, isFollowed: boolean) => {
+        // Update local state immediately
+        setStreamers(prev => prev.map(s => s.id === streamerId ? { ...s, followers: Math.max(0, (s.followers || 0) + (isFollowed ? 1 : -1)) } : s))
+
+        // Sync to server in background
+        fetch('/api/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ streamerId, action: isFollowed ? 'follow_streamer' : 'unfollow_streamer' })
+        }).catch(e => console.error('Streamer follow sync failed:', e))
+    }, [])
+
     const getStreamerVideos = useCallback((streamerId: string) => videos.filter(v => v.streamerId === streamerId), [videos])
     const getStreamerById = useCallback((id: string) => streamers.find(s => s.id === id), [streamers])
 
@@ -278,7 +292,12 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
 
         const newStreamers = [...streamers]
         data.streamers.forEach(s => {
-            if (!newStreamers.find(ex => ex.id === s.id)) newStreamers.push(s)
+            if (!newStreamers.find(ex => ex.id === s.id)) {
+                newStreamers.push({
+                    ...s,
+                    followers: s.followers || 0
+                })
+            }
         })
         const newVideos = [...videos]
         data.videos.forEach(v => {
@@ -358,6 +377,7 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
             removeVideo,
             incrementVideoView,
             toggleVideoLike,
+            toggleStreamerFollow,
             getStreamerVideos,
             getStreamerById,
             importData,

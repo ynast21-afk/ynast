@@ -27,14 +27,13 @@ interface ActorDetailClientProps {
 }
 
 export default function ActorDetailClient({ streamer, videos, downloadToken: serverToken }: ActorDetailClientProps) {
-    const { downloadToken: clientToken, downloadUrl, activeBucketName } = useStreamers()
+    const { downloadToken: clientToken, downloadUrl, activeBucketName, toggleStreamerFollow } = useStreamers()
     const { user } = useAuth()
     const videoRef = useRef<HTMLVideoElement>(null)
     const downloadToken = serverToken || clientToken
 
     const [isFollowing, setIsFollowing] = useState(false)
-    // Mock follower count - seeded by name length to be consistent but fake
-    const [followerCount, setFollowerCount] = useState(1200 + (streamer.name.length * 56))
+    const [followerCount, setFollowerCount] = useState(streamer.followers || 0)
 
     useEffect(() => {
         // 1. Load from localStorage cache first (instant)
@@ -71,26 +70,23 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
             return
         }
 
-        const savedFollows = localStorage.getItem('kstreamer_followed_streamers')
-        let followedIds = savedFollows ? JSON.parse(savedFollows) : []
         const newFollowingState = !isFollowing
 
-        if (isFollowing) {
-            // Unfollow
-            followedIds = followedIds.filter((id: string) => id !== streamer.id)
-            setFollowerCount(prev => prev - 1)
-            setIsFollowing(false)
-        } else {
-            // Follow
-            followedIds.push(streamer.id)
-            setFollowerCount(prev => prev + 1)
-            setIsFollowing(true)
-        }
+        // Optimistic UI update
+        setIsFollowing(newFollowingState)
+        setFollowerCount((prev: number) => Math.max(0, prev + (newFollowingState ? 1 : -1)))
 
-        // Save to localStorage cache
+        // 1. Update User's Follow List (Local + B2 /api/user/social)
+        const savedFollows = localStorage.getItem('kstreamer_followed_streamers')
+        let followedIds = savedFollows ? JSON.parse(savedFollows) : []
+
+        if (newFollowingState) {
+            followedIds.push(streamer.id)
+        } else {
+            followedIds = followedIds.filter((id: string) => id !== streamer.id)
+        }
         localStorage.setItem('kstreamer_followed_streamers', JSON.stringify(followedIds))
 
-        // Sync to B2
         const token = getToken(user)
         if (token) {
             fetch('/api/user/social', {
@@ -99,6 +95,9 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
                 body: JSON.stringify({ type: 'follow', action: newFollowingState ? 'add' : 'remove', targetId: streamer.id })
             }).catch(err => console.error('Failed to sync follow:', err))
         }
+
+        // 2. Update Streamer's Total Follower Count (Context -> /api/stats)
+        toggleStreamerFollow(streamer.id, newFollowingState)
     }
 
     return (

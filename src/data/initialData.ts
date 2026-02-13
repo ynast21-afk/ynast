@@ -4,6 +4,7 @@ export interface Streamer {
     koreanName?: string
     profileImage?: string
     videoCount: number
+    followers: number // Real follower count
     gradient: string
     createdAt: string
 }
@@ -29,18 +30,18 @@ export interface Video {
 }
 
 export const initialStreamers: Streamer[] = [
-    { id: '1', name: 'golaniyuie0', koreanName: '고라니', videoCount: 14, gradient: 'from-pink-700 to-purple-700', createdAt: '2026-01-01' },
-    { id: '2', name: 'm0m099', koreanName: '모모', videoCount: 13, gradient: 'from-blue-700 to-indigo-700', createdAt: '2026-01-02' },
-    { id: '3', name: 'rud9281', koreanName: '루디', videoCount: 12, gradient: 'from-cyan-700 to-teal-700', createdAt: '2026-01-03' },
-    { id: '4', name: 'eunyoung1238', koreanName: '은영', videoCount: 8, gradient: 'from-amber-700 to-orange-700', createdAt: '2026-01-04' },
-    { id: '5', name: 'smmms2002', koreanName: '썸썸', videoCount: 7, gradient: 'from-rose-700 to-pink-700', createdAt: '2026-01-05' },
-    { id: '6', name: 'sonming52', koreanName: '손밍', videoCount: 7, gradient: 'from-violet-700 to-purple-700', createdAt: '2026-01-06' },
-    { id: '7', name: 'haumpah', koreanName: '하움파', videoCount: 6, gradient: 'from-emerald-700 to-green-700', createdAt: '2026-01-07' },
-    { id: '8', name: 'aiswi2208', koreanName: '아이스위', videoCount: 6, gradient: 'from-slate-700 to-gray-700', createdAt: '2026-01-08' },
-    { id: '9', name: 'bumzi98', koreanName: '범지', videoCount: 6, gradient: 'from-orange-700 to-red-700', createdAt: '2026-01-09' },
-    { id: '10', name: 'dmsdms1247', koreanName: '은은', videoCount: 5, gradient: 'from-teal-700 to-cyan-700', createdAt: '2026-01-10' },
-    { id: '11', name: 'e000e77', koreanName: '이공', videoCount: 5, gradient: 'from-fuchsia-700 to-pink-700', createdAt: '2026-01-11' },
-    { id: '12', name: 'milkkim123', koreanName: '밀크킴', videoCount: 5, gradient: 'from-indigo-700 to-blue-700', createdAt: '2026-01-12' },
+    { id: '1', name: 'golaniyuie0', koreanName: '고라니', videoCount: 14, followers: 0, gradient: 'from-pink-700 to-purple-700', createdAt: '2026-01-01' },
+    { id: '2', name: 'm0m099', koreanName: '모모', videoCount: 13, followers: 0, gradient: 'from-blue-700 to-indigo-700', createdAt: '2026-01-02' },
+    { id: '3', name: 'rud9281', koreanName: '루디', videoCount: 12, followers: 0, gradient: 'from-cyan-700 to-teal-700', createdAt: '2026-01-03' },
+    { id: '4', name: 'eunyoung1238', koreanName: '은영', videoCount: 8, followers: 0, gradient: 'from-amber-700 to-orange-700', createdAt: '2026-01-04' },
+    { id: '5', name: 'smmms2002', koreanName: '썸썸', videoCount: 7, followers: 0, gradient: 'from-rose-700 to-pink-700', createdAt: '2026-01-05' },
+    { id: '6', name: 'sonming52', koreanName: '손밍', videoCount: 7, followers: 0, gradient: 'from-violet-700 to-purple-700', createdAt: '2026-01-06' },
+    { id: '7', name: 'haumpah', koreanName: '하움파', videoCount: 6, followers: 0, gradient: 'from-emerald-700 to-green-700', createdAt: '2026-01-07' },
+    { id: '8', name: 'aiswi2208', koreanName: '아이스위', videoCount: 6, followers: 0, gradient: 'from-slate-700 to-gray-700', createdAt: '2026-01-08' },
+    { id: '9', name: 'bumzi98', koreanName: '범지', videoCount: 6, followers: 0, gradient: 'from-orange-700 to-red-700', createdAt: '2026-01-09' },
+    { id: '10', name: 'dmsdms1247', koreanName: '은은', videoCount: 5, followers: 0, gradient: 'from-teal-700 to-cyan-700', createdAt: '2026-01-10' },
+    { id: '11', name: 'e000e77', koreanName: '이공', videoCount: 5, followers: 0, gradient: 'from-fuchsia-700 to-pink-700', createdAt: '2026-01-11' },
+    { id: '12', name: 'milkkim123', koreanName: '밀크킴', videoCount: 5, followers: 0, gradient: 'from-indigo-700 to-blue-700', createdAt: '2026-01-12' },
 ]
 
 export const initialVideos: Video[] = [
