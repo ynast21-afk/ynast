@@ -225,14 +225,25 @@ export default function AdminPage() {
 
         try {
             const fullText = `${twitterModal.tweetText}\n\n${twitterModal.hashtags}`
+
+            // Collect preview images to attach (up to 3)
+            const video = twitterModal.video
+            let mediaUrls: string[] = []
+            if (video.previewUrls && video.previewUrls.length > 0) {
+                mediaUrls = video.previewUrls.slice(0, 3)
+            } else if (video.thumbnailUrl) {
+                mediaUrls = [video.thumbnailUrl]
+            }
+
             const res = await fetchWithAuth('/api/admin/twitter/post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tweetText: fullText,
-                    videoId: twitterModal.video.id,
-                    videoTitle: twitterModal.video.title,
-                    streamerName: twitterModal.video.streamerName
+                    videoId: video.id,
+                    videoTitle: video.title,
+                    streamerName: video.streamerName,
+                    mediaUrls
                 })
             })
             const data = await res.json()

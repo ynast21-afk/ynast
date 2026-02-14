@@ -31,7 +31,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { tweetText, videoId, videoTitle, streamerName } = body
+        const { tweetText, videoId, videoTitle, streamerName, mediaUrls } = body
 
         if (!tweetText) {
             return NextResponse.json({ error: 'Missing tweet text' }, { status: 400 })
@@ -50,10 +50,18 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
+        const creds = { apiKey, apiSecret, accessToken, accessTokenSecret }
+
+        // Upload media images if provided (max 4 per Twitter's limit)
+        let mediaIds: string[] = []
+        if (mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 0) {
+            const urlsToUpload = mediaUrls.slice(0, 4) // Twitter allows max 4 images
+            mediaIds = await uploadMediaFromUrls(urlsToUpload, creds)
+            console.log(`Uploaded ${mediaIds.length} media to Twitter`)
+        }
+
         // Post tweet using twitter-api-v2 library
-        const tweetResult = await postTweet(tweetText, {
-            apiKey, apiSecret, accessToken, accessTokenSecret
-        })
+        const tweetResult = await postTweet(tweetText, creds, mediaIds)
 
         // Save to history
         const historyItem: TweetHistoryItem = {
@@ -100,7 +108,48 @@ interface TwitterCredentials {
     accessTokenSecret: string
 }
 
-async function postTweet(text: string, creds: TwitterCredentials): Promise<{ success: boolean; tweetId?: string; error?: string }> {
+// Download images from URLs and upload them to Twitter, returning media_ids
+async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): Promise<string[]> {
+    const client = new TwitterApi({
+        appKey: creds.apiKey,
+        appSecret: creds.apiSecret,
+        accessToken: creds.accessToken,
+        accessSecret: creds.accessTokenSecret,
+    })
+
+    const mediaIds: string[] = []
+
+    for (const url of urls) {
+        try {
+            // Download image from URL (B2 or any public URL)
+            const response = await fetch(url)
+            if (!response.ok) {
+                console.error(`Failed to download image: ${url} (${response.status})`)
+                continue
+            }
+
+            const arrayBuffer = await response.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+
+            // Determine MIME type from response or URL
+            const contentType = response.headers.get('content-type') || 'image/jpeg'
+
+            // Upload to Twitter using v1.1 media upload
+            const mediaId = await client.v1.uploadMedia(buffer, {
+                mimeType: contentType as any,
+            })
+
+            mediaIds.push(mediaId)
+        } catch (err: any) {
+            console.error(`Failed to upload media from ${url}:`, err?.message || err)
+            // Continue with other images even if one fails
+        }
+    }
+
+    return mediaIds
+}
+
+async function postTweet(text: string, creds: TwitterCredentials, mediaIds: string[] = []): Promise<{ success: boolean; tweetId?: string; error?: string }> {
     try {
         const client = new TwitterApi({
             appKey: creds.apiKey,
@@ -110,7 +159,14 @@ async function postTweet(text: string, creds: TwitterCredentials): Promise<{ suc
         })
 
         const rwClient = client.readWrite
-        const { data } = await rwClient.v2.tweet(text)
+
+        // Build tweet payload
+        const tweetPayload: any = { text }
+        if (mediaIds.length > 0) {
+            tweetPayload.media = { media_ids: mediaIds }
+        }
+
+        const { data } = await rwClient.v2.tweet(tweetPayload)
 
         return {
             success: true,
