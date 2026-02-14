@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getJsonFile, saveJsonFile } from '@/lib/b2'
-import crypto from 'crypto'
+import { TwitterApi } from 'twitter-api-v2'
 
 const TWEET_HISTORY_FILE = 'data/tweet-history.json'
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
-        // Post tweet using Twitter API v2 with OAuth 1.0a
+        // Post tweet using twitter-api-v2 library
         const tweetResult = await postTweet(tweetText, {
             apiKey, apiSecret, accessToken, accessTokenSecret
         })
@@ -101,65 +101,31 @@ interface TwitterCredentials {
 }
 
 async function postTweet(text: string, creds: TwitterCredentials): Promise<{ success: boolean; tweetId?: string; error?: string }> {
-    const url = 'https://api.twitter.com/2/tweets'
-    const method = 'POST'
-
-    // Generate OAuth 1.0a signature
-    const oauthParams: Record<string, string> = {
-        oauth_consumer_key: creds.apiKey,
-        oauth_nonce: crypto.randomBytes(16).toString('hex'),
-        oauth_signature_method: 'HMAC-SHA1',
-        oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-        oauth_token: creds.accessToken,
-        oauth_version: '1.0'
-    }
-
-    // Create signature base string
-    const sortedParams = Object.keys(oauthParams).sort().map(k =>
-        `${encodeURIComponent(k)}=${encodeURIComponent(oauthParams[k])}`
-    ).join('&')
-
-    const signatureBase = `${method}&${encodeURIComponent(url)}&${encodeURIComponent(sortedParams)}`
-    const signingKey = `${encodeURIComponent(creds.apiSecret)}&${encodeURIComponent(creds.accessTokenSecret)}`
-
-    const signature = crypto.createHmac('sha1', signingKey).update(signatureBase).digest('base64')
-    oauthParams['oauth_signature'] = signature
-
-    // Build Authorization header
-    const authHeader = 'OAuth ' + Object.keys(oauthParams).sort().map(k =>
-        `${encodeURIComponent(k)}="${encodeURIComponent(oauthParams[k])}"`
-    ).join(', ')
-
     try {
-        const response = await fetch(url, {
-            method,
-            headers: {
-                'Authorization': authHeader,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ text })
+        const client = new TwitterApi({
+            appKey: creds.apiKey,
+            appSecret: creds.apiSecret,
+            accessToken: creds.accessToken,
+            accessSecret: creds.accessTokenSecret,
         })
 
-        const data = await response.json()
-
-        if (!response.ok) {
-            console.error('Twitter API error:', response.status, JSON.stringify(data))
-            const errorMsg = data.detail || data.title || data.errors?.[0]?.message || `Twitter API error: ${response.status}`
-            return {
-                success: false,
-                error: `[${response.status}] ${errorMsg}`
-            }
-        }
+        const rwClient = client.readWrite
+        const { data } = await rwClient.v2.tweet(text)
 
         return {
             success: true,
-            tweetId: data.data?.id
+            tweetId: data.id
         }
     } catch (error: any) {
-        console.error('Twitter post error:', error)
+        console.error('Twitter post error:', error?.data || error?.message || error)
+        const errorMsg = error?.data?.detail
+            || error?.data?.title
+            || error?.data?.errors?.[0]?.message
+            || error?.message
+            || 'Unknown Twitter API error'
         return {
             success: false,
-            error: error.message || 'Network error posting to Twitter'
+            error: `[${error?.code || error?.statusCode || '?'}] ${errorMsg}`
         }
     }
 }
