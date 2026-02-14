@@ -217,10 +217,10 @@ export default function AdminPage() {
             if (data.success) {
                 setTwitterModal(prev => prev ? { ...prev, tweetText: data.tweetText, hashtags: data.hashtags, isGenerating: false } : null)
             } else {
-                setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n\n${video.title}\n\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer', isGenerating: false } : null)
+                setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n\n✨ New video!\n💃 ${video.title}\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', isGenerating: false } : null)
             }
         } catch {
-            setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n\n${video.title}\n\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer', isGenerating: false } : null)
+            setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n\n✨ New video!\n💃 ${video.title}\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', isGenerating: false } : null)
         }
     }
 
@@ -3264,8 +3264,8 @@ export default function AdminPage() {
                                                             key={d}
                                                             onClick={() => setSeoAnalyticsRange(d)}
                                                             className={`px-3 py-1 text-xs rounded-lg transition-colors ${seoAnalyticsRange === d
-                                                                    ? 'bg-accent-primary text-black font-bold'
-                                                                    : 'bg-white/5 text-text-secondary hover:bg-white/10'
+                                                                ? 'bg-accent-primary text-black font-bold'
+                                                                : 'bg-white/5 text-text-secondary hover:bg-white/10'
                                                                 }`}
                                                         >
                                                             {d}일

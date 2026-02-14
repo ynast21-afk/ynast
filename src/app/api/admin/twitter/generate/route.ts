@@ -63,7 +63,7 @@ async function generateWithOpenAI(apiKey: string, input: GenerateInput) {
     const displayName = streamerKoreanName ? `${streamerName}(${streamerKoreanName})` : streamerName
 
     const prompt = `You are a social media manager for kStreamer dance, a K-Pop dance video platform.
-Generate an engaging tweet to promote this new dance video.
+Generate an engaging BILINGUAL tweet (Korean + English) to promote this new dance video.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
@@ -71,16 +71,21 @@ Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
 Requirements:
-- Write in Korean with some English keywords mixed in
-- Include 1-2 relevant emojis
-- Keep the main text under 200 characters
+- Write in TWO languages: Korean FIRST, then English below
+- Format: Korean text first, then a blank line, then the English version
+- Each section should be concise (Korean ~100 chars, English ~100 chars)
+- Include 1-2 relevant emojis in each section
+- Keep total main text under 250 characters (both languages combined)
 - Generate 5-7 relevant hashtags (mix of Korean and English)
 - Focus on K-Pop dance, cover dance, and the creator
-- Make it catchy and engaging for Twitter/X audience
-- Include the video URL
+- Make it catchy and engaging for global Twitter/X audience
+- Include the video URL at the end of the English section
+
+Example format:
+🔥 [Korean text about the video]\n\n✨ [English text about the video]\n👉 URL
 
 Return ONLY a JSON object with this format:
-{"tweetText": "main tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
+{"tweetText": "bilingual tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -120,7 +125,7 @@ async function generateWithGemini(apiKey: string, input: GenerateInput) {
     const displayName = streamerKoreanName ? `${streamerName}(${streamerKoreanName})` : streamerName
 
     const prompt = `You are a social media manager for kStreamer dance, a K-Pop dance video platform.
-Generate an engaging tweet to promote this new dance video.
+Generate an engaging BILINGUAL tweet (Korean + English) to promote this new dance video.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
@@ -128,16 +133,21 @@ Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
 Requirements:
-- Write in Korean with some English keywords mixed in
-- Include 1-2 relevant emojis
-- Keep the main text under 200 characters
+- Write in TWO languages: Korean FIRST, then English below
+- Format: Korean text first, then a blank line, then the English version
+- Each section should be concise (Korean ~100 chars, English ~100 chars)
+- Include 1-2 relevant emojis in each section
+- Keep total main text under 250 characters (both languages combined)
 - Generate 5-7 relevant hashtags (mix of Korean and English)
 - Focus on K-Pop dance, cover dance, and the creator
-- Make it catchy and engaging for Twitter/X audience
-- Include the video URL
+- Make it catchy and engaging for global Twitter/X audience
+- Include the video URL at the end of the English section
+
+Example format:
+🔥 [Korean text about the video]\n\n✨ [English text about the video]\n👉 URL
 
 Return ONLY a JSON object with this format:
-{"tweetText": "main tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
+{"tweetText": "bilingual tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -176,9 +186,9 @@ function generateFallback(input: GenerateInput) {
     const url = videoUrl || 'https://kstreamer.dance'
 
     const templates = [
-        `🔥 새 영상 업로드!\n\n💃 ${displayName}의 최신 댄스 영상\n🎵 "${videoTitle}"\n\n👉 지금 보러가기: ${url}`,
-        `✨ NEW! ${displayName} 댄스 커버\n\n🎶 "${videoTitle}"\n풀 영상은 여기서 👇\n🔗 ${url}`,
-        `💃 ${displayName}의 "${videoTitle}" 올라왔어요!\n\n지금 바로 감상하세요 🎵\n👉 ${url}`
+        `🔥 새 영상 업로드!\n💃 ${displayName}의 최신 댄스 영상\n🎵 "${videoTitle}"\n\n✨ New upload!\n💃 ${displayName}'s latest dance video\n🎵 "${videoTitle}"\n👉 ${url}`,
+        `✨ NEW! ${displayName} 댄스 커버\n🎶 "${videoTitle}"\n\n🔥 ${displayName} dance cover\n🎶 "${videoTitle}"\nWatch now 👇\n🔗 ${url}`,
+        `💃 ${displayName}의 "${videoTitle}" 올라왔어요!\n\n💃 ${displayName}'s "${videoTitle}" is here!\nWatch the full video 🎵\n👉 ${url}`
     ]
 
     const tweetText = templates[Math.floor(Math.random() * templates.length)]
@@ -187,7 +197,7 @@ function generateFallback(input: GenerateInput) {
     const defaultTags = ['#kpop', '#댄스', '#커버댄스', '#kstreamer', '#dance']
     const videoTags = (tags || []).slice(0, 3).map(t => t.startsWith('#') ? t : `#${t}`)
     const streamerTag = `#${streamerName.replace(/\s/g, '')}`
-    const allTags = [...new Set([streamerTag, ...videoTags, ...defaultTags])].slice(0, 7)
+    const allTags = Array.from(new Set([streamerTag, ...videoTags, ...defaultTags])).slice(0, 7)
 
     return {
         tweetText,
