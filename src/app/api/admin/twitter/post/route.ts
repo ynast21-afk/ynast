@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getJsonFile, saveJsonFile } from '@/lib/b2'
+import { authorizeB2 } from '@/lib/b2'
 import { TwitterApi } from 'twitter-api-v2'
 
 const TWEET_HISTORY_FILE = 'data/tweet-history.json'
@@ -119,10 +120,25 @@ async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): P
 
     const mediaIds: string[] = []
 
+    // Authorize with B2 for downloading images (B2 URLs require auth)
+    let b2AuthToken = ''
+    try {
+        const b2Auth = await authorizeB2()
+        b2AuthToken = b2Auth.authorizationToken
+    } catch (err: any) {
+        console.error('B2 auth failed for media download:', err?.message)
+    }
+
     for (const url of urls) {
         try {
-            // Download image from URL (B2 or any public URL)
-            const response = await fetch(url)
+            // Add B2 auth token if this is a B2 URL
+            const isB2Url = url.includes('backblazeb2.com')
+            const headers: Record<string, string> = {}
+            if (isB2Url && b2AuthToken) {
+                headers['Authorization'] = b2AuthToken
+            }
+
+            const response = await fetch(url, { headers })
             if (!response.ok) {
                 console.error(`Failed to download image: ${url} (${response.status})`)
                 continue
@@ -130,6 +146,7 @@ async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): P
 
             const arrayBuffer = await response.arrayBuffer()
             const buffer = Buffer.from(arrayBuffer)
+            console.log(`Downloaded image: ${url} (${buffer.length} bytes)`)
 
             // Determine MIME type from response or URL
             const contentType = response.headers.get('content-type') || 'image/jpeg'
@@ -138,6 +155,7 @@ async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): P
             const mediaId = await client.v1.uploadMedia(buffer, {
                 mimeType: contentType as any,
             })
+            console.log(`Uploaded media to Twitter, mediaId: ${mediaId}`)
 
             mediaIds.push(mediaId)
         } catch (err: any) {
