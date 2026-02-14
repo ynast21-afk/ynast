@@ -143,10 +143,11 @@ async function postTweet(text: string, creds: TwitterCredentials): Promise<{ suc
         const data = await response.json()
 
         if (!response.ok) {
-            console.error('Twitter API error:', response.status, data)
+            console.error('Twitter API error:', response.status, JSON.stringify(data))
+            const errorMsg = data.detail || data.title || data.errors?.[0]?.message || `Twitter API error: ${response.status}`
             return {
                 success: false,
-                error: data.detail || data.title || `Twitter API error: ${response.status}`
+                error: `[${response.status}] ${errorMsg}`
             }
         }
 
