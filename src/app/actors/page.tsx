@@ -10,13 +10,10 @@ async function getActorsData() {
     try {
         const db = await getDatabase()
         if (db && db.streamers && Array.isArray(db.streamers)) {
-            const streamerMap = new Map<string, any>()
-            initialStreamers.forEach(s => streamerMap.set(s.id, s))
-            db.streamers.forEach((s: any) => {
-                if (s && s.id) streamerMap.set(s.id, s)
-            })
+            // B2 data available — use B2 streamers only, no demo merge
+            const validStreamers = db.streamers.filter((s: any) => s && s.id)
             return {
-                streamers: Array.from(streamerMap.values()),
+                streamers: validStreamers,
                 downloadToken: db.downloadToken || null,
                 downloadUrl: db.downloadUrl || null,
                 activeBucketName: db.activeBucketName || null,
@@ -25,6 +22,7 @@ async function getActorsData() {
     } catch (e) {
         console.error('Actors page: DB fetch failed', e)
     }
+    // Fallback only if B2 is completely unavailable
     return {
         streamers: [...initialStreamers],
         downloadToken: null,
