@@ -165,6 +165,86 @@ export default function AdminPage() {
     const [videoSortOrder, setVideoSortOrder] = useState<'newest' | 'oldest'>('newest')
     const [videoDisplayCount, setVideoDisplayCount] = useState(6)
 
+    // Twitter/X integration states (v3.2)
+    const [twitterModal, setTwitterModal] = useState<{ video: any; tweetText: string; hashtags: string; isGenerating: boolean; isPosting: boolean; posted: boolean; tweetUrl?: string; error?: string } | null>(null)
+    const [tweetHistory, setTweetHistory] = useState<string[]>([]) // videoIds that have been tweeted
+
+    // Load tweet history on mount
+    useEffect(() => {
+        fetch('/api/admin/twitter/post')
+            .then(res => res.json())
+            .then(data => {
+                if (data.history) {
+                    const ids = data.history.filter((h: any) => h.status === 'success').map((h: any) => h.videoId)
+                    setTweetHistory(ids)
+                }
+            })
+            .catch(() => { })
+    }, [])
+
+    const handleOpenTwitterModal = async (video: any) => {
+        const streamer = streamers.find(s => s.id === video.streamerId)
+        setTwitterModal({
+            video,
+            tweetText: '',
+            hashtags: '',
+            isGenerating: true,
+            isPosting: false,
+            posted: false
+        })
+
+        try {
+            const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'
+            const res = await fetchWithAuth('/api/admin/twitter/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    videoTitle: video.title,
+                    streamerName: streamer?.name || video.streamerName || 'Unknown',
+                    streamerKoreanName: streamer?.koreanName || '',
+                    tags: video.tags || [],
+                    videoUrl: `${BASE_URL}/video/${video.id}`
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setTwitterModal(prev => prev ? { ...prev, tweetText: data.tweetText, hashtags: data.hashtags, isGenerating: false } : null)
+            } else {
+                setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n\n${video.title}\n\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer', isGenerating: false } : null)
+            }
+        } catch {
+            setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n\n${video.title}\n\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer', isGenerating: false } : null)
+        }
+    }
+
+    const handlePostTweet = async () => {
+        if (!twitterModal || twitterModal.isPosting) return
+        setTwitterModal(prev => prev ? { ...prev, isPosting: true, error: undefined } : null)
+
+        try {
+            const fullText = `${twitterModal.tweetText}\n\n${twitterModal.hashtags}`
+            const res = await fetchWithAuth('/api/admin/twitter/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tweetText: fullText,
+                    videoId: twitterModal.video.id,
+                    videoTitle: twitterModal.video.title,
+                    streamerName: twitterModal.video.streamerName
+                })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setTwitterModal(prev => prev ? { ...prev, isPosting: false, posted: true, tweetUrl: data.tweetUrl } : null)
+                setTweetHistory(prev => [...prev, twitterModal.video.id])
+            } else {
+                setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: data.error || '트윗 게시 실패' } : null)
+            }
+        } catch (err: any) {
+            setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: err.message || '네트워크 오류' } : null)
+        }
+    }
+
     const fetchSecurityLogs = async () => {
         try {
             setIsLoadingLogs(true)
@@ -1216,6 +1296,120 @@ export default function AdminPage() {
                 </div>
             )}
 
+            {/* Twitter/X Preview Modal */}
+            {twitterModal && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+                    <div className="bg-bg-secondary rounded-2xl p-6 max-w-lg w-full mx-4 border border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <span className="text-sky-400">𝕏</span> 트윗 미리보기
+                            </h3>
+                            <button onClick={() => setTwitterModal(null)} className="text-text-tertiary hover:text-white text-xl">✕</button>
+                        </div>
+
+                        {/* Video Info */}
+                        <div className="flex items-center gap-3 mb-4 p-3 bg-bg-primary rounded-lg border border-white/5">
+                            {twitterModal.video.thumbnailUrl && (
+                                <img src={twitterModal.video.thumbnailUrl} alt="" className="w-16 h-10 rounded object-cover" />
+                            )}
+                            <div>
+                                <p className="text-sm font-medium truncate">{twitterModal.video.title}</p>
+                                <p className="text-xs text-text-secondary">@{twitterModal.video.streamerName}</p>
+                            </div>
+                        </div>
+
+                        {twitterModal.isGenerating ? (
+                            <div className="text-center py-8">
+                                <div className="inline-block w-6 h-6 border-2 border-sky-400 border-t-transparent rounded-full animate-spin mb-2" />
+                                <p className="text-text-secondary text-sm">AI가 게시글을 작성 중...</p>
+                            </div>
+                        ) : twitterModal.posted ? (
+                            <div className="text-center py-6">
+                                <div className="text-4xl mb-3">✅</div>
+                                <p className="text-green-400 font-bold text-lg mb-2">트윗이 게시되었습니다!</p>
+                                {twitterModal.tweetUrl && (
+                                    <a href={twitterModal.tweetUrl} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline text-sm">
+                                        트윗 확인하기 →
+                                    </a>
+                                )}
+                                <div className="mt-4">
+                                    <button onClick={() => setTwitterModal(null)} className="px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors">
+                                        닫기
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Tweet Text Editor */}
+                                <div className="mb-3">
+                                    <label className="block text-xs text-text-secondary mb-1">게시글 내용</label>
+                                    <textarea
+                                        value={twitterModal.tweetText}
+                                        onChange={e => setTwitterModal(prev => prev ? { ...prev, tweetText: e.target.value } : null)}
+                                        rows={5}
+                                        className="w-full px-3 py-2 bg-bg-primary border border-white/10 rounded-lg text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-sky-400 resize-none"
+                                        placeholder="트윗 내용을 입력하세요..."
+                                    />
+                                </div>
+
+                                {/* Hashtags Editor */}
+                                <div className="mb-4">
+                                    <label className="block text-xs text-text-secondary mb-1">해시태그</label>
+                                    <input
+                                        type="text"
+                                        value={twitterModal.hashtags}
+                                        onChange={e => setTwitterModal(prev => prev ? { ...prev, hashtags: e.target.value } : null)}
+                                        className="w-full px-3 py-2 bg-bg-primary border border-white/10 rounded-lg text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-sky-400"
+                                        placeholder="#kpop #댄스 ..."
+                                    />
+                                </div>
+
+                                {/* Character Count */}
+                                <div className="flex items-center justify-between mb-4 text-xs">
+                                    <span className={`${(twitterModal.tweetText.length + twitterModal.hashtags.length + 2) > 280 ? 'text-red-400' : 'text-text-tertiary'}`}>
+                                        {twitterModal.tweetText.length + twitterModal.hashtags.length + 2} / 280자
+                                    </span>
+                                    <button
+                                        onClick={() => handleOpenTwitterModal(twitterModal.video)}
+                                        className="text-sky-400 hover:text-sky-300 transition-colors"
+                                    >
+                                        🔄 AI 재생성
+                                    </button>
+                                </div>
+
+                                {/* Error Message */}
+                                {twitterModal.error && (
+                                    <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
+                                        ⚠️ {twitterModal.error}
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setTwitterModal(null)}
+                                        className="flex-1 px-4 py-2 rounded-lg border border-white/20 text-text-secondary hover:bg-white/5 transition-colors"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        onClick={handlePostTweet}
+                                        disabled={twitterModal.isPosting || (twitterModal.tweetText.length + twitterModal.hashtags.length + 2) > 280}
+                                        className="flex-1 px-4 py-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {twitterModal.isPosting ? (
+                                            <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 게시 중...</>
+                                        ) : (
+                                            <>𝕏 게시하기</>
+                                        )}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Admin Header */}
             <div className="bg-bg-secondary border-b border-white/10">
                 <div className="max-w-7xl mx-auto px-4 py-4">
@@ -2045,6 +2239,16 @@ export default function AdminPage() {
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => handleOpenTwitterModal(video)}
+                                                                        className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${tweetHistory.includes(video.id)
+                                                                                ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
+                                                                                : 'text-sky-400 bg-sky-500/10 hover:bg-sky-500/20'
+                                                                            }`}
+                                                                        title={tweetHistory.includes(video.id) ? '이미 게시됨 (다시 게시 가능)' : 'X(Twitter)에 게시'}
+                                                                    >
+                                                                        {tweetHistory.includes(video.id) ? '✅ X' : '𝕏 업데이트'}
+                                                                    </button>
                                                                     <button
                                                                         onClick={() => setEditingVideo({ ...video, tags: (video.tags || []).join(', ') })}
                                                                         className="text-xs text-text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
