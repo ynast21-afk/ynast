@@ -163,6 +163,7 @@ export default function AdminPage() {
     const [videoSearch, setVideoSearch] = useState('')
     const [videoStreamerFilter, setVideoStreamerFilter] = useState('')
     const [videoSortOrder, setVideoSortOrder] = useState<'newest' | 'oldest'>('newest')
+    const [videoDisplayCount, setVideoDisplayCount] = useState(6)
 
     const fetchSecurityLogs = async () => {
         try {
@@ -1982,7 +1983,7 @@ export default function AdminPage() {
                                                             <input
                                                                 type="text"
                                                                 value={videoSearch}
-                                                                onChange={e => setVideoSearch(e.target.value)}
+                                                                onChange={e => { setVideoSearch(e.target.value); setVideoDisplayCount(6) }}
                                                                 placeholder="영상 제목, 스트리머, 태그 검색..."
                                                                 className="w-full pl-9 pr-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
                                                             />
@@ -1994,7 +1995,7 @@ export default function AdminPage() {
                                                         {/* Streamer Filter */}
                                                         <select
                                                             value={videoStreamerFilter}
-                                                            onChange={e => setVideoStreamerFilter(e.target.value)}
+                                                            onChange={e => { setVideoStreamerFilter(e.target.value); setVideoDisplayCount(6) }}
                                                             className="px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-accent-primary min-w-[160px]"
                                                         >
                                                             <option value="">전체 스트리머</option>
@@ -2020,49 +2021,65 @@ export default function AdminPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Video Items */}
-                                                <div className="space-y-2">
-                                                    {filtered.map(video => (
-                                                        <div key={video.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className={`w-24 h-14 rounded-lg overflow-hidden flex-shrink-0 relative ${!video.thumbnailUrl ? 'bg-gradient-to-br from-gray-700 to-gray-800' : ''}`}>
-                                                                    {video.thumbnailUrl ? (
-                                                                        <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30">
-                                                                            No Thumb
+                                                {/* Video Items - Scrollable container with pagination */}
+                                                <div className="max-h-[600px] overflow-y-auto rounded-xl border border-white/10" style={{ scrollbarWidth: 'thin', scrollbarColor: '#444 #1a1a1a' }}>
+                                                    <div className="space-y-2 p-2">
+                                                        {filtered.slice(0, videoDisplayCount).map(video => (
+                                                            <div key={video.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className={`w-24 h-14 rounded-lg overflow-hidden flex-shrink-0 relative ${!video.thumbnailUrl ? 'bg-gradient-to-br from-gray-700 to-gray-800' : ''}`}>
+                                                                        {video.thumbnailUrl ? (
+                                                                            <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30">
+                                                                                No Thumb
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[10px] text-white font-mono">
+                                                                            {video.duration}
                                                                         </div>
-                                                                    )}
-                                                                    <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[10px] text-white font-mono">
-                                                                        {video.duration}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-medium">{video.title}</p>
+                                                                        <p className="text-sm text-text-secondary">@{video.streamerName}</p>
                                                                     </div>
                                                                 </div>
-                                                                <div>
-                                                                    <p className="font-medium">{video.title}</p>
-                                                                    <p className="text-sm text-text-secondary">@{video.streamerName}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => setEditingVideo({ ...video, tags: (video.tags || []).join(', ') })}
+                                                                        className="text-xs text-text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                                                                    >
+                                                                        수정
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setDeleteModal({ type: 'video', id: video.id, name: video.title })}
+                                                                        className="px-3 py-1 text-red-400 hover:bg-red-500/20 rounded-lg text-sm"
+                                                                    >
+                                                                        삭제
+                                                                    </button>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2">
+                                                        ))}
+                                                        {filtered.length === 0 && (
+                                                            <p className="text-text-secondary text-center py-8">
+                                                                {(videoSearch || videoStreamerFilter) ? '🔍 검색 결과가 없습니다' : '등록된 영상이 없습니다'}
+                                                            </p>
+                                                        )}
+                                                        {/* Load More Button */}
+                                                        {videoDisplayCount < filtered.length && (
+                                                            <div className="text-center py-4">
                                                                 <button
-                                                                    onClick={() => setEditingVideo({ ...video, tags: (video.tags || []).join(', ') })}
-                                                                    className="text-xs text-text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                                                                    onClick={() => setVideoDisplayCount(prev => prev + 20)}
+                                                                    className="px-6 py-2 bg-accent-primary/20 text-accent-primary border border-accent-primary/30 rounded-lg hover:bg-accent-primary/30 transition-colors text-sm font-medium"
                                                                 >
-                                                                    수정
+                                                                    더보기 ({Math.min(20, filtered.length - videoDisplayCount)}개 더)
                                                                 </button>
-                                                                <button
-                                                                    onClick={() => setDeleteModal({ type: 'video', id: video.id, name: video.title })}
-                                                                    className="px-3 py-1 text-red-400 hover:bg-red-500/20 rounded-lg text-sm"
-                                                                >
-                                                                    삭제
-                                                                </button>
+                                                                <p className="text-xs text-text-tertiary mt-1">
+                                                                    {videoDisplayCount}개 / {filtered.length}개 표시됨
+                                                                </p>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                    {filtered.length === 0 && (
-                                                        <p className="text-text-secondary text-center py-8">
-                                                            {(videoSearch || videoStreamerFilter) ? '🔍 검색 결과가 없습니다' : '등록된 영상이 없습니다'}
-                                                        </p>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </>
                                         )
