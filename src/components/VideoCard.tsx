@@ -166,7 +166,7 @@ export default function VideoCard({
                         {!imgError && thumbnailUrl && (
                             <Image
                                 src={thumbnailWithAuth}
-                                alt={title}
+                                alt={`${title} - ${creator} dance video`}
                                 fill
                                 className={`object-cover transition-opacity duration-300 ${showingFrames ? 'opacity-0' : 'opacity-100'}`}
                                 unoptimized

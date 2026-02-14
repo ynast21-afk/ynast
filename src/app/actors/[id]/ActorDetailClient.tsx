@@ -128,7 +128,7 @@ export default function ActorDetailClient({ streamer, videos, downloadToken: ser
                                         activeBucketName,
                                         downloadUrl
                                     })}
-                                    alt={streamer.name}
+                                    alt={`${streamer.name}${streamer.koreanName ? ` (${streamer.koreanName})` : ''} dance - kStreamer dance creator`}
                                     className="w-full h-full object-cover"
                                 />
                             ) : (

@@ -294,3 +294,51 @@ export function ItemListSchema({ name, description, url, items }: ItemListSchema
         />
     )
 }
+
+/**
+ * ImageGallery Schema - for streamer profile pages with multiple images
+ * Helps Google Images discover and index all thumbnails associated with a streamer
+ */
+interface ImageGallerySchemaProps {
+    name: string
+    description: string
+    url: string
+    images: {
+        url: string
+        caption: string
+        name: string
+    }[]
+}
+
+export function ImageGallerySchema({ name, description, url, images }: ImageGallerySchemaProps) {
+    if (!images || images.length === 0) return null
+
+    const schema = {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name,
+        description,
+        url,
+        mainEntity: {
+            '@type': 'ImageGallery',
+            name: `${name} Gallery`,
+            about: description,
+            image: images.map((img) => ({
+                '@type': 'ImageObject',
+                url: img.url,
+                contentUrl: img.url,
+                name: img.name,
+                caption: img.caption,
+                width: 1280,
+                height: 720,
+            })),
+        },
+    }
+
+    return (
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+    )
+}

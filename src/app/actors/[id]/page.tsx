@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { getDatabase } from '@/lib/b2'
 import { initialStreamers, initialVideos } from '@/data/initialData'
 import ActorDetailClient from './ActorDetailClient'
-import { PersonSchema, BreadcrumbSchema, ItemListSchema } from '@/components/JsonLd'
+import { PersonSchema, BreadcrumbSchema, ItemListSchema, ImageGallerySchema } from '@/components/JsonLd'
 
 interface PageProps {
     params: { id: string }
@@ -168,6 +168,20 @@ export default async function ActorPage({ params }: PageProps) {
                     description={`All dance videos by ${streamer.name} on kStreamer dance`}
                     url={`${BASE_URL}/actors/${streamer.id}`}
                     items={videoListItems}
+                />
+            )}
+
+            {/* Image Gallery - helps Google Images index all thumbnails for this streamer */}
+            {videoListItems.length > 0 && (
+                <ImageGallerySchema
+                    name={`${streamer.name}${streamer.koreanName ? ` (${streamer.koreanName})` : ''} - Dance Videos`}
+                    description={`${streamer.name}${streamer.koreanName ? ` (${streamer.koreanName})` : ''} dance video gallery on kStreamer dance. ${videos.length} videos. ${allTags.length > 0 ? `Known for: ${allTags.slice(0, 8).join(', ')}` : ''}`}
+                    url={`${BASE_URL}/actors/${streamer.id}`}
+                    images={videos.slice(0, 20).filter((v: any) => v.thumbnailUrl).map((v: any) => ({
+                        url: v.thumbnailUrl.startsWith('http') ? v.thumbnailUrl : `${BASE_URL}${v.thumbnailUrl}`,
+                        name: `${v.title || 'Dance video'} - ${streamer.name}`,
+                        caption: `${streamer.name}${streamer.koreanName ? ` (${streamer.koreanName})` : ''} - ${v.title || 'dance'} on kStreamer dance`,
+                    }))}
                 />
             )}
 
