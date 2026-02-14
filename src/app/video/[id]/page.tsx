@@ -43,6 +43,8 @@ export async function generateMetadata(
     const streamerKoreanName = streamer?.koreanName || ''
     const tags = video.tags?.map((t: string) => t.replace('#', '')) || []
     const thumbnail = video.thumbnailUrl || `${BASE_URL}/og-image.png`
+    const previewImage = video.previewGifUrl || thumbnail
+    const previewImageType = video.previewGifUrl ? 'image/gif' : 'image/webp'
 
     // Build rich description with tags and streamer info for search engines
     const tagString = tags.length > 0 ? ` Tags: ${tags.join(', ')}.` : ''
@@ -68,11 +70,11 @@ export async function generateMetadata(
             siteName: 'kStreamer dance',
             images: [
                 {
-                    url: thumbnail,
+                    url: previewImage,
                     width: 1280,
                     height: 720,
                     alt: `${video.title} - ${streamerName} dance video thumbnail`,
-                    type: 'image/webp',
+                    type: previewImageType,
                 },
             ],
             locale: 'ko_KR',
@@ -83,7 +85,7 @@ export async function generateMetadata(
             title: `${video.title} - ${streamerName}`,
             description,
             images: [{
-                url: thumbnail,
+                url: previewImage,
                 alt: `${video.title} - ${streamerName}`,
             }],
             creator: `@${streamerName}`,

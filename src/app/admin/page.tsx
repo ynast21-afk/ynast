@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Script from 'next/script'
 import Image from 'next/image'
 import { useStreamers } from '@/contexts/StreamerContext'
 import { useAuth, getAuthToken } from '@/contexts/AuthContext'
@@ -166,8 +167,9 @@ export default function AdminPage() {
     const [videoDisplayCount, setVideoDisplayCount] = useState(6)
 
     // Twitter/X integration states (v3.2)
-    const [twitterModal, setTwitterModal] = useState<{ video: any; tweetText: string; hashtags: string; isGenerating: boolean; isPosting: boolean; posted: boolean; tweetUrl?: string; error?: string } | null>(null)
+    const [twitterModal, setTwitterModal] = useState<{ video: any; tweetText: string; hashtags: string; isGenerating: boolean; isPosting: boolean; posted: boolean; tweetUrl?: string; error?: string; gifUrl?: string; isGeneratingGif?: boolean; gifProgress?: number } | null>(null)
     const [tweetHistory, setTweetHistory] = useState<string[]>([]) // videoIds that have been tweeted
+    const [gifScriptLoaded, setGifScriptLoaded] = useState(false)
 
     // Load tweet history on mount
     useEffect(() => {
@@ -242,6 +244,101 @@ export default function AdminPage() {
             }
         } catch (err: any) {
             setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: err.message || '네트워크 오류' } : null)
+        }
+    }
+
+    // GIF Generation: Canvas frames → gif.js → B2 upload
+    const handleGenerateGif = async (video: any) => {
+        if (!video?.videoUrl) {
+            setTwitterModal(prev => prev ? { ...prev, error: '영상 URL이 없습니다' } : null)
+            return
+        }
+
+        setTwitterModal(prev => prev ? { ...prev, isGeneratingGif: true, gifProgress: 0, error: undefined } : null)
+
+        try {
+            // Create hidden video element
+            const videoEl = document.createElement('video')
+            videoEl.crossOrigin = 'anonymous'
+            videoEl.muted = true
+            videoEl.playsInline = true
+            videoEl.preload = 'auto'
+            videoEl.src = video.videoUrl
+
+            await new Promise<void>((resolve, reject) => {
+                videoEl.onloadeddata = () => resolve()
+                videoEl.onerror = () => reject(new Error('영상을 로드할 수 없습니다'))
+                setTimeout(() => reject(new Error('영상 로드 시간 초과')), 30000)
+            })
+
+            const width = 480
+            const height = Math.round((videoEl.videoHeight / videoEl.videoWidth) * width) || 270
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')!
+
+            // Check if gif.js is loaded
+            const GIFConstructor = (window as any).GIF
+            if (!GIFConstructor) {
+                throw new Error('GIF 라이브러리가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.')
+            }
+
+            const gif = new GIFConstructor({
+                workers: 2,
+                quality: 10,
+                width,
+                height,
+                workerScript: '/lib/gif.worker.js'
+            })
+
+            // Capture 15 frames from first 3 seconds (5fps)
+            const totalFrames = 15
+            const duration = Math.min(3, videoEl.duration)
+            const frameInterval = duration / totalFrames
+
+            for (let i = 0; i < totalFrames; i++) {
+                videoEl.currentTime = i * frameInterval
+                await new Promise<void>(resolve => {
+                    videoEl.onseeked = () => resolve()
+                })
+                ctx.drawImage(videoEl, 0, 0, width, height)
+                gif.addFrame(ctx, { copy: true, delay: 200 }) // 200ms per frame = 5fps
+                setTwitterModal(prev => prev ? { ...prev, gifProgress: Math.round(((i + 1) / totalFrames) * 50) } : null)
+            }
+
+            // Render GIF
+            const gifBlob: Blob = await new Promise((resolve, reject) => {
+                gif.on('finished', (blob: Blob) => resolve(blob))
+                gif.on('error', (err: any) => reject(err))
+                gif.render()
+            })
+
+            setTwitterModal(prev => prev ? { ...prev, gifProgress: 70 } : null)
+
+            // Upload to B2 via API
+            const formData = new FormData()
+            formData.append('file', gifBlob, `${video.id}.gif`)
+            formData.append('videoId', video.id)
+            formData.append('fileType', 'image/gif')
+
+            const uploadRes = await fetchWithAuth('/api/admin/twitter/upload-preview', {
+                method: 'POST',
+                body: formData
+            })
+            const uploadData = await uploadRes.json()
+
+            if (uploadData.success) {
+                setTwitterModal(prev => prev ? { ...prev, isGeneratingGif: false, gifUrl: uploadData.previewUrl, gifProgress: 100 } : null)
+            } else {
+                throw new Error(uploadData.error || 'GIF 업로드 실패')
+            }
+
+            // Cleanup
+            videoEl.remove()
+        } catch (err: any) {
+            console.error('GIF generation error:', err)
+            setTwitterModal(prev => prev ? { ...prev, isGeneratingGif: false, gifProgress: 0, error: `GIF 생성 실패: ${err.message}` } : null)
         }
     }
 
@@ -1377,6 +1474,56 @@ export default function AdminPage() {
                                     </button>
                                 </div>
 
+                                {/* GIF Preview Generator */}
+                                <div className="mb-4 p-3 bg-bg-primary rounded-lg border border-white/5">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs text-text-secondary flex items-center gap-1">
+                                            🎬 GIF 미리보기 (Twitter 카드용)
+                                        </label>
+                                        {!twitterModal.gifUrl && !twitterModal.isGeneratingGif && (
+                                            <button
+                                                onClick={() => handleGenerateGif(twitterModal.video)}
+                                                disabled={!gifScriptLoaded}
+                                                className="text-xs px-3 py-1 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors disabled:opacity-50"
+                                            >
+                                                {gifScriptLoaded ? '🎞️ GIF 생성' : '로딩...'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {twitterModal.isGeneratingGif && (
+                                        <div>
+                                            <div className="w-full bg-white/10 rounded-full h-2 mb-2">
+                                                <div
+                                                    className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                                                    style={{ width: `${twitterModal.gifProgress || 0}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-text-tertiary text-center">
+                                                {(twitterModal.gifProgress || 0) < 50 ? '영상 프레임 캡처 중...' : (twitterModal.gifProgress || 0) < 70 ? 'GIF 인코딩 중...' : 'B2 업로드 중...'}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {twitterModal.gifUrl && (
+                                        <div className="space-y-2">
+                                            <img src={twitterModal.gifUrl} alt="GIF Preview" className="w-full rounded-lg border border-white/10" />
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-green-400">✅ GIF 생성 완료</span>
+                                                <button
+                                                    onClick={() => handleGenerateGif(twitterModal.video)}
+                                                    className="text-xs text-purple-400 hover:text-purple-300"
+                                                >
+                                                    🔄 다시 생성
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {!twitterModal.gifUrl && !twitterModal.isGeneratingGif && (
+                                        <p className="text-xs text-text-tertiary">
+                                            영상 앞부분 3초를 GIF로 변환합니다. 생성된 GIF는 B2에 저장되며 Twitter 카드 이미지로 사용됩니다.
+                                        </p>
+                                    )}
+                                </div>
+
                                 {/* Error Message */}
                                 {twitterModal.error && (
                                     <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
@@ -1409,6 +1556,9 @@ export default function AdminPage() {
                     </div>
                 </div>
             )}
+
+            {/* gif.js library for GIF generation */}
+            <Script src="/lib/gif.js" strategy="lazyOnload" onLoad={() => setGifScriptLoaded(true)} />
 
             {/* Admin Header */}
             <div className="bg-bg-secondary border-b border-white/10">
@@ -2242,8 +2392,8 @@ export default function AdminPage() {
                                                                     <button
                                                                         onClick={() => handleOpenTwitterModal(video)}
                                                                         className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${tweetHistory.includes(video.id)
-                                                                                ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
-                                                                                : 'text-sky-400 bg-sky-500/10 hover:bg-sky-500/20'
+                                                                            ? 'text-green-400 bg-green-500/10 hover:bg-green-500/20'
+                                                                            : 'text-sky-400 bg-sky-500/10 hover:bg-sky-500/20'
                                                                             }`}
                                                                         title={tweetHistory.includes(video.id) ? '이미 게시됨 (다시 게시 가능)' : 'X(Twitter)에 게시'}
                                                                     >
@@ -3668,3 +3818,5 @@ function SecurityMonitorPanel() {
         </div>
     )
 }
+
+// gif.js Script is loaded in the admin page layout
