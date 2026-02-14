@@ -159,6 +159,11 @@ export default function AdminPage() {
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
     const securityIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+    // Video list filter/sort/search states (v3.1)
+    const [videoSearch, setVideoSearch] = useState('')
+    const [videoStreamerFilter, setVideoStreamerFilter] = useState('')
+    const [videoSortOrder, setVideoSortOrder] = useState<'newest' | 'oldest'>('newest')
+
     const fetchSecurityLogs = async () => {
         try {
             setIsLoadingLogs(true)
@@ -1949,48 +1954,119 @@ export default function AdminPage() {
                                         </div>
                                     </div>
 
-                                    {/* Video List */}
-                                    < div className="space-y-2" >
-                                        {
-                                            videos.map(video => (
-                                                <div key={video.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-24 h-14 rounded-lg overflow-hidden flex-shrink-0 relative ${!video.thumbnailUrl ? 'bg-gradient-to-br from-gray-700 to-gray-800' : ''}`}>
-                                                            {video.thumbnailUrl ? (
-                                                                <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30">
-                                                                    No Thumb
-                                                                </div>
+                                    {/* Video List - Filter / Sort / Search */}
+                                    {(() => {
+                                        const filtered = videos
+                                            .filter(v => {
+                                                if (videoStreamerFilter && v.streamerId !== videoStreamerFilter) return false
+                                                if (videoSearch) {
+                                                    const q = videoSearch.toLowerCase()
+                                                    return v.title.toLowerCase().includes(q) || (v.streamerName || '').toLowerCase().includes(q) || (v.tags || []).some(t => t.toLowerCase().includes(q))
+                                                }
+                                                return true
+                                            })
+                                            .sort((a, b) => {
+                                                const da = new Date(a.createdAt || '1970-01-01').getTime()
+                                                const db = new Date(b.createdAt || '1970-01-01').getTime()
+                                                return videoSortOrder === 'newest' ? db - da : da - db
+                                            })
+
+                                        return (
+                                            <>
+                                                {/* Toolbar */}
+                                                <div className="bg-bg-primary rounded-xl p-4 border border-white/10 mb-4">
+                                                    <div className="flex flex-col md:flex-row gap-3">
+                                                        {/* Search */}
+                                                        <div className="flex-1 relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary">🔍</span>
+                                                            <input
+                                                                type="text"
+                                                                value={videoSearch}
+                                                                onChange={e => setVideoSearch(e.target.value)}
+                                                                placeholder="영상 제목, 스트리머, 태그 검색..."
+                                                                className="w-full pl-9 pr-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
+                                                            />
+                                                            {videoSearch && (
+                                                                <button onClick={() => setVideoSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-white text-xs">✕</button>
                                                             )}
-                                                            <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[10px] text-white font-mono">
-                                                                {video.duration}
+                                                        </div>
+
+                                                        {/* Streamer Filter */}
+                                                        <select
+                                                            value={videoStreamerFilter}
+                                                            onChange={e => setVideoStreamerFilter(e.target.value)}
+                                                            className="px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-accent-primary min-w-[160px]"
+                                                        >
+                                                            <option value="">전체 스트리머</option>
+                                                            {streamers.map(s => (
+                                                                <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        {/* Sort Order */}
+                                                        <button
+                                                            onClick={() => setVideoSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                                                            className="px-4 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white hover:border-accent-primary transition-colors flex items-center gap-2 whitespace-nowrap"
+                                                        >
+                                                            {videoSortOrder === 'newest' ? '⬇️ 최신순' : '⬆️ 오래된순'}
+                                                        </button>
+                                                    </div>
+                                                    {/* Result count */}
+                                                    <div className="mt-2 text-xs text-text-tertiary">
+                                                        {(videoSearch || videoStreamerFilter)
+                                                            ? `${filtered.length}개 / 전체 ${videos.length}개`
+                                                            : `전체 ${videos.length}개`
+                                                        }
+                                                    </div>
+                                                </div>
+
+                                                {/* Video Items */}
+                                                <div className="space-y-2">
+                                                    {filtered.map(video => (
+                                                        <div key={video.id} className="flex items-center justify-between p-4 bg-bg-primary rounded-xl border border-white/10">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`w-24 h-14 rounded-lg overflow-hidden flex-shrink-0 relative ${!video.thumbnailUrl ? 'bg-gradient-to-br from-gray-700 to-gray-800' : ''}`}>
+                                                                    {video.thumbnailUrl ? (
+                                                                        <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-white/30">
+                                                                            No Thumb
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[10px] text-white font-mono">
+                                                                        {video.duration}
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-medium">{video.title}</p>
+                                                                    <p className="text-sm text-text-secondary">@{video.streamerName}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => setEditingVideo({ ...video, tags: (video.tags || []).join(', ') })}
+                                                                    className="text-xs text-text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                                                                >
+                                                                    수정
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setDeleteModal({ type: 'video', id: video.id, name: video.title })}
+                                                                    className="px-3 py-1 text-red-400 hover:bg-red-500/20 rounded-lg text-sm"
+                                                                >
+                                                                    삭제
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="font-medium">{video.title}</p>
-                                                            <p className="text-sm text-text-secondary">@{video.streamerName}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => setEditingVideo({ ...video, tags: (video.tags || []).join(', ') })}
-                                                            className="text-xs text-text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
-                                                        >
-                                                            수정
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setDeleteModal({ type: 'video', id: video.id, name: video.title })}
-                                                            className="px-3 py-1 text-red-400 hover:bg-red-500/20 rounded-lg text-sm"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    </div>
-                                                </div >
-                                            ))
-                                        }
-                                        {videos.length === 0 && <p className="text-text-secondary text-center py-8">등록된 영상이 없습니다</p>}
-                                    </div >
+                                                    ))}
+                                                    {filtered.length === 0 && (
+                                                        <p className="text-text-secondary text-center py-8">
+                                                            {(videoSearch || videoStreamerFilter) ? '🔍 검색 결과가 없습니다' : '등록된 영상이 없습니다'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )
+                                    })()}
 
                                     {/* Edit Video Modal */}
                                     {editingVideo && (
