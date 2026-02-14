@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { getMediaUrl } from '@/utils/b2url'
 import { Streamer } from '@/data/initialData'
+import { useStreamers } from '@/contexts/StreamerContext'
 
 type SortOption = 'popular' | 'name' | 'newest'
 
@@ -16,7 +17,11 @@ interface ActorsClientProps {
     activeBucketName: string | null
 }
 
-export default function ActorsClient({ streamers, downloadToken, downloadUrl, activeBucketName }: ActorsClientProps) {
+export default function ActorsClient({ streamers, downloadToken: serverToken, downloadUrl: serverDownloadUrl, activeBucketName: serverBucketName }: ActorsClientProps) {
+    const { downloadToken: clientToken, downloadUrl: clientDownloadUrl, activeBucketName: clientBucketName } = useStreamers()
+    const downloadToken = serverToken || clientToken
+    const downloadUrl = serverDownloadUrl || clientDownloadUrl
+    const activeBucketName = serverBucketName || clientBucketName
     const [sortBy, setSortBy] = useState<SortOption>('popular')
 
     const sortedStreamers = [...streamers].sort((a, b) => {
