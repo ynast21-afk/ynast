@@ -92,6 +92,7 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
         setVideoPlayError(false)
     }, [id])
 
+
     // Fallback logic for videos not found on server
     useEffect(() => {
         if (!video && fallbackId) {
@@ -349,18 +350,31 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                         <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
                             <div className={`aspect-video relative flex items-center justify-center group ${!video.videoUrl ? `bg-gradient-to-br ${video.gradient}` : 'bg-black'}`}>
                                 {isStreamingLocked ? (
-                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
-                                        <div className="w-20 h-20 rounded-full bg-accent-primary/20 flex items-center justify-center mb-6 text-accent-primary text-4xl">
-                                            🔒
+                                    <>
+                                        {/* Static thumbnail background for locked videos */}
+                                        {video.thumbnailUrl && (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={getMediaUrl({ url: video.thumbnailUrl, token: downloadToken, activeBucketName, downloadUrl })}
+                                                alt=""
+                                                className="absolute inset-0 w-full h-full object-cover"
+                                            />
+                                        )}
+
+                                        {/* Dark overlay + lock UI */}
+                                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/70 backdrop-blur-[2px] p-6 text-center">
+                                            <div className="w-20 h-20 rounded-full bg-accent-primary/20 flex items-center justify-center mb-6 text-accent-primary text-4xl">
+                                                🔒
+                                            </div>
+                                            <h3 className="text-2xl font-bold mb-2">{(video?.minStreamingLevel || 'vip').toUpperCase()} 전용 콘텐츠</h3>
+                                            <p className="text-text-secondary max-w-sm mb-6">
+                                                이 영상은 {(video?.minStreamingLevel || 'vip').toUpperCase()} 등급 이상의 회원만 시청할 수 있습니다. 지금 바로 멤버십을 업그레이드하세요!
+                                            </p>
+                                            <Link href="/membership" className="gradient-button text-black px-8 py-3 rounded-full font-bold">
+                                                멤버십 가입하기
+                                            </Link>
                                         </div>
-                                        <h3 className="text-2xl font-bold mb-2">{(video?.minStreamingLevel || 'vip').toUpperCase()} 전용 콘텐츠</h3>
-                                        <p className="text-text-secondary max-w-sm mb-6">
-                                            이 영상은 {(video?.minStreamingLevel || 'vip').toUpperCase()} 등급 이상의 회원만 시청할 수 있습니다. 지금 바로 멤버십을 업그레이드하세요!
-                                        </p>
-                                        <Link href="/membership" className="gradient-button text-black px-8 py-3 rounded-full font-bold">
-                                            멤버십 가입하기
-                                        </Link>
-                                    </div>
+                                    </>
                                 ) : video.videoUrl && !videoPlayError ? (
                                     <video
                                         controls
