@@ -316,40 +316,48 @@ function MyPageContent() {
                                     )
                                 })()}
                             </div>
+                            {/* Provider Badge */}
+                            {user.subscriptionProvider && (
+                                <div className="flex items-center gap-2 text-xs text-text-tertiary">
+                                    <span>결제 수단:</span>
+                                    <span className={`px-2 py-0.5 rounded-full font-bold uppercase ${user.subscriptionProvider === 'paypal' ? 'bg-[#FFC439]/20 text-[#FFC439]' :
+                                            user.subscriptionProvider === 'paddle' ? 'bg-blue-500/20 text-blue-400' :
+                                                user.subscriptionProvider === 'gumroad' ? 'bg-[#FF90E8]/20 text-[#FF90E8]' :
+                                                    'bg-white/10 text-white'
+                                        }`}>
+                                        {user.subscriptionProvider}
+                                    </span>
+                                </div>
+                            )}
                             <button
                                 onClick={async () => {
-                                    if (confirm('정말로 자동 결제를 해지하시겠습니까? 해지 후에도 현재 결제 기간까지는 VIP 혜택이 유지됩니다.')) {
+                                    if (confirm('정말로 자동 결제를 해지하시겠습니까?\n\n해지 후에도 현재 결제 기간이 끝날 때까지 VIP 혜택이 유지됩니다.')) {
                                         setIsCancelling(true)
                                         try {
-                                            // 1. localStorage에서 결제 내역을 찾아 subscriptionId 가져오기
-                                            const savedHistory = localStorage.getItem('kstreamer_purchase_history')
-                                            const history = savedHistory ? JSON.parse(savedHistory) : []
-
-                                            // Find latest active VIP subscription (PayPal, Lemon Squeezy, or Paddle)
-                                            // PayPal: Starts with 'I-'
-                                            // Paddle: Starts with 'sub_'
-                                            // Lemon Squeezy: Numeric ID
-                                            const latestSub = history.find((h: any) =>
-                                                h.plan?.includes('VIP') &&
-                                                (h.id?.toString().startsWith('I-') || h.id?.toString().startsWith('sub_') || !isNaN(Number(h.id)))
-                                            )
-
-                                            // Also check user object for subscriptionProvider
-                                            const subscriptionId = latestSub?.id || user.subscriptionId
+                                            // Get subscriptionId from user object (server-synced)
+                                            const subscriptionId = user.subscriptionId
 
                                             if (!subscriptionId) {
-                                                alert('구독 정보를 찾을 수 없습니다. 결제 내역 탭을 확인하시거나 관리자에게 문의해 주세요.')
+                                                alert('구독 정보를 찾을 수 없습니다. 관리자에게 문의해 주세요.')
                                                 return
                                             }
 
-                                            // 2. Determine Provider & API Endpoint
-                                            const isPayPal = subscriptionId.toString().startsWith('I-')
-                                            const isPaddle = subscriptionId.toString().startsWith('sub_') || user.subscriptionProvider === 'paddle'
-                                            const apiEndpoint = isPayPal
-                                                ? '/api/paypal/cancel-subscription'
-                                                : isPaddle
-                                                    ? '/api/paddle/cancel'
-                                                    : '/api/lemon/cancel-subscription'
+                                            // Determine Provider & API Endpoint from user.subscriptionProvider
+                                            const provider = user.subscriptionProvider
+                                            let apiEndpoint: string | null = null
+
+                                            if (provider === 'paypal' || subscriptionId.toString().startsWith('I-')) {
+                                                apiEndpoint = '/api/paypal/cancel-subscription'
+                                            } else if (provider === 'paddle' || subscriptionId.toString().startsWith('sub_')) {
+                                                apiEndpoint = '/api/paddle/cancel'
+                                            } else if (provider === 'gumroad') {
+                                                apiEndpoint = '/api/gumroad/cancel'
+                                            }
+
+                                            if (!apiEndpoint) {
+                                                alert('구독 해지를 처리할 수 없습니다. 관리자에게 문의해 주세요.')
+                                                return
+                                            }
 
                                             const res = await fetch(apiEndpoint, {
                                                 method: 'POST',
@@ -358,8 +366,7 @@ function MyPageContent() {
                                             })
 
                                             if (res.ok) {
-                                                alert('자동 결제가 성공적으로 해지되었습니다.')
-                                                // UI 상태 업데이트 또는 필요시 새로고침
+                                                alert('✅ 자동 결제가 해지되었습니다.\n\n현재 결제 기간 종료까지 VIP 혜택이 유지됩니다.')
                                                 window.location.reload()
                                             } else {
                                                 const err = await res.json()
@@ -375,7 +382,7 @@ function MyPageContent() {
                                 disabled={isCancelling}
                                 className={`px-6 py-2 rounded-lg text-sm font-bold border border-white/10 hover:bg-red-500/10 hover:text-red-400 transition-all ${isCancelling ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                {isCancelling ? '처리 중...' : '자동 결제 해지'}
+                                {isCancelling ? '처리 중...' : '🔄 자동 결제 해지'}
                             </button>
                         </div>
                     )}

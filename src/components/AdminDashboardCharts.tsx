@@ -49,6 +49,7 @@ interface DashboardData {
     membershipDistribution: any[]
     commentTimeline: any[]
     notificationDistribution: any[]
+    providerDistribution: any[]
 }
 
 export default function AdminDashboardCharts() {
@@ -262,6 +263,59 @@ export default function AdminDashboardCharts() {
                         ))}
                     </div>
                 </ChartCard>
+
+                {/* 7. Subscription Provider Distribution (Pie Chart) */}
+                {data.providerDistribution && data.providerDistribution.length > 0 && (
+                    <ChartCard title="💳 결제 수단별 VIP 분포">
+                        <div className="flex items-center justify-center">
+                            <ResponsiveContainer width="100%" height={250}>
+                                <PieChart>
+                                    <Pie
+                                        data={data.providerDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={100}
+                                        paddingAngle={3}
+                                        dataKey="count"
+                                        nameKey="name"
+                                        label={({ name, count }: any) => count > 0 ? `${name}: ${count}` : ''}
+                                    >
+                                        {data.providerDistribution.map((entry: any, i: number) => {
+                                            const providerColors: Record<string, string> = {
+                                                paypal: '#FFC439',
+                                                paddle: '#3b82f6',
+                                                gumroad: '#FF90E8',
+                                                none: '#6b7280',
+                                            }
+                                            return <Cell key={i} fill={providerColors[entry.name] || COLORS[i % COLORS.length]} />
+                                        })}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#fff' }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="flex justify-center gap-4 mt-2 text-xs">
+                            {data.providerDistribution.map((entry: any) => {
+                                const providerColors: Record<string, string> = {
+                                    paypal: '#FFC439',
+                                    paddle: '#3b82f6',
+                                    gumroad: '#FF90E8',
+                                    none: '#6b7280',
+                                }
+                                return (
+                                    <span key={entry.name} className="flex items-center gap-1">
+                                        <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: providerColors[entry.name] || '#666' }}></span>
+                                        {entry.name}: {entry.count}명
+                                    </span>
+                                )
+                            })}
+                        </div>
+                    </ChartCard>
+                )}
             </div>
 
             {/* ===== Top Videos Tables ===== */}

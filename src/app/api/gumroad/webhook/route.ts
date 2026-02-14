@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getJsonFile, saveJsonFile } from '@/lib/b2'
 
 /**
  * Gumroad Webhook (Ping) Handler
@@ -36,68 +35,95 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No email' }, { status: 400 })
         }
 
-        // Generate a deterministic user ID from email (same as auth system)
-        const userId = Buffer.from(email).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 20)
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamerdance.com'
+
+        // Fetch current users from B2 (same approach as Paddle webhook)
+        const dbRes = await fetch(`${baseUrl}/api/db?type=users`, { cache: 'no-store' })
+        if (!dbRes.ok) {
+            console.error('[Gumroad Webhook] Failed to fetch users from B2')
+            return NextResponse.json({ error: 'DB fetch failed' }, { status: 500 })
+        }
+
+        const users = await dbRes.json()
+        const userIndex = users.findIndex((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+
+        if (userIndex === -1) {
+            console.log(`[Gumroad Webhook] User not found by email: ${email}, creating minimal record via webhook log only`)
+            // Even if user not found, we still return success so Gumroad doesn't retry
+            return NextResponse.json({ success: true, note: 'User not registered yet' })
+        }
+
+        const userData = users[userIndex]
 
         // Determine membership action based on event type
         const shouldActivate = !isRefunded && !isDisputed &&
             (resourceName === 'sale' || resourceName === 'subscription_restarted' || resourceName === 'subscription_updated' || resourceName === '')
-        const shouldDeactivate = isRefunded || isDisputed ||
-            resourceName === 'cancellation' || resourceName === 'subscription_ended' || resourceName === 'refund' || resourceName === 'dispute'
 
-        // Load existing user data from B2
-        const userDataPath = `user-data/${userId}/profile.json`
-        let userData = await getJsonFile(userDataPath)
+        // Only subscription_ended and refund/dispute should fully deactivate
+        const shouldFullDeactivate = isRefunded || isDisputed ||
+            resourceName === 'subscription_ended' || resourceName === 'refund' || resourceName === 'dispute'
 
-        if (!userData) {
-            // User might not exist yet in B2 (registered via client-side only)
-            // Create a minimal profile
-            userData = {
-                id: userId,
-                email,
-                membership: 'guest',
-                createdAt: new Date().toISOString(),
-            }
-        }
+        // Cancellation: keep VIP until period ends (don't immediately downgrade)
+        const isCancellation = resourceName === 'cancellation'
 
         if (shouldActivate) {
-            userData.membership = 'vip'
-            userData.subscriptionProvider = 'gumroad'
-            userData.subscriptionId = subscriptionId || saleId
-            userData.gumroadSaleId = saleId
-            userData.recurrence = recurrence
-            userData.subscriptionEnd = recurrence
-                ? undefined  // Recurring subscription - no fixed end date
-                : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // One-time: 30 days
-            userData.lastPaymentAt = new Date().toISOString()
-            console.log(`[Gumroad Webhook] ✅ Activated VIP for ${email}`)
-        } else if (shouldDeactivate) {
-            userData.membership = 'guest'
-            userData.subscriptionEnd = new Date().toISOString()
+            // Calculate subscription end date based on recurrence
+            let subscriptionEnd: string
+            if (recurrence === 'yearly') {
+                subscriptionEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+            } else if (recurrence === 'quarterly') {
+                subscriptionEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+            } else {
+                // monthly or one-time
+                subscriptionEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            }
+
+            users[userIndex] = {
+                ...userData,
+                membership: 'vip',
+                subscriptionProvider: 'gumroad',
+                subscriptionId: subscriptionId || saleId,
+                subscriptionEnd,
+                subscriptionCancelled: false,
+                lastPaymentAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }
+            console.log(`[Gumroad Webhook] ✅ Activated VIP for ${email} (until ${subscriptionEnd})`)
+
+        } else if (isCancellation) {
+            // ⚠️ CANCELLATION: Keep VIP membership until the current period ends
+            // Don't downgrade to guest - let the natural expiration handle it
+            users[userIndex] = {
+                ...userData,
+                subscriptionCancelled: true,  // Mark as cancelled (won't auto-renew)
+                // membership stays 'vip' until subscriptionEnd
+                updatedAt: new Date().toISOString(),
+            }
+            console.log(`[Gumroad Webhook] ⏸️ Subscription cancelled for ${email}. VIP maintained until ${userData.subscriptionEnd || 'period end'}`)
+
+        } else if (shouldFullDeactivate) {
+            // Full deactivation: refund, dispute, or subscription actually ended
+            users[userIndex] = {
+                ...userData,
+                membership: 'guest',
+                subscriptionCancelled: true,
+                subscriptionEnd: new Date().toISOString(), // Expired now
+                updatedAt: new Date().toISOString(),
+            }
             console.log(`[Gumroad Webhook] ❌ Deactivated VIP for ${email} (${resourceName})`)
         }
 
-        // Save updated user data to B2
-        const saved = await saveJsonFile(userDataPath, userData)
-        if (!saved) {
-            console.error('[Gumroad Webhook] Failed to save user data')
+        // Save updated users back to B2 (same method as Paddle)
+        const saveRes = await fetch(`${baseUrl}/api/db`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'users', data: users })
+        })
+
+        if (!saveRes.ok) {
+            console.error('[Gumroad Webhook] Failed to save user data to B2')
             return NextResponse.json({ error: 'Save failed' }, { status: 500 })
         }
-
-        // Also record the transaction in purchase history
-        const purchasePath = `user-data/${userId}/purchases.json`
-        const purchases = await getJsonFile(purchasePath) || []
-        purchases.unshift({
-            id: saleId,
-            subscriptionId,
-            provider: 'gumroad',
-            event: resourceName || 'sale',
-            recurrence,
-            refunded: isRefunded,
-            date: new Date().toISOString(),
-            test: isTest,
-        })
-        await saveJsonFile(purchasePath, purchases.slice(0, 200))
 
         return NextResponse.json({ success: true })
     } catch (error) {

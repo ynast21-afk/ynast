@@ -136,7 +136,19 @@ export async function GET(request: NextRequest) {
             .filter(([_, count]) => count > 0)
             .map(([name, count]) => ({ name, count }))
 
-        // --- 8. Content Stats Summary ---
+        // --- 8. Subscription Provider Distribution ---
+        const providerDist: Record<string, number> = { paypal: 0, paddle: 0, gumroad: 0, none: 0 }
+        usersData.forEach((u: any) => {
+            if (u.membership === 'vip' || u.membership === 'premium') {
+                const provider = u.subscriptionProvider || 'none'
+                providerDist[provider] = (providerDist[provider] || 0) + 1
+            }
+        })
+        const providerDistribution = Object.entries(providerDist)
+            .filter(([_, count]) => count > 0)
+            .map(([name, count]) => ({ name, count }))
+
+        // --- 9. Content Stats Summary ---
         const vipVideoCount = videos.filter((v: any) => v.isVip).length
         const freeVideoCount = videos.length - vipVideoCount
 
@@ -159,6 +171,7 @@ export async function GET(request: NextRequest) {
             membershipDistribution,
             commentTimeline: commentTimelineArray,
             notificationDistribution,
+            providerDistribution,
         })
     } catch (error) {
         console.error('Dashboard stats API error:', error)
