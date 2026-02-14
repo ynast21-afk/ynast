@@ -160,6 +160,11 @@ export default function AdminPage() {
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
     const securityIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+    // SEO Analytics states
+    const [seoAnalytics, setSeoAnalytics] = useState<any>(null)
+    const [seoAnalyticsLoading, setSeoAnalyticsLoading] = useState(false)
+    const [seoAnalyticsRange, setSeoAnalyticsRange] = useState(7)
+
     // Video list filter/sort/search states (v3.1)
     const [videoSearch, setVideoSearch] = useState('')
     const [videoStreamerFilter, setVideoStreamerFilter] = useState('')
@@ -3248,6 +3253,291 @@ export default function AdminPage() {
                                     <h1 className="text-2xl font-bold mb-6">🔍 SEO & 마케팅 설정</h1>
 
                                     <div className="space-y-6">
+
+                                        {/* ===== SEO 통계 대시보드 ===== */}
+                                        <div className="bg-bg-primary rounded-xl p-6 border border-white/10">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <h3 className="font-semibold text-accent-primary text-lg">📊 SEO 통계 대시보드</h3>
+                                                <div className="flex items-center gap-2">
+                                                    {[7, 14, 30].map(d => (
+                                                        <button
+                                                            key={d}
+                                                            onClick={() => setSeoAnalyticsRange(d)}
+                                                            className={`px-3 py-1 text-xs rounded-lg transition-colors ${seoAnalyticsRange === d
+                                                                    ? 'bg-accent-primary text-black font-bold'
+                                                                    : 'bg-white/5 text-text-secondary hover:bg-white/10'
+                                                                }`}
+                                                        >
+                                                            {d}일
+                                                        </button>
+                                                    ))}
+                                                    <button
+                                                        onClick={() => {
+                                                            setSeoAnalyticsLoading(true)
+                                                            fetchWithAuth(`/api/admin/seo-analytics?range=${seoAnalyticsRange}`)
+                                                                .then(res => res.json())
+                                                                .then(data => { if (!data.error) setSeoAnalytics(data) })
+                                                                .catch(() => { })
+                                                                .finally(() => setSeoAnalyticsLoading(false))
+                                                        }}
+                                                        disabled={seoAnalyticsLoading}
+                                                        className="px-3 py-1 text-xs rounded-lg bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {seoAnalyticsLoading ? '로딩...' : '새로고침'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {!seoAnalytics ? (
+                                                <div className="text-center py-12">
+                                                    <p className="text-text-tertiary mb-4">통계 데이터를 불러오려면 새로고침 버튼을 클릭하세요</p>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSeoAnalyticsLoading(true)
+                                                            fetchWithAuth(`/api/admin/seo-analytics?range=${seoAnalyticsRange}`)
+                                                                .then(res => res.json())
+                                                                .then(data => { if (!data.error) setSeoAnalytics(data) })
+                                                                .catch(() => { })
+                                                                .finally(() => setSeoAnalyticsLoading(false))
+                                                        }}
+                                                        disabled={seoAnalyticsLoading}
+                                                        className="px-6 py-3 bg-accent-primary text-black font-bold rounded-xl hover:bg-accent-secondary transition-colors"
+                                                    >
+                                                        {seoAnalyticsLoading ? '불러오는 중...' : '📊 통계 불러오기'}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-6">
+                                                    {/* Summary Cards */}
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl p-4 border border-blue-500/20">
+                                                            <p className="text-xs text-blue-400 mb-1">오늘 방문자</p>
+                                                            <p className="text-2xl font-bold text-white">{seoAnalytics.summary?.todayVisits?.toLocaleString() || 0}</p>
+                                                        </div>
+                                                        <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 rounded-xl p-4 border border-green-500/20">
+                                                            <p className="text-xs text-green-400 mb-1">주간 방문자</p>
+                                                            <p className="text-2xl font-bold text-white">{seoAnalytics.summary?.weeklyVisits?.toLocaleString() || 0}</p>
+                                                        </div>
+                                                        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-xl p-4 border border-purple-500/20">
+                                                            <p className="text-xs text-purple-400 mb-1">월간 방문자</p>
+                                                            <p className="text-2xl font-bold text-white">{seoAnalytics.summary?.monthlyVisits?.toLocaleString() || 0}</p>
+                                                        </div>
+                                                        <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-xl p-4 border border-amber-500/20">
+                                                            <p className="text-xs text-amber-400 mb-1">일 평균</p>
+                                                            <p className="text-2xl font-bold text-white">{seoAnalytics.summary?.avgDailyVisits?.toLocaleString() || 0}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Bot Stats */}
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="bg-black/30 rounded-xl p-4 border border-white/5">
+                                                            <p className="text-xs text-text-tertiary mb-1">🤖 크롤러 방문 (오늘)</p>
+                                                            <p className="text-xl font-bold text-cyan-400">{seoAnalytics.summary?.todayBots || 0}</p>
+                                                        </div>
+                                                        <div className="bg-black/30 rounded-xl p-4 border border-white/5">
+                                                            <p className="text-xs text-text-tertiary mb-1">🤖 크롤러 방문 (기간 합계)</p>
+                                                            <p className="text-xl font-bold text-cyan-400">{seoAnalytics.summary?.totalBotVisits?.toLocaleString() || 0}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Daily Visitors Chart (CSS bar chart) */}
+                                                    {seoAnalytics.dailyVisitors && seoAnalytics.dailyVisitors.length > 0 && (
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">📈 일별 방문자 추이</h4>
+                                                            <div className="flex items-end gap-1 h-32">
+                                                                {(() => {
+                                                                    const maxVisits = Math.max(...seoAnalytics.dailyVisitors.map((d: any) => d.visits), 1)
+                                                                    return seoAnalytics.dailyVisitors.map((d: any, i: number) => (
+                                                                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+                                                                                {d.date}: {d.visits}명
+                                                                            </div>
+                                                                            <div
+                                                                                className="w-full bg-accent-primary/70 rounded-t-sm hover:bg-accent-primary transition-colors cursor-pointer"
+                                                                                style={{ height: `${Math.max((d.visits / maxVisits) * 100, 2)}%` }}
+                                                                            />
+                                                                            {seoAnalytics.dailyVisitors.length <= 14 && (
+                                                                                <span className="text-[9px] text-text-tertiary">{d.date.slice(5)}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    ))
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Two column: Referrers + Countries */}
+                                                    <div className="grid md:grid-cols-2 gap-4">
+                                                        {/* Top Referrers */}
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">🔗 유입 경로 TOP 10</h4>
+                                                            {seoAnalytics.topReferrers?.length > 0 ? (
+                                                                <div className="space-y-2">
+                                                                    {seoAnalytics.topReferrers.slice(0, 10).map((ref: any, i: number) => {
+                                                                        const maxRef = seoAnalytics.topReferrers[0]?.count || 1
+                                                                        return (
+                                                                            <div key={i} className="flex items-center gap-2">
+                                                                                <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
+                                                                                <div className="flex-1">
+                                                                                    <div className="flex justify-between mb-0.5">
+                                                                                        <span className="text-xs text-text-primary truncate max-w-[150px]">
+                                                                                            {ref.domain === 'direct' ? '🏠 직접 방문' : ref.domain}
+                                                                                        </span>
+                                                                                        <span className="text-xs text-text-tertiary">{ref.count}</span>
+                                                                                    </div>
+                                                                                    <div className="w-full bg-white/5 rounded-full h-1.5">
+                                                                                        <div className="bg-blue-500 rounded-full h-1.5" style={{ width: `${(ref.count / maxRef) * 100}%` }} />
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Country Distribution */}
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">🌍 국가별 방문자</h4>
+                                                            {seoAnalytics.countryDistribution?.length > 0 ? (
+                                                                <div className="space-y-2">
+                                                                    {seoAnalytics.countryDistribution.slice(0, 10).map((c: any, i: number) => {
+                                                                        const maxC = seoAnalytics.countryDistribution[0]?.count || 1
+                                                                        return (
+                                                                            <div key={i} className="flex items-center gap-2">
+                                                                                <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
+                                                                                <div className="flex-1">
+                                                                                    <div className="flex justify-between mb-0.5">
+                                                                                        <span className="text-xs text-text-primary">{c.name} ({c.code})</span>
+                                                                                        <span className="text-xs text-text-tertiary">{c.count}</span>
+                                                                                    </div>
+                                                                                    <div className="w-full bg-white/5 rounded-full h-1.5">
+                                                                                        <div className="bg-green-500 rounded-full h-1.5" style={{ width: `${(c.count / maxC) * 100}%` }} />
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Two column: Bot Activity + Popular Pages */}
+                                                    <div className="grid md:grid-cols-2 gap-4">
+                                                        {/* Bot Activity */}
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">🤖 크롤러 활동</h4>
+                                                            {seoAnalytics.botDistribution?.length > 0 ? (
+                                                                <div className="space-y-2">
+                                                                    {seoAnalytics.botDistribution.slice(0, 10).map((bot: any, i: number) => (
+                                                                        <div key={i} className="flex justify-between items-center py-1 border-b border-white/5 last:border-0">
+                                                                            <span className="text-xs text-text-primary">
+                                                                                {bot.name === 'googlebot' ? '🔍 Googlebot' :
+                                                                                    bot.name === 'bingbot' ? '🔎 Bingbot' :
+                                                                                        bot.name === 'yandexbot' ? '🇷🇺 Yandex' :
+                                                                                            bot.name === 'applebot' ? '🍎 Applebot' :
+                                                                                                bot.name === 'twitterbot' ? '🐦 Twitterbot' :
+                                                                                                    bot.name === 'facebot' ? '📘 Facebook' :
+                                                                                                        bot.name === 'naverbot' || bot.name === 'yeti' ? '🇰🇷 Naver' :
+                                                                                                            bot.name === 'semrushbot' ? '📊 Semrush' :
+                                                                                                                bot.name === 'ahrefsbot' ? '📊 Ahrefs' :
+                                                                                                                    bot.name}
+                                                                            </span>
+                                                                            <span className="text-xs font-mono text-cyan-400">{bot.count}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-text-tertiary">아직 크롤러 활동이 없습니다</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Popular Pages */}
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">📄 인기 페이지 TOP 10</h4>
+                                                            {seoAnalytics.topPages?.length > 0 ? (
+                                                                <div className="space-y-2">
+                                                                    {seoAnalytics.topPages.slice(0, 10).map((pg: any, i: number) => (
+                                                                        <div key={i} className="flex justify-between items-center py-1 border-b border-white/5 last:border-0">
+                                                                            <span className="text-xs text-text-primary truncate max-w-[200px]">{pg.path}</span>
+                                                                            <span className="text-xs font-mono text-amber-400">{pg.count}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Hourly Distribution */}
+                                                    {seoAnalytics.hourlyDistribution && (
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">⏰ 시간대별 방문 (UTC)</h4>
+                                                            <div className="flex items-end gap-0.5 h-20">
+                                                                {(() => {
+                                                                    const maxH = Math.max(...seoAnalytics.hourlyDistribution, 1)
+                                                                    return seoAnalytics.hourlyDistribution.map((count: number, hr: number) => (
+                                                                        <div key={hr} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                                                                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+                                                                                {hr}시: {count}
+                                                                            </div>
+                                                                            <div
+                                                                                className="w-full bg-purple-500/60 rounded-t-sm hover:bg-purple-500 transition-colors cursor-pointer"
+                                                                                style={{ height: `${Math.max((count / maxH) * 100, 2)}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    ))
+                                                                })()}
+                                                            </div>
+                                                            <div className="flex justify-between mt-1">
+                                                                <span className="text-[9px] text-text-tertiary">0시</span>
+                                                                <span className="text-[9px] text-text-tertiary">6시</span>
+                                                                <span className="text-[9px] text-text-tertiary">12시</span>
+                                                                <span className="text-[9px] text-text-tertiary">18시</span>
+                                                                <span className="text-[9px] text-text-tertiary">23시</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* SEO Health Score */}
+                                                    {seoAnalytics.seoHealth && (
+                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">✅ SEO 건강도</h4>
+                                                            <div className="flex items-center gap-4 mb-3">
+                                                                <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                                                                    <span className="text-xl font-bold text-green-400">{seoAnalytics.seoHealth.score}</span>
+                                                                </div>
+                                                                <div className="text-sm text-text-secondary">
+                                                                    <p>SEO 최적화 상태가 양호합니다</p>
+                                                                    <p className="text-xs text-text-tertiary mt-1">모든 SEO 요소가 정상 적용됨</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                {[
+                                                                    { label: 'Sitemap', ok: seoAnalytics.seoHealth.hasSitemap },
+                                                                    { label: 'Robots.txt', ok: seoAnalytics.seoHealth.hasRobotsTxt },
+                                                                    { label: 'Google 인증', ok: seoAnalytics.seoHealth.hasGoogleVerification },
+                                                                    { label: 'Analytics', ok: seoAnalytics.seoHealth.hasAnalytics },
+                                                                    { label: 'OG Tags', ok: seoAnalytics.seoHealth.hasOgTags },
+                                                                    { label: 'JSON-LD', ok: seoAnalytics.seoHealth.hasJsonLd },
+                                                                ].map((item, i) => (
+                                                                    <div key={i} className={`text-xs px-2 py-1.5 rounded-lg text-center ${item.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                                                        {item.ok ? '✅' : '❌'} {item.label}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div className="bg-bg-primary rounded-xl p-6 border border-white/10">
                                             <h3 className="font-semibold mb-4 text-accent-primary">📄 검색 엔진 파일</h3>
                                             <div className="space-y-4">

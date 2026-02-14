@@ -5,6 +5,7 @@ import { StreamerProvider } from '@/contexts/StreamerContext'
 import { SiteSettingsProvider } from '@/contexts/SiteSettingsContext'
 import { WebSiteSchema, OrganizationSchema } from '@/components/JsonLd'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
+import PageTracker from '@/components/PageTracker'
 import Script from 'next/script'
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
@@ -105,6 +106,7 @@ export default async function RootLayout({
                     <ThemeContextProvider>
                         <SiteSettingsProvider>
                             <GoogleAnalytics />
+                            <PageTracker />
                             <AuthProvider>
                                 <StreamerProvider>
                                     {children}
