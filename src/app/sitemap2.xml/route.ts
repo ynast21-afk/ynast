@@ -184,11 +184,10 @@ export async function GET() {
         }
 
         // Video: structured video sitemap entry
-        // ONLY for FREE videos with actual mp4 URL (content_loc)
-        // VIP videos are excluded — Google rejects player_loc == loc
-        const hasRealVideoUrl = !video.isVip && video.videoUrl && video.videoUrl.startsWith('http')
-
-        if (video.thumbnailUrl && hasRealVideoUrl) {
+        // ALL videos get <video:video> (both free and VIP)
+        // content_loc only for free videos with actual mp4 URL
+        // VIP videos get thumbnail + title + description (enough for Google Video Search)
+        if (video.thumbnailUrl) {
             const thumbUrl = video.thumbnailUrl.startsWith('http')
                 ? video.thumbnailUrl
                 : `${BASE_URL}${video.thumbnailUrl}`
@@ -207,16 +206,20 @@ export async function GET() {
 
             const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.`
 
+            // content_loc only for free videos with real mp4 URL
+            const hasRealVideoUrl = !video.isVip && video.videoUrl && video.videoUrl.startsWith('http')
+
             xml += `
     <video:video>
       <video:thumbnail_loc>${escapeXml(thumbUrl)}</video:thumbnail_loc>
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
-      <video:description>${escapeXml(description)}</video:description>
-      <video:content_loc>${escapeXml(video.videoUrl as string)}</video:content_loc>
+      <video:description>${escapeXml(description)}</video:description>${hasRealVideoUrl ? `
+      <video:content_loc>${escapeXml(video.videoUrl as string)}</video:content_loc>` : ''}
       <video:duration>${durationSeconds}</video:duration>
       <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
-      <video:live>no</video:live>${video.views !== undefined ? `
+      <video:live>no</video:live>${video.isVip ? `
+      <video:requires_subscription>yes</video:requires_subscription>` : ''}${video.views !== undefined ? `
       <video:view_count>${video.views}</video:view_count>` : ''}`
 
             // INDIVIDUAL <video:tag> elements (Google spec, max 32)
