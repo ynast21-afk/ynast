@@ -9,10 +9,12 @@ const BASE_URL = 'https://kdance.xyz'
 /**
  * Unified Sitemap (sitemap2.xml)
  * Combines: URL sitemap + Image sitemap + Video sitemap
- * - All static pages (home, videos, actors, tags, etc.)
- * - Dynamic video pages with <image:image> + <video:video>
- * - Dynamic streamer pages with <image:image>
- * - Dynamic tag pages
+ *
+ * Fixes applied:
+ * - Safe date parsing (prevents '1d ago' etc. from breaking XML)
+ * - <video:tag> as individual tags (Google spec)
+ * - <video:content_loc> for free videos only (VIP protected)
+ * - <video:player_loc> removed (page URL ≠ embed player)
  *
  * References:
  * - https://developers.google.com/search/docs/crawling-indexing/sitemaps/image-sitemaps
@@ -83,6 +85,7 @@ export async function GET() {
         { loc: `${BASE_URL}/contact`, priority: '0.5', changefreq: 'monthly' },
         { loc: `${BASE_URL}/docs/terms`, priority: '0.3', changefreq: 'monthly' },
         { loc: `${BASE_URL}/docs/refund`, priority: '0.3', changefreq: 'monthly' },
+        { loc: `${BASE_URL}/docs/privacy`, priority: '0.3', changefreq: 'monthly' },
         { loc: `${BASE_URL}/dmca`, priority: '0.3', changefreq: 'monthly' },
     ]
 
@@ -155,14 +158,15 @@ export async function GET() {
         const koreanName = streamer?.koreanName || ''
         const displayName = koreanName ? `${streamerName} (${koreanName})` : streamerName
         const tags = video.tags || []
-        const tagString = tags.map((t: string) => t.replace('#', '')).join(', ')
 
-        const lastmod = video.createdAt || video.uploadedAt || now
+        // SAFE date: only use valid ISO dates, fallback to now
+        const safeDate = safeISODate(video.createdAt) || now
+        const safePubDate = safeISODate(video.createdAt) || now
 
         xml += `
   <url>
     <loc>${BASE_URL}/video/${videoId}</loc>
-    <lastmod>${lastmod}</lastmod>
+    <lastmod>${safeDate}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>`
 
@@ -180,7 +184,7 @@ export async function GET() {
         }
 
         // Video: structured video sitemap entry
-        // Only include for videos that have a thumbnail (Google requires it)
+        // Google requires: thumbnail_loc, title, description, AND (content_loc OR player_loc)
         if (video.thumbnailUrl) {
             const thumbUrl = video.thumbnailUrl.startsWith('http')
                 ? video.thumbnailUrl
@@ -196,21 +200,38 @@ export async function GET() {
                     durationSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2])
                 }
             }
+            if (isNaN(durationSeconds) || durationSeconds <= 0) durationSeconds = 300
 
-            const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.${tagString ? ` Tags: ${tagString}` : ''}`
+            const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.`
+
+            // content_loc: only for FREE videos (VIP content protected)
+            const hasContentUrl = !video.isVip && video.videoUrl && video.videoUrl.startsWith('http')
 
             xml += `
     <video:video>
       <video:thumbnail_loc>${escapeXml(thumbUrl)}</video:thumbnail_loc>
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
-      <video:description>${escapeXml(description)}</video:description>
-      <video:player_loc>${escapeXml(`${BASE_URL}/video/${videoId}`)}</video:player_loc>
+      <video:description>${escapeXml(description)}</video:description>${hasContentUrl ? `
+      <video:content_loc>${escapeXml(video.videoUrl as string)}</video:content_loc>` : `
+      <video:player_loc>${escapeXml(`${BASE_URL}/video/${videoId}`)}</video:player_loc>`}
       <video:duration>${durationSeconds}</video:duration>
-      <video:publication_date>${video.createdAt || now}</video:publication_date>
+      <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
       <video:live>no</video:live>${video.views !== undefined ? `
-      <video:view_count>${video.views}</video:view_count>` : ''}${tagString ? `
-      <video:tag>${escapeXml(tagString)}</video:tag>` : ''}
+      <video:view_count>${video.views}</video:view_count>` : ''}`
+
+            // INDIVIDUAL <video:tag> elements (Google spec, max 32)
+            const cleanTags = tags
+                .map((t: string) => t.trim().replace(/^#/, ''))
+                .filter((t: string) => t.length > 0)
+                .slice(0, 32)
+
+            for (const tag of cleanTags) {
+                xml += `
+      <video:tag>${escapeXml(tag)}</video:tag>`
+            }
+
+            xml += `
     </video:video>`
         }
 
@@ -240,6 +261,29 @@ export async function GET() {
             'Cache-Control': 'public, max-age=3600, s-maxage=3600',
         },
     })
+}
+
+/**
+ * Safely parse a date string to ISO format.
+ * Returns null if the input is not a valid date (e.g. '1d ago', '2w ago').
+ * Accepts: ISO strings, 'YYYY-MM-DD', Date-parseable strings.
+ */
+function safeISODate(dateStr: string | undefined | null): string | null {
+    if (!dateStr) return null
+
+    // Reject obvious relative time strings like '1d ago', '2w ago', etc.
+    if (/\d+[dhwm]\s*ago/i.test(dateStr)) return null
+    if (/ago$/i.test(dateStr)) return null
+
+    try {
+        const d = new Date(dateStr)
+        // Check for valid date (not NaN) and reasonable year range
+        if (isNaN(d.getTime())) return null
+        if (d.getFullYear() < 2000 || d.getFullYear() > 2100) return null
+        return d.toISOString()
+    } catch {
+        return null
+    }
 }
 
 function escapeXml(str: string): string {
