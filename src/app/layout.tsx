@@ -45,29 +45,19 @@ export const metadata: Metadata = {
         siteName: 'kStreamer dance',
         title: 'kStreamer dance - Premium K-Pop Dance Video Platform',
         description: 'Exclusive K-Pop dance content from top creators worldwide',
-        images: [
-            {
-                url: '/og-image.png',
-                width: 1200,
-                height: 630,
-                alt: 'kStreamer dance - Premium Dance Platform',
-            },
-        ],
+        images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'kStreamer dance - Premium Dance Platform' }],
     },
     twitter: {
         card: 'summary_large_image',
         title: 'kStreamer dance - Premium K-Pop Dance Platform',
         description: 'Exclusive K-Pop dance content from top creators worldwide',
-        images: ['/og-image.png'],
+        images: ['/opengraph-image'],
         creator: '@kstreamer',
     },
     alternates: {
         canonical: BASE_URL,
     },
-    icons: {
-        icon: '/favicon.ico',
-        apple: '/apple-touch-icon.png',
-    },
+
     verification: {
         google: 'PGHas2jC0El3qCIlvDw2pNXSxILX2fB0rjAmcg36AWg',
     },

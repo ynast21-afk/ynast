@@ -10,6 +10,24 @@ interface PageProps {
 
 const BASE_URL = 'https://kdance.xyz'
 
+/**
+ * Safely parse a date string to ISO format.
+ * Rejects relative dates like '1d ago', '2w ago'.
+ */
+function safeISODate(dateStr: string | undefined | null): string | null {
+    if (!dateStr) return null
+    if (/\d+[dhwm]\s*ago/i.test(dateStr)) return null
+    if (/ago$/i.test(dateStr)) return null
+    try {
+        const d = new Date(dateStr)
+        if (isNaN(d.getTime())) return null
+        if (d.getFullYear() < 2000 || d.getFullYear() > 2100) return null
+        return d.toISOString()
+    } catch {
+        return null
+    }
+}
+
 async function getVideoData(id: string) {
     // 1. Try B2 Database
     const db = await getDatabase()
@@ -104,7 +122,7 @@ export async function generateMetadata(
             // Additional meta tags for better discoverability
             'article:tag': tags.join(','),
             'article:author': streamerName,
-            'article:published_time': video.createdAt || new Date().toISOString(),
+            'article:published_time': safeISODate(video.createdAt) || new Date().toISOString(),
         },
     }
 }
@@ -154,7 +172,7 @@ export default async function VideoPage({ params }: PageProps) {
                 name={video.title}
                 description={`${streamerName}${streamerKoreanName ? ` (${streamerKoreanName})` : ''}의 댄스 비디오. ${video.duration} 동안의 퍼포먼스. ${tags.map((t: string) => `#${t.replace('#', '')}`).join(' ')}`}
                 thumbnailUrl={thumbnail}
-                uploadDate={video.createdAt || new Date().toISOString()}
+                uploadDate={safeISODate(video.createdAt) || new Date().toISOString()}
                 duration={isoDuration}
                 embedUrl={`${BASE_URL}/video/${video.id}`}
                 contentUrl={video.isVip ? undefined : video.videoUrl}
