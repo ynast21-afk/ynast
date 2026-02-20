@@ -268,6 +268,7 @@ export default function AdminPage() {
     const [tweetHistory, setTweetHistory] = useState<string[]>([]) // videoIds that have been tweeted
     const [gifScriptLoaded, setGifScriptLoaded] = useState(false)
     const [twitterMediaType, setTwitterMediaType] = useState<'images' | 'video'>('images')
+    const [twitterMentStyle, setTwitterMentStyle] = useState<'standard' | 'influencer'>('standard')
 
     // AI Auto-Tagging states (v3.4)
     const [isGeneratingAiTags, setIsGeneratingAiTags] = useState(false)
@@ -473,6 +474,120 @@ export default function AdminPage() {
             .catch(() => { })
     }, [])
 
+    // Helper: Extract frames from video URL using canvas (for link-uploaded videos without previewUrls)
+    const extractFramesForTwitter = async (videoSrc: string, authToken: string | null, frameCount: number = 3): Promise<Blob[]> => {
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video')
+            video.crossOrigin = 'anonymous'
+            video.preload = 'auto'
+            video.muted = true
+
+            // Add auth header via fetch + object URL for proxy
+            const loadVideo = async () => {
+                try {
+                    const headers: Record<string, string> = {}
+                    if (authToken) {
+                        headers['Authorization'] = `Bearer ${authToken}`
+                    }
+                    const response = await fetch(videoSrc, { headers })
+                    if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`)
+                    const blob = await response.blob()
+                    video.src = URL.createObjectURL(blob)
+                } catch (err) {
+                    // Fallback: try direct src
+                    video.src = videoSrc
+                }
+            }
+
+            video.onloadedmetadata = () => {
+                const duration = video.duration
+                if (!duration || duration < 1) {
+                    resolve([])
+                    return
+                }
+
+                const canvas = document.createElement('canvas')
+                const ctx = canvas.getContext('2d')
+                if (!ctx) {
+                    resolve([])
+                    return
+                }
+
+                canvas.width = Math.min(video.videoWidth, 1280)
+                canvas.height = Math.round(canvas.width * (video.videoHeight / video.videoWidth))
+
+                const frames: Blob[] = []
+                // Pick frames at 10%, 40%, 70% of video duration
+                const timePoints = [0.1, 0.4, 0.7].slice(0, frameCount).map(p => p * duration)
+                let currentFrame = 0
+
+                const captureFrame = () => {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                    canvas.toBlob((blob) => {
+                        if (blob) frames.push(blob)
+                        currentFrame++
+                        if (currentFrame < timePoints.length) {
+                            video.currentTime = timePoints[currentFrame]
+                        } else {
+                            // Clean up
+                            if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
+                            resolve(frames)
+                        }
+                    }, 'image/jpeg', 0.85)
+                }
+
+                video.onseeked = captureFrame
+                video.currentTime = timePoints[0]
+            }
+
+            video.onerror = () => {
+                if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
+                reject(new Error('Failed to load video for frame extraction'))
+            }
+
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
+                resolve([]) // Return empty instead of rejecting
+            }, 30000)
+
+            loadVideo()
+        })
+    }
+
+    // Helper: Upload extracted frame blobs to B2 via upload-preview API
+    const uploadFramesToB2 = async (frames: Blob[], videoId: string): Promise<string[]> => {
+        const urls: string[] = []
+        const token = adminToken || localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token')
+
+        for (let i = 0; i < frames.length; i++) {
+            try {
+                const formData = new FormData()
+                formData.append('file', frames[i], `twitter-frame-${videoId}-${i}.jpg`)
+                formData.append('videoId', videoId)
+                formData.append('type', 'preview')
+
+                const res = await fetch('/api/admin/twitter/upload-preview', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    body: formData
+                })
+
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.previewGifUrl) {
+                        urls.push(data.previewGifUrl)
+                    } else if (data.url) {
+                        urls.push(data.url)
+                    }
+                }
+            } catch (err) {
+                console.warn(`[Twitter] Failed to upload frame ${i}:`, err)
+            }
+        }
+        return urls
+    }
+
     const handleOpenTwitterModal = async (video: any) => {
         const streamer = streamers.find(s => s.id === video.streamerId)
         setTwitterModal({
@@ -494,7 +609,8 @@ export default function AdminPage() {
                     streamerName: streamer?.name || video.streamerName || 'Unknown',
                     streamerKoreanName: streamer?.koreanName || '',
                     tags: video.tags || [],
-                    videoUrl: `${BASE_URL}/video/${video.id}`
+                    videoUrl: `${BASE_URL}/video/${video.id}`,
+                    style: twitterMentStyle
                 })
             })
             const data = await res.json()
@@ -529,6 +645,28 @@ export default function AdminPage() {
                 mediaType = 'images'
                 if (video.previewUrls && video.previewUrls.length > 0) {
                     mediaUrls = video.previewUrls.slice(0, 3)
+                } else if (video.videoUrl) {
+                    // 링크 업로드 영상: previewUrls가 없으면 실시간 프레임 추출 시도
+                    try {
+                        console.log('[Twitter] No previewUrls, attempting real-time frame extraction...')
+                        const proxyUrl = `/api/proxy-video?url=${encodeURIComponent(video.videoUrl)}`
+                        const token = adminToken || localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token')
+                        const extractedFrames = await extractFramesForTwitter(proxyUrl, token, 3)
+                        if (extractedFrames.length > 0) {
+                            // B2에 업로드하여 URL 획득
+                            const uploadedUrls = await uploadFramesToB2(extractedFrames, video.id)
+                            if (uploadedUrls.length > 0) {
+                                mediaUrls = uploadedUrls
+                                console.log(`[Twitter] Extracted and uploaded ${uploadedUrls.length} frames`)
+                            }
+                        }
+                    } catch (frameErr) {
+                        console.warn('[Twitter] Frame extraction failed, falling back to thumbnail:', frameErr)
+                    }
+                    // 프레임 추출 실패 시 썸네일로 폴백
+                    if (mediaUrls.length === 0 && video.thumbnailUrl) {
+                        mediaUrls = [video.thumbnailUrl]
+                    }
                 } else if (video.thumbnailUrl) {
                     mediaUrls = [video.thumbnailUrl]
                 }
@@ -1802,6 +1940,39 @@ export default function AdminPage() {
                             </div>
                         ) : (
                             <>
+                                {/* Ment Style Selector */}
+                                <div className="mb-3">
+                                    <label className="block text-xs text-text-secondary mb-2">AI 멘트 스타일</label>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setTwitterMentStyle('standard')
+                                                if (twitterMentStyle !== 'standard') {
+                                                    // 스타일 변경 시 자동 재생성
+                                                    setTimeout(() => handleOpenTwitterModal(twitterModal.video), 100)
+                                                }
+                                            }}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${twitterMentStyle === 'standard' ? 'bg-sky-500/30 text-sky-300 border border-sky-400/50' : 'bg-white/5 text-text-tertiary border border-white/10 hover:bg-white/10'}`}
+                                        >
+                                            📋 기존 스타일
+                                            <span className="block text-[10px] mt-0.5 opacity-70">공식 프로모션 톤</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setTwitterMentStyle('influencer')
+                                                if (twitterMentStyle !== 'influencer') {
+                                                    // 스타일 변경 시 자동 재생성
+                                                    setTimeout(() => handleOpenTwitterModal(twitterModal.video), 100)
+                                                }
+                                            }}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${twitterMentStyle === 'influencer' ? 'bg-purple-500/30 text-purple-300 border border-purple-400/50' : 'bg-white/5 text-text-tertiary border border-white/10 hover:bg-white/10'}`}
+                                        >
+                                            🔥 인플루언서 스타일
+                                            <span className="block text-[10px] mt-0.5 opacity-70">자연스러운 SNS 톤</span>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {/* Tweet Text Editor */}
                                 <div className="mb-3">
                                     <label className="block text-xs text-text-secondary mb-1">게시글 내용</label>
