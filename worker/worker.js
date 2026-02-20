@@ -418,7 +418,7 @@ async function loginToSkbj() {
 }
 
 // ============================================
-// Extract video URL
+// Extract video URL + title + streamer hint
 // ============================================
 async function extractVideoUrl(pageUrl) {
     await loginToSkbj()
@@ -445,12 +445,111 @@ async function extractVideoUrl(pageUrl) {
         console.log(`   🔍 Navigating to: ${pageUrl}`)
         await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 })
 
-        await page.waitForFunction(() => !document.title.includes('Just a moment'), { timeout: 30000 }).catch(() => { })
+        // Cloudflare 대기 — 최대 30초, 2초 간격 재확인
+        for (let retry = 0; retry < 15; retry++) {
+            const currentTitle = await page.title()
+            if (!currentTitle.includes('Just a moment') && !currentTitle.includes('Checking')) break
+            console.log(`   ⏳ Cloudflare 대기 중... (${retry + 1}/15)`)
+            await new Promise(r => setTimeout(r, 2000))
+        }
         await new Promise(r => setTimeout(r, 3000))
 
-        const pageTitle = await page.title()
+        // ============================================
+        // 다중 전략 제목 추출 (Deep Scraping)
+        // ============================================
+        const pageTitle = await page.evaluate(() => {
+            // 1순위: OG title meta tag
+            const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content')
+            if (ogTitle && ogTitle.trim().length > 2) return ogTitle.trim()
 
-        // Click play button
+            // 2순위: twitter:title meta tag  
+            const twTitle = document.querySelector('meta[name="twitter:title"]')?.getAttribute('content')
+            if (twTitle && twTitle.trim().length > 2) return twTitle.trim()
+
+            // 3순위: h1 태그 (가장 큰 제목)
+            const h1 = document.querySelector('h1')?.textContent?.trim()
+            if (h1 && h1.length > 2 && h1.length < 200) return h1
+
+            // 4순위: 비디오 플레이어 근처 제목 영역
+            const videoTitleSelectors = [
+                '.video-title', '.title', '[class*="title"]',
+                '.video-info h2', '.video-details h2',
+                '.content-title', '.post-title',
+            ]
+            for (const sel of videoTitleSelectors) {
+                const el = document.querySelector(sel)
+                const text = el?.textContent?.trim()
+                if (text && text.length > 2 && text.length < 200) return text
+            }
+
+            // 5순위: h2 태그
+            const h2 = document.querySelector('h2')?.textContent?.trim()
+            if (h2 && h2.length > 2 && h2.length < 200) return h2
+
+            // 6순위: document.title (사이트명 제거)
+            const docTitle = document.title
+            if (docTitle && !docTitle.includes('Just a moment') && docTitle.length > 2) {
+                // " - site.com" 또는 " | site" 패턴 제거
+                return docTitle.replace(/\s*[-|]\s*[^-|]*$/, '').trim()
+            }
+
+            return ''
+        })
+        console.log(`   📝 추출된 제목: "${pageTitle || '(없음)'}" `)
+
+        // ============================================
+        // 스트리머 힌트 추출 (페이지에서)
+        // ============================================
+        const streamerHint = await page.evaluate(() => {
+            const hints = []
+
+            // 채널/업로더 관련 요소 탐색
+            const selectors = [
+                '.channel-name', '.uploader', '.uploader-name',
+                '[class*="author"]', '[class*="channel"]', '[class*="creator"]',
+                '[class*="username"]', '[class*="user-name"]',
+                '.video-info .name', '.video-uploader',
+                // 프로필 링크 텍스트
+            ]
+            for (const sel of selectors) {
+                const el = document.querySelector(sel)
+                const text = el?.textContent?.trim()
+                if (text && text.length > 1 && text.length < 50) {
+                    hints.push(text)
+                }
+            }
+
+            // 프로필/채널 링크에서 텍스트 추출
+            const profileLinks = document.querySelectorAll(
+                'a[href*="/user/"], a[href*="/channel/"], a[href*="/profile/"], a[href*="/model/"], a[href*="/actress/"], a[href*="/pornstar/"]'
+            )
+            profileLinks.forEach(a => {
+                const text = a.textContent?.trim()
+                if (text && text.length > 1 && text.length < 50) hints.push(text)
+                // href에서도 이름 추출
+                const href = a.getAttribute('href') || ''
+                const nameFromHref = href.split('/').filter(Boolean).pop()
+                if (nameFromHref && nameFromHref.length > 1) hints.push(nameFromHref)
+            })
+
+            // OG 또는 meta에서 추출
+            const ogAuthor = document.querySelector('meta[name="author"]')?.getAttribute('content')
+            if (ogAuthor) hints.push(ogAuthor)
+
+            // 태그/카테고리에서 추출
+            const tagElements = document.querySelectorAll('.tag, [class*="tag"], .category a, [class*="categor"] a')
+            tagElements.forEach(t => {
+                const text = t.textContent?.trim()
+                if (text && text.length > 1 && text.length < 30) hints.push(text)
+            })
+
+            return [...new Set(hints)]
+        })
+        if (streamerHint.length > 0) {
+            console.log(`   👤 스트리머 힌트: [${streamerHint.slice(0, 5).join(', ')}]`)
+        }
+
+        // Click play button to trigger video URL loading
         const playSelectors = ['button.play-btn', 'button.vjs-big-play-button', '.video-play-button', '.play-button', 'button[aria-label="Play"]', '.vjs-poster', 'video', '.plyr__control--overlaid', '[data-plyr="play"]']
         for (const sel of playSelectors) {
             try {
@@ -472,7 +571,7 @@ async function extractVideoUrl(pageUrl) {
             return sources
         })
 
-        // Extract from HTML
+        // Extract from HTML source
         const html = await page.content()
         const htmlUrls = []
         const patterns = [/https?:\/\/[^"'\s<>]+\.mp4[^"'\s<>]*/gi, /https?:\/\/[^"'\s<>]+\.m3u8[^"'\s<>]*/gi]
@@ -500,7 +599,12 @@ async function extractVideoUrl(pageUrl) {
         }
 
         await page.close()
-        return { videoUrl: bestUrl || null, pageTitle: pageTitle?.replace(/ - .*$/, '').trim() || '', cookieString }
+        return {
+            videoUrl: bestUrl || null,
+            pageTitle: pageTitle || '',
+            streamerHint: streamerHint || [],
+            cookieString,
+        }
     } catch (err) {
         try { await page.close() } catch { }
         throw err
@@ -670,11 +774,34 @@ async function processJob(job) {
         if (!result.videoUrl) throw new Error('영상 URL을 찾을 수 없습니다. worker/temp/video_debug.png 확인')
 
         console.log(`   📎 영상 URL: ${result.videoUrl.substring(0, 80)}...`)
-        const title = job.title || result.pageTitle || ''
+        // ============================================
+        // 제목 결정: 다중 소스 + slug 정리 폴백
+        // ============================================
+        const extractedTitle = result.pageTitle || ''
+        const urlPath = new URL(job.sourceUrl).pathname
+        const rawSlug = (urlPath.split('/').pop() || '').replace(/\.[^.]+$/, '')
+        // URL slug를 사람이 읽을 수 있는 제목으로 변환
+        const cleanedSlug = rawSlug
+            .replace(/[_-]+/g, ' ')  // underscores, dashes → spaces
+            .replace(/\b\w/g, c => c.toUpperCase())  // 각 단어 첫글자 대문자
+            .trim()
+
+        let title = ''
+        if (job.titleSource === 'fileName') {
+            // fileName 모드: 파일명 대신 URL slug 사용 (해시값 방지)
+            title = cleanedSlug || extractedTitle || job.title || 'Untitled'
+        } else {
+            // pageTitle 모드 (기본): 추출된 제목 → 수동 제목 → slug 순
+            title = job.title || extractedTitle || cleanedSlug || 'Untitled'
+        }
+        console.log(`   📋 최종 제목 결정: "${title}"`)
+        console.log(`     ├ 수동 입력: "${job.title || '(없음)'}"`)
+        console.log(`     ├ 페이지 추출: "${extractedTitle || '(없음)'}"`)
+        console.log(`     └ URL slug: "${cleanedSlug || '(없음)'}"`)
 
         await apiRequest('/api/queue/update', 'POST', {
             jobId: job.id, progress: 10,
-            title: job.titleSource === 'pageTitle' ? title : job.title,
+            title: title,
         })
 
         // Download
@@ -714,13 +841,13 @@ async function processJob(job) {
 
         await apiRequest('/api/queue/update', 'POST', {
             jobId: job.id, progress: 50,
-            title: job.titleSource === 'fileName' ? path.parse(fileName).name : title,
+            title: title,
         })
 
         // B2에 직접 업로드
         const b2Url = await uploadToB2(activeFile, fileName, job.id)
 
-        const finalTitle = job.titleSource === 'fileName' ? path.parse(fileName).name : title
+        const finalTitle = title
 
         await apiRequest('/api/queue/update', 'POST', {
             jobId: job.id, status: 'done', progress: 100, b2Url,
@@ -731,16 +858,14 @@ async function processJob(job) {
         // Register video in the site database
         // ============================================
         try {
-            // Determine streamer: prefer job-provided values, fallback to smart URL matching
+            // Determine streamer: prefer job-provided values, fallback to smart matching
             let streamerName = job.streamerName || null
             let streamerId = job.streamerId || null
 
             // Extract slug from URL for matching
-            const urlPath = new URL(job.sourceUrl).pathname
-            const slug = (urlPath.split('/').pop() || '').toLowerCase().replace(/\.[^.]+$/, '')
+            const slug = rawSlug.toLowerCase()
 
             if (!streamerName) {
-                // Try to match streamer from URL slug against DB first
                 try {
                     const dbCheck = await apiRequest('/api/db')
                     if (dbCheck && dbCheck.streamers) {
@@ -748,24 +873,64 @@ async function processJob(job) {
                         const sortedStreamers = [...dbCheck.streamers].sort((a, b) =>
                             (b.name?.length || 0) - (a.name?.length || 0)
                         )
-                        const matched = sortedStreamers.find(s =>
-                            slug.includes(s.id?.toLowerCase()) ||
-                            slug.includes(s.name?.toLowerCase()) ||
-                            (s.koreanName && slug.includes(s.koreanName.toLowerCase()))
-                        )
+
+                        let matched = null
+
+                        // 1단계: streamerHint (페이지 스크래핑 결과) 매칭 — 가장 정확
+                        if (result.streamerHint && result.streamerHint.length > 0) {
+                            for (const hint of result.streamerHint) {
+                                const hintLower = hint.toLowerCase()
+                                matched = sortedStreamers.find(s =>
+                                    hintLower.includes(s.name?.toLowerCase()) ||
+                                    hintLower.includes(s.id?.toLowerCase()) ||
+                                    (s.koreanName && hintLower.includes(s.koreanName.toLowerCase())) ||
+                                    s.name?.toLowerCase().includes(hintLower) ||
+                                    s.id?.toLowerCase().includes(hintLower) ||
+                                    (s.koreanName && s.koreanName.toLowerCase().includes(hintLower))
+                                )
+                                if (matched) {
+                                    console.log(`   👤 페이지 힌트에서 스트리머 매칭: "${hint}" → ${matched.name} (${matched.koreanName || ''})`)
+                                    break
+                                }
+                            }
+                        }
+
+                        // 2단계: 제목에서 스트리머 매칭
+                        if (!matched && extractedTitle) {
+                            const titleLower = extractedTitle.toLowerCase()
+                            matched = sortedStreamers.find(s =>
+                                titleLower.includes(s.name?.toLowerCase()) ||
+                                (s.koreanName && titleLower.includes(s.koreanName.toLowerCase()))
+                            )
+                            if (matched) {
+                                console.log(`   👤 제목에서 스트리머 매칭: "${extractedTitle}" → ${matched.name}`)
+                            }
+                        }
+
+                        // 3단계: URL slug에서 매칭 (기존 로직)
+                        if (!matched) {
+                            matched = sortedStreamers.find(s =>
+                                slug.includes(s.id?.toLowerCase()) ||
+                                slug.includes(s.name?.toLowerCase()) ||
+                                (s.koreanName && slug.includes(s.koreanName.toLowerCase()))
+                            )
+                            if (matched) {
+                                console.log(`   👤 URL slug에서 스트리머 매칭: ${matched.name} (${matched.koreanName || ''})`)
+                            }
+                        }
+
                         if (matched) {
                             streamerId = matched.id
                             streamerName = matched.name
-                            console.log(`   👤 URL에서 스트리머 자동 매칭: ${matched.name} (${matched.koreanName || ''}) → id: ${matched.id}`)
                         }
                     }
                 } catch { }
 
-                // Fallback: extract last segment after dash
+                // Fallback: URL slug에서 마지막 세그먼트 추출
                 if (!streamerName) {
-                    const parts = slug.split('-')
+                    const parts = slug.split('-').filter(p => p.length > 1)
                     streamerName = parts[parts.length - 1] || 'unknown'
-                    console.log(`   👤 URL 끝부분에서 스트리머 추출: ${streamerName}`)
+                    console.log(`   👤 URL 끝부분에서 스트리머 추출(폴백): ${streamerName}`)
                 }
             }
 
