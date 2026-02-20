@@ -612,6 +612,42 @@ function downloadFile(url, destPath, cookies = '', onProgress = null) {
 }
 
 // ============================================
+// Detect video codec using ffprobe
+// ============================================
+function detectCodec(filePath) {
+    try {
+        const codec = execSync(
+            `ffprobe -v error -analyzeduration 100M -probesize 100M -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+            { encoding: 'utf8', timeout: 30000 }
+        ).trim().toLowerCase()
+        return codec
+    } catch (e) {
+        console.warn(`   ⚠️ 코덱 감지 실패:`, e.message)
+        return 'unknown'
+    }
+}
+
+// ============================================
+// Transcode HEVC to H.264 for browser compatibility
+// ============================================
+function transcodeToH264(inputPath, outputPath, jobId = null) {
+    console.log(`   🔄 HEVC → H.264 트랜스코딩 시작...`)
+    try {
+        execSync(
+            `ffmpeg -y -i "${inputPath}" -c:v libx264 -crf 23 -preset medium -c:a aac -movflags +faststart "${outputPath}"`,
+            { timeout: 7200000, stdio: 'pipe' } // 2 hour timeout for long videos
+        )
+        const inputSize = (fs.statSync(inputPath).size / 1024 / 1024).toFixed(1)
+        const outputSize = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(1)
+        console.log(`   ✅ 트랜스코딩 완료: ${inputSize}MB → ${outputSize}MB`)
+        return true
+    } catch (e) {
+        console.error(`   ❌ 트랜스코딩 실패:`, e.message)
+        return false
+    }
+}
+
+// ============================================
 // Process a single job
 // ============================================
 async function processJob(job) {
@@ -622,6 +658,8 @@ async function processJob(job) {
     console.log(`${'─'.repeat(50)}`)
 
     const tempFile = path.join(TEMP_DIR, `dl_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp4`)
+    const transcodedFile = tempFile.replace('.mp4', '_h264.mp4')
+    let activeFile = tempFile // Points to the file we'll actually upload (original or transcoded)
 
     try {
         await apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress: 5 })
@@ -652,13 +690,35 @@ async function processJob(job) {
         } catch { }
         if (!path.extname(fileName)) fileName += '.mp4'
 
+        // ============================================
+        // HEVC Detection & Auto-Transcoding
+        // ============================================
+        const codec = detectCodec(tempFile)
+        console.log(`   🎬 감지된 코덱: ${codec}`)
+
+        if (codec === 'hevc' || codec === 'h265') {
+            console.log(`   ⚠️ HEVC 코덱 감지 → H.264로 트랜스코딩 필요`)
+            await apiRequest('/api/queue/update', 'POST', {
+                jobId: job.id, progress: 45,
+            })
+
+            const success = transcodeToH264(tempFile, transcodedFile, job.id)
+            if (success && fs.existsSync(transcodedFile) && fs.statSync(transcodedFile).size > 0) {
+                activeFile = transcodedFile
+                console.log(`   ✅ H.264 변환 완료, 변환된 파일 사용`)
+            } else {
+                console.warn(`   ⚠️ 트랜스코딩 실패, 원본 파일 그대로 업로드`)
+                activeFile = tempFile
+            }
+        }
+
         await apiRequest('/api/queue/update', 'POST', {
             jobId: job.id, progress: 50,
             title: job.titleSource === 'fileName' ? path.parse(fileName).name : title,
         })
 
         // B2에 직접 업로드
-        const b2Url = await uploadToB2(tempFile, fileName, job.id)
+        const b2Url = await uploadToB2(activeFile, fileName, job.id)
 
         const finalTitle = job.titleSource === 'fileName' ? path.parse(fileName).name : title
 
@@ -667,29 +727,55 @@ async function processJob(job) {
             title: finalTitle,
         })
 
+        // ============================================
         // Register video in the site database
+        // ============================================
         try {
-            // Determine streamer: prefer job-provided values, fallback to URL extraction
+            // Determine streamer: prefer job-provided values, fallback to smart URL matching
             let streamerName = job.streamerName || null
             let streamerId = job.streamerId || null
 
+            // Extract slug from URL for matching
+            const urlPath = new URL(job.sourceUrl).pathname
+            const slug = (urlPath.split('/').pop() || '').toLowerCase().replace(/\.[^.]+$/, '')
+
             if (!streamerName) {
-                // Extract streamer name from source URL (e.g. "rud9281" from "2026-02-17_05-37-35-rud9281")
-                const urlPath = new URL(job.sourceUrl).pathname
-                const slug = urlPath.split('/').pop() || ''
-                const parts = slug.split('-')
-                streamerName = parts[parts.length - 1] || 'unknown'
-                // Remove file extension if present
-                streamerName = streamerName.replace(/\.[^.]+$/, '')
+                // Try to match streamer from URL slug against DB first
+                try {
+                    const dbCheck = await apiRequest('/api/db')
+                    if (dbCheck && dbCheck.streamers) {
+                        // Sort by name length (longest first) to match most specific name
+                        const sortedStreamers = [...dbCheck.streamers].sort((a, b) =>
+                            (b.name?.length || 0) - (a.name?.length || 0)
+                        )
+                        const matched = sortedStreamers.find(s =>
+                            slug.includes(s.id?.toLowerCase()) ||
+                            slug.includes(s.name?.toLowerCase()) ||
+                            (s.koreanName && slug.includes(s.koreanName.toLowerCase()))
+                        )
+                        if (matched) {
+                            streamerId = matched.id
+                            streamerName = matched.name
+                            console.log(`   👤 URL에서 스트리머 자동 매칭: ${matched.name} (${matched.koreanName || ''}) → id: ${matched.id}`)
+                        }
+                    }
+                } catch { }
+
+                // Fallback: extract last segment after dash
+                if (!streamerName) {
+                    const parts = slug.split('-')
+                    streamerName = parts[parts.length - 1] || 'unknown'
+                    console.log(`   👤 URL 끝부분에서 스트리머 추출: ${streamerName}`)
+                }
             }
 
             if (!streamerId) streamerId = streamerName
 
-            // Extract real video duration using ffprobe
+            // Extract real video duration using ffprobe (use activeFile for accurate results)
             let duration = '0:00'
             try {
                 const durationOutput = execSync(
-                    `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempFile}"`,
+                    `ffprobe -v error -analyzeduration 100M -probesize 100M -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${activeFile}"`,
                     { encoding: 'utf8', timeout: 30000 }
                 ).trim()
                 const totalSeconds = Math.round(parseFloat(durationOutput))
@@ -706,13 +792,13 @@ async function processJob(job) {
                 console.warn(`   ⚠️ ffprobe 실패:`, e.message)
             }
 
-            // Generate thumbnail using ffmpeg (capture at 5 seconds)
+            // Generate thumbnail using ffmpeg (capture at 5 seconds, use activeFile)
             let thumbnailUrl = undefined
-            const thumbFile = tempFile.replace(/\.[^.]+$/, '_thumb.jpg')
+            const thumbFile = activeFile.replace(/\.[^.]+$/, '_thumb.jpg')
             try {
                 execSync(
-                    `ffmpeg -y -i "${tempFile}" -ss 5 -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbFile}"`,
-                    { encoding: 'utf8', timeout: 30000, stdio: 'pipe' }
+                    `ffmpeg -y -analyzeduration 100M -probesize 100M -i "${activeFile}" -ss 5 -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbFile}"`,
+                    { encoding: 'utf8', timeout: 60000, stdio: 'pipe' }
                 )
                 if (fs.existsSync(thumbFile) && fs.statSync(thumbFile).size > 0) {
                     console.log(`   🖼️ 썸네일 생성 완료`)
@@ -726,11 +812,11 @@ async function processJob(job) {
                 if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile)
             }
 
-            // Generate 5 random preview frames for hover preview
+            // Generate 5 preview frames for hover preview (use activeFile)
             const previewUrls = []
             try {
                 const totalSeconds = Math.round(parseFloat(
-                    execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${tempFile}"`, { encoding: 'utf8', timeout: 15000 }).trim()
+                    execSync(`ffprobe -v error -analyzeduration 100M -probesize 100M -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${activeFile}"`, { encoding: 'utf8', timeout: 15000 }).trim()
                 ) || 0)
                 if (totalSeconds > 2) {
                     console.log(`   🎞️ 미리보기 프레임 5장 추출 중...`)
@@ -742,11 +828,11 @@ async function processJob(job) {
 
                     for (let i = 0; i < frameCount; i++) {
                         const seekTime = Math.min(start + step * i, end)
-                        const previewFile = tempFile.replace(/\.[^.]+$/, `_preview${i}.jpg`)
+                        const previewFile = activeFile.replace(/\.[^.]+$/, `_preview${i}.jpg`)
                         try {
                             execSync(
-                                `ffmpeg -y -ss ${seekTime} -i "${tempFile}" -vframes 1 -q:v 3 -vf "scale=480:-1" "${previewFile}"`,
-                                { encoding: 'utf8', timeout: 15000, stdio: 'pipe' }
+                                `ffmpeg -y -analyzeduration 100M -probesize 100M -ss ${seekTime} -i "${activeFile}" -vframes 1 -q:v 3 -vf "scale=480:-1" "${previewFile}"`,
+                                { encoding: 'utf8', timeout: 30000, stdio: 'pipe' }
                             )
                             if (fs.existsSync(previewFile) && fs.statSync(previewFile).size > 0) {
                                 const pvB2Name = `previews/${path.basename(fileName, path.extname(fileName))}_${i}.jpg`
@@ -765,25 +851,27 @@ async function processJob(job) {
                 console.warn(`   ⚠️ 미리보기 프레임 추출 실패:`, e.message)
             }
 
-            // Find or match streamer in database by id, name, or koreanName
-            try {
-                const dbRes = await apiRequest('/api/db')
-                if (dbRes && dbRes.streamers) {
-                    const found = dbRes.streamers.find(s =>
-                        s.id === streamerId ||
-                        s.name === streamerName ||
-                        s.id === streamerName ||
-                        (s.koreanName && s.koreanName === streamerName)
-                    )
-                    if (found) {
-                        streamerId = found.id
-                        if (!job.streamerName) streamerName = found.name
-                        console.log(`   👤 스트리머 매칭: ${found.name} (${found.koreanName || ''}) → id: ${found.id}`)
-                    } else {
-                        console.warn(`   ⚠️ 스트리머 "${streamerName}" DB에 없음 → streamerId: "${streamerId}"`)
+            // Find or match streamer in database (secondary check for job-provided streamers)
+            if (job.streamerName || job.streamerId) {
+                try {
+                    const dbRes = await apiRequest('/api/db')
+                    if (dbRes && dbRes.streamers) {
+                        const found = dbRes.streamers.find(s =>
+                            s.id === streamerId ||
+                            s.name === streamerName ||
+                            s.id === streamerName ||
+                            (s.koreanName && s.koreanName === streamerName)
+                        )
+                        if (found) {
+                            streamerId = found.id
+                            if (!job.streamerName) streamerName = found.name
+                            console.log(`   👤 스트리머 DB 매칭: ${found.name} (${found.koreanName || ''}) → id: ${found.id}`)
+                        } else {
+                            console.warn(`   ⚠️ 스트리머 "${streamerName}" DB에 없음 → streamerId: "${streamerId}"`)
+                        }
                     }
-                }
-            } catch { }
+                } catch { }
+            }
 
             const gradients = [
                 'from-pink-700 to-purple-700', 'from-blue-700 to-indigo-700',
@@ -834,7 +922,9 @@ async function processJob(job) {
             error: error.message?.substring(0, 500) || 'Unknown error',
         }).catch(e => console.error('상태 업데이트 실패:', e))
     } finally {
+        // Clean up both original and transcoded files
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
+        if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
     }
 }
 
