@@ -42,7 +42,9 @@ Thumbs.db
 
 setup-vercel-paddle.ps1
 
-# Local queue data
-data/
+# Local queue data (root only, not src/data/)
+/data/
+
+.vercel
 
 .vercel
