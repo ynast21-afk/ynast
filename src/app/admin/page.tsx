@@ -616,45 +616,53 @@ export default function AdminPage() {
                 if (video.previewUrls && video.previewUrls.length > 0) {
                     mediaUrls = video.previewUrls.slice(0, 3)
                 } else if (video.videoUrl) {
-                    // 링크 업로드 영상: previewUrls가 없으면 실시간 프레임 추출 시도
-                    try {
-                        console.log('[Twitter] No previewUrls, attempting streaming frame extraction...')
-                        // 비디오 URL을 직접 video 요소에 설정 (전체 다운로드 없이 스트리밍)
-                        const base64Frames = await extractFramesAsBase64(video.videoUrl, 3)
-                        if (base64Frames.length > 0) {
-                            console.log(`[Twitter] Extracted ${base64Frames.length} frames as base64`)
-                            // base64 이미지를 직접 서버에 전달 (B2 업로드 생략)
-                            const res = await fetchWithAuth('/api/admin/twitter/post', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    tweetText: fullText,
-                                    videoId: video.id,
-                                    videoTitle: video.title,
-                                    streamerName: video.streamerName,
-                                    base64Images: base64Frames,
-                                    mediaType: 'images',
-                                    videoClipUrl,
-                                    videoUrl: video.videoUrl,
-                                    thumbnailUrl: video.thumbnailUrl
+                    // previewUrls 없는 경우 (폴더 워처 등)
+                    const isB2Url = video.videoUrl.includes('backblazeb2.com')
+
+                    if (!isB2Url) {
+                        // 비-B2 URL: 브라우저에서 프레임 추출 시도 가능 (CORS OK)
+                        try {
+                            console.log('[Twitter] No previewUrls, attempting streaming frame extraction...')
+                            const base64Frames = await extractFramesAsBase64(video.videoUrl, 3)
+                            if (base64Frames.length > 0) {
+                                console.log(`[Twitter] Extracted ${base64Frames.length} frames as base64`)
+                                const res = await fetchWithAuth('/api/admin/twitter/post', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        tweetText: fullText,
+                                        videoId: video.id,
+                                        videoTitle: video.title,
+                                        streamerName: video.streamerName,
+                                        base64Images: base64Frames,
+                                        mediaType: 'images',
+                                        videoClipUrl,
+                                        videoUrl: video.videoUrl,
+                                        thumbnailUrl: video.thumbnailUrl
+                                    })
                                 })
-                            })
-                            const data = await res.json()
-                            if (data.success) {
-                                setTwitterModal(prev => prev ? { ...prev, isPosting: false, posted: true, tweetUrl: data.tweetUrl } : null)
-                                setTweetHistory(prev => [...prev, twitterModal.video.id])
-                            } else {
-                                setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: data.error || '트윗 게시 실패' } : null)
+                                const data = await res.json()
+                                if (data.success) {
+                                    setTwitterModal(prev => prev ? { ...prev, isPosting: false, posted: true, tweetUrl: data.tweetUrl } : null)
+                                    setTweetHistory(prev => [...prev, twitterModal.video.id])
+                                } else {
+                                    setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: data.error || '트윗 게시 실패' } : null)
+                                }
+                                return
                             }
-                            return // 이미 처리 완료
+                        } catch (frameErr) {
+                            console.warn('[Twitter] Frame extraction failed:', frameErr)
                         }
-                    } catch (frameErr) {
-                        console.warn('[Twitter] Frame extraction failed, falling back to thumbnail:', frameErr)
+                    } else {
+                        // B2 URL: 브라우저 CORS로 프레임 추출 불가 → 서버 폴백에 의존
+                        console.log('[Twitter] B2 URL detected, skipping client-side extraction (CORS), server will handle')
                     }
-                    // 프레임 추출 실패 시 썸네일로 폴백
+
+                    // thumbnailUrl이 있으면 직접 사용 (서버가 B2 인증으로 다운로드)
                     if (mediaUrls.length === 0 && video.thumbnailUrl) {
                         mediaUrls = [video.thumbnailUrl]
                     }
+                    // thumbnailUrl도 없으면 mediaUrls 빈 채로 서버에 전달 → 서버 폴백(videoUrl)
                 } else if (video.thumbnailUrl) {
                     mediaUrls = [video.thumbnailUrl]
                 }
