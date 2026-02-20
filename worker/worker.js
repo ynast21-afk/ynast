@@ -936,8 +936,9 @@ async function processJob(job) {
 
             if (!streamerId) streamerId = streamerName
 
-            // Extract real video duration using ffprobe (use activeFile for accurate results)
+            // Extract real video duration AND dimensions using ffprobe (use activeFile for accurate results)
             let duration = '0:00'
+            let videoOrientation = 'horizontal'
             try {
                 const durationOutput = execSync(
                     `ffprobe -v error -analyzeduration 100M -probesize 100M -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${activeFile}"`,
@@ -955,6 +956,21 @@ async function processJob(job) {
                 }
             } catch (e) {
                 console.warn(`   ⚠️ ffprobe 실패:`, e.message)
+            }
+
+            // Auto-detect orientation via ffprobe (width vs height)
+            try {
+                const dimOutput = execSync(
+                    `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${activeFile}"`,
+                    { encoding: 'utf8', timeout: 15000 }
+                ).trim()
+                const [w, h] = dimOutput.split(',').map(Number)
+                if (w > 0 && h > 0) {
+                    videoOrientation = h > w ? 'vertical' : 'horizontal'
+                    console.log(`   📐 영상 방향: ${w}x${h} → ${videoOrientation}`)
+                }
+            } catch (e) {
+                console.warn(`   ⚠️ 영상 방향 감지 실패:`, e.message)
             }
 
             // Generate thumbnail using ffmpeg (capture at 5 seconds, use activeFile)
@@ -1056,12 +1072,12 @@ async function processJob(job) {
                 minStreamingLevel: 'vip',
                 minDownloadLevel: 'vip',
                 gradient,
-                uploadedAt: 'Just now',
+                uploadedAt: new Date().toISOString(),
                 videoUrl: b2Url,
                 thumbnailUrl: thumbnailUrl || undefined,
                 previewUrls: previewUrls.length > 0 ? previewUrls : undefined,
                 tags: [],
-                orientation: 'horizontal',
+                orientation: videoOrientation,
             }
 
             const addRes = await apiRequest('/api/db/add-video', 'POST', {

@@ -1307,7 +1307,7 @@ export default function AdminPage() {
                     orientation: newVideo.orientation,
                     views: 0,
                     likes: 0,
-                    uploadedAt: 'Just now',
+                    uploadedAt: new Date().toISOString(),
                     videoUrl: videoUrl || undefined,
                     thumbnailUrl: thumbnailUrl || undefined,
                     previewUrls: previewUrls.length > 0 ? previewUrls : undefined,
@@ -1338,7 +1338,7 @@ export default function AdminPage() {
                 views: 0,
                 likes: 0,
                 gradient: streamer.gradient,
-                uploadedAt: 'Just now',
+                uploadedAt: new Date().toISOString(),
                 videoUrl: videoUrl || undefined,
                 tags: newVideo.tags.split(/[,\#]+/).map(t => t.trim()).filter(Boolean)
             })
