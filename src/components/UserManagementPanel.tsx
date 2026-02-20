@@ -35,6 +35,7 @@ export default function UserManagementPanel({ getAdminHeaders }: Props) {
     const [error, setError] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const [filterMembership, setFilterMembership] = useState<string>('all')
+    const [sortOption, setSortOption] = useState<string>('newest')
     const [visibleCount, setVisibleCount] = useState(6)
     const [editingUserId, setEditingUserId] = useState<string | null>(null)
     const [editMembership, setEditMembership] = useState<string>('guest')
@@ -147,18 +148,34 @@ export default function UserManagementPanel({ getAdminHeaders }: Props) {
         return Math.ceil(diff / (1000 * 60 * 60 * 24))
     }
 
-    const filteredUsers = users.filter(u => {
-        const matchesSearch = searchQuery === '' ||
-            u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchQuery.toLowerCase())
-        const matchesMembership = filterMembership === 'all' || u.membership === filterMembership
-        return matchesSearch && matchesMembership
-    })
+    const membershipOrder: Record<string, number> = { guest: 0, basic: 1, vip: 2, premium: 3 }
 
-    // 검색·필터 변경 시 표시 개수 리셋
+    const filteredUsers = users
+        .filter(u => {
+            const matchesSearch = searchQuery === '' ||
+                u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                u.email.toLowerCase().includes(searchQuery.toLowerCase())
+            const matchesMembership = filterMembership === 'all' || u.membership === filterMembership
+            return matchesSearch && matchesMembership
+        })
+        .sort((a, b) => {
+            switch (sortOption) {
+                case 'newest': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                case 'oldest': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                case 'recentLogin': return (new Date(b.lastLoginAt || 0).getTime()) - (new Date(a.lastLoginAt || 0).getTime())
+                case 'oldestLogin': return (new Date(a.lastLoginAt || 0).getTime()) - (new Date(b.lastLoginAt || 0).getTime())
+                case 'nameAsc': return a.name.localeCompare(b.name, 'ko')
+                case 'nameDesc': return b.name.localeCompare(a.name, 'ko')
+                case 'membershipAsc': return (membershipOrder[a.membership] ?? 0) - (membershipOrder[b.membership] ?? 0)
+                case 'membershipDesc': return (membershipOrder[b.membership] ?? 0) - (membershipOrder[a.membership] ?? 0)
+                default: return 0
+            }
+        })
+
+    // 검색·필터·정렬 변경 시 표시 개수 리셋
     useEffect(() => {
         setVisibleCount(6)
-    }, [searchQuery, filterMembership])
+    }, [searchQuery, filterMembership, sortOption])
 
     const displayedUsers = filteredUsers.slice(0, visibleCount)
     const hasMore = filteredUsers.length > visibleCount
@@ -210,15 +227,29 @@ export default function UserManagementPanel({ getAdminHeaders }: Props) {
                 ))}
             </div>
 
-            {/* Search */}
-            <div className="mb-4">
+            {/* Search + Sort */}
+            <div className="flex gap-3 mb-4">
                 <input
                     type="text"
                     placeholder="이름 또는 이메일로 검색..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-3 bg-bg-primary border border-white/10 rounded-xl text-sm focus:outline-none focus:border-accent-primary transition-colors"
+                    className="flex-1 px-4 py-3 bg-bg-primary border border-white/10 rounded-xl text-sm focus:outline-none focus:border-accent-primary transition-colors"
                 />
+                <select
+                    value={sortOption}
+                    onChange={e => setSortOption(e.target.value)}
+                    className="px-4 py-3 bg-bg-primary border border-white/10 rounded-xl text-sm text-text-secondary focus:outline-none focus:border-accent-primary transition-colors min-w-[160px] cursor-pointer"
+                >
+                    <option value="newest">🕐 가입 최신순</option>
+                    <option value="oldest">🕐 가입 오래된순</option>
+                    <option value="recentLogin">🔑 최근 로그인순</option>
+                    <option value="oldestLogin">🔑 오래된 로그인순</option>
+                    <option value="nameAsc">🔤 이름 A→Z</option>
+                    <option value="nameDesc">🔤 이름 Z→A</option>
+                    <option value="membershipDesc">👑 등급 높은순</option>
+                    <option value="membershipAsc">👑 등급 낮은순</option>
+                </select>
             </div>
 
             {/* Loading */}
