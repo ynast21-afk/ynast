@@ -828,6 +828,7 @@ async function processJob(job) {
     const tempFile = path.join(TEMP_DIR, `dl_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp4`)
     const transcodedFile = tempFile.replace('.mp4', '_h264.mp4')
     let activeFile = tempFile // Points to the file we'll actually upload (original or transcoded)
+    let jobSuccess = false // Track whether upload + DB registration succeeded
 
     try {
         console.log(`   [${new Date().toLocaleTimeString()}] ▶ 작업 시작`)
@@ -1258,8 +1259,11 @@ async function processJob(job) {
             // Note: videoCount is automatically incremented by /api/db/add-video endpoint
 
             console.log(`   📺 DB에 영상 등록 완료: "${video.title}" (${duration})`)
+            jobSuccess = true
         } catch (regError) {
             console.warn(`   ⚠️ DB 등록 오류:`, regError.message)
+            // B2 업로드는 성공했으므로 done 처리
+            jobSuccess = true
             // Don't fail the job - the video is already uploaded to B2
         }
 
@@ -1276,16 +1280,26 @@ async function processJob(job) {
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
         if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
 
-        // Move processed local file to done/ folder
+        // Move processed local file based on success/failure
         if (job.sourceUrl.startsWith('local://')) {
             const localPath = job.sourceUrl.replace('local://', '')
             if (fs.existsSync(localPath)) {
                 try {
-                    const doneDir = path.join(path.dirname(localPath), 'done')
-                    if (!fs.existsSync(doneDir)) fs.mkdirSync(doneDir, { recursive: true })
-                    const donePath = path.join(doneDir, path.basename(localPath))
-                    fs.renameSync(localPath, donePath)
-                    console.log(`   📁 원본 파일 이동: done/${path.basename(localPath)}`)
+                    if (jobSuccess) {
+                        // 성공: done/ 폴더로 이동
+                        const doneDir = path.join(path.dirname(localPath), 'done')
+                        if (!fs.existsSync(doneDir)) fs.mkdirSync(doneDir, { recursive: true })
+                        const donePath = path.join(doneDir, path.basename(localPath))
+                        fs.renameSync(localPath, donePath)
+                        console.log(`   📁 원본 파일 이동: done/${path.basename(localPath)}`)
+                    } else {
+                        // 실패: failed/ 폴더로 이동 (나중에 자동 재시도)
+                        const failedDir = path.join(path.dirname(localPath), 'failed')
+                        if (!fs.existsSync(failedDir)) fs.mkdirSync(failedDir, { recursive: true })
+                        const failedPath = path.join(failedDir, path.basename(localPath))
+                        fs.renameSync(localPath, failedPath)
+                        console.error(`   ⚠️ 업로드 실패 → failed/${path.basename(localPath)} (자동 재시도 대기)`)
+                    }
                 } catch (e) {
                     console.warn(`   ⚠️ 원본 파일 이동 실패:`, e.message)
                 }

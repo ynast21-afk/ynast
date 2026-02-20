@@ -230,6 +230,43 @@ async function scanExistingFiles() {
 }
 
 // ============================================
+// Retry failed uploads (scan failed/ folder)
+// ============================================
+const RETRY_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function retryFailedFiles() {
+    const failedDir = path.join(WATCH_DIR, 'failed')
+    if (!fs.existsSync(failedDir)) return
+
+    try {
+        const files = fs.readdirSync(failedDir)
+        const videoFiles = files.filter(f => VIDEO_EXTENSIONS.includes(path.extname(f).toLowerCase()))
+
+        if (videoFiles.length === 0) return
+
+        console.log(`\n🔄 failed/ 폴더에서 ${videoFiles.length}개 파일 재시도 중...`)
+        for (const file of videoFiles) {
+            const failedPath = path.join(failedDir, file)
+            const retryPath = path.join(WATCH_DIR, file)
+
+            // Skip if a file with same name is already in watch dir or being processed
+            if (fs.existsSync(retryPath) || processingFiles.has(retryPath)) continue
+
+            try {
+                // Remove from processedFiles set so it can be re-processed
+                processedFiles.delete(retryPath)
+                fs.renameSync(failedPath, retryPath)
+                console.log(`   🔁 재시도: ${file}`)
+            } catch (e) {
+                console.warn(`   ⚠️ 재시도 이동 실패: ${file}`, e.message)
+            }
+        }
+    } catch (e) {
+        console.warn('failed/ 폴더 스캔 실패:', e.message)
+    }
+}
+
+// ============================================
 // Start watching
 // ============================================
 async function startWatching() {
@@ -239,7 +276,8 @@ async function startWatching() {
     // Watch for new files
     console.log(`\n👀 폴더 감시 시작... (${WATCH_DIR})`)
     console.log(`   영상 파일을 이 폴더에 넣으면 자동으로 업로드됩니다.`)
-    console.log(`   처리 완료된 파일은 done/ 폴더로 이동됩니다.\n`)
+    console.log(`   처리 완료된 파일은 done/ 폴더로 이동됩니다.`)
+    console.log(`   실패한 파일은 failed/ 폴더로 이동 후 5분마다 자동 재시도됩니다.\n`)
 
     // Debounce map to prevent duplicate events from OS
     const debounceTimers = new Map()
@@ -271,6 +309,9 @@ async function startWatching() {
     watcher.on('error', (err) => {
         console.error('감시 오류:', err.message)
     })
+
+    // Periodically retry failed uploads
+    setInterval(() => retryFailedFiles(), RETRY_INTERVAL_MS)
 
     // Keep alive
     process.on('SIGINT', () => {
