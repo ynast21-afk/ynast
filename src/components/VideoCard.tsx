@@ -50,8 +50,7 @@ export default function VideoCard({
     orientation
 }: VideoCardProps) {
     const isVertical = orientation === 'vertical'
-    // 세로 영상은 자동으로 portrait 비율 적용 (외부에서 aspectRatio를 명시하지 않아도 동작)
-    const effectiveAspectRatio = isVertical ? 'portrait' : aspectRatio
+    // 세로 영상: 프레임은 16:9 유지, 썸네일만 object-contain으로 원본 세로 비율 표시
     const objectFitClass = isVertical ? 'object-contain' : 'object-cover'
     const [isHovering, setIsHovering] = useState(false)
     const [previewIndex, setPreviewIndex] = useState(-1)
@@ -211,7 +210,7 @@ export default function VideoCard({
             >
                 {/* Thumbnail / Preview Area */}
                 <div
-                    className={`relative ${effectiveAspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-300 overflow-hidden bg-[#0a0a0a]`}
+                    className={`relative ${aspectRatio === 'portrait' ? 'aspect-[4/5]' : 'aspect-video'} transition-all duration-300 overflow-hidden bg-[#0a0a0a]`}
                     style={backgroundStyle}
                 >
                     {/* Preload Layer: Hidden images to force browser caching when in view */}
