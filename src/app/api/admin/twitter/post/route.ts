@@ -36,7 +36,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { tweetText, videoId, videoTitle, streamerName, mediaUrls, mediaType, videoClipUrl } = body
+        const { tweetText, videoId, videoTitle, streamerName, mediaUrls, mediaType, videoClipUrl, base64Images } = body
 
         if (!tweetText) {
             return NextResponse.json({ error: 'Missing tweet text' }, { status: 400 })
@@ -72,10 +72,14 @@ export async function POST(request: NextRequest) {
                 console.log(`Uploaded video clip to Twitter, mediaId: ${videoMediaId}`)
             }
         } else if (mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 0) {
-            // Image mode: upload up to 4 images
+            // Image mode: upload up to 4 images from URLs
             const urlsToUpload = mediaUrls.slice(0, 4)
             mediaIds = await uploadMediaFromUrls(urlsToUpload, creds)
             console.log(`Uploaded ${mediaIds.length} media to Twitter`)
+        } else if (base64Images && Array.isArray(base64Images) && base64Images.length > 0) {
+            // Base64 image mode: upload images directly from base64 data
+            mediaIds = await uploadMediaFromBase64(base64Images.slice(0, 4), creds)
+            console.log(`Uploaded ${mediaIds.length} base64 media to Twitter`)
         }
 
         // Post tweet using twitter-api-v2 library
@@ -186,6 +190,39 @@ async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): P
         } catch (err: any) {
             console.error(`[Twitter] Failed to upload media from ${url}:`, err?.message || err)
             // Continue with other images even if one fails
+        }
+    }
+
+    return mediaIds
+}
+
+// Upload images from base64 data directly to Twitter
+async function uploadMediaFromBase64(base64Images: string[], creds: TwitterCredentials): Promise<string[]> {
+    const client = new TwitterApi({
+        appKey: creds.apiKey,
+        appSecret: creds.apiSecret,
+        accessToken: creds.accessToken,
+        accessSecret: creds.accessTokenSecret,
+    })
+
+    const mediaIds: string[] = []
+
+    for (const base64Data of base64Images) {
+        try {
+            // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
+            const base64Clean = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data
+            const buffer = Buffer.from(base64Clean, 'base64')
+
+            console.log(`[Twitter] Uploading base64 image: ${buffer.length} bytes`)
+
+            const mediaId = await client.v1.uploadMedia(buffer, {
+                mimeType: 'image/jpeg' as any,
+            })
+            console.log(`[Twitter] Uploaded base64 media, mediaId: ${mediaId}`)
+
+            mediaIds.push(mediaId)
+        } catch (err: any) {
+            console.error(`[Twitter] Failed to upload base64 media:`, err?.message || err)
         }
     }
 

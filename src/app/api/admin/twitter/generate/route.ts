@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // AI-based tweet text generation for video promotion
 // Uses video metadata (title, tags, streamer) to generate engaging tweet text
+// Returns both Korean and English versions separately
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
@@ -16,31 +17,28 @@ export async function POST(request: NextRequest) {
         const openaiKey = process.env.OPENAI_API_KEY
         const geminiKey = process.env.GEMINI_API_KEY
 
-        let tweetText = ''
-        let hashtags = ''
+        let result: GenerateResult
 
         if (openaiKey) {
-            // Use OpenAI GPT to generate tweet
-            const result = await generateWithOpenAI(openaiKey, { videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
-            tweetText = result.tweetText
-            hashtags = result.hashtags
+            result = await generateWithOpenAI(openaiKey, { videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
         } else if (geminiKey) {
-            // Use Google Gemini to generate tweet
-            const result = await generateWithGemini(geminiKey, { videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
-            tweetText = result.tweetText
-            hashtags = result.hashtags
+            result = await generateWithGemini(geminiKey, { videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
         } else {
-            // Fallback: template-based generation (no AI API key)
-            const result = generateFallback({ videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
-            tweetText = result.tweetText
-            hashtags = result.hashtags
+            result = generateFallback({ videoTitle, streamerName, streamerKoreanName, tags, videoUrl, style: mentStyle })
         }
 
         return NextResponse.json({
             success: true,
-            tweetText,
-            hashtags,
-            fullText: `${tweetText}\n\n${hashtags}`,
+            // Korean version
+            tweetTextKo: result.tweetTextKo,
+            hashtagsKo: result.hashtagsKo,
+            // English version
+            tweetTextEn: result.tweetTextEn,
+            hashtagsEn: result.hashtagsEn,
+            // Backward compatibility: default to Korean
+            tweetText: result.tweetTextKo,
+            hashtags: result.hashtagsKo,
+            fullText: `${result.tweetTextKo}\n\n${result.hashtagsKo}`,
             source: openaiKey ? 'openai' : geminiKey ? 'gemini' : 'template'
         })
 
@@ -59,7 +57,14 @@ interface GenerateInput {
     style?: 'standard' | 'influencer'
 }
 
-async function generateWithOpenAI(apiKey: string, input: GenerateInput) {
+interface GenerateResult {
+    tweetTextKo: string
+    hashtagsKo: string
+    tweetTextEn: string
+    hashtagsEn: string
+}
+
+async function generateWithOpenAI(apiKey: string, input: GenerateInput): Promise<GenerateResult> {
     const { videoTitle, streamerName, streamerKoreanName, tags, videoUrl } = input
     const tagList = (tags || []).map(t => t.replace('#', '')).join(', ')
     const displayName = streamerKoreanName ? `${streamerName}(${streamerKoreanName})` : streamerName
@@ -67,56 +72,66 @@ async function generateWithOpenAI(apiKey: string, input: GenerateInput) {
     const isInfluencer = input.style === 'influencer'
 
     const standardPrompt = `You are a social media manager for kStreamer dance, a K-Pop dance video platform.
-Generate an engaging BILINGUAL tweet (Korean + English) to promote this new dance video.
+Generate TWO SEPARATE tweets to promote this new dance video — one in KOREAN and one in ENGLISH.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
 Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
-Requirements:
-- Write in TWO languages: Korean FIRST, then English below
-- Format: Korean text first, then a blank line, then the English version
-- Each section should be concise (Korean ~100 chars, English ~100 chars)
-- Include 1-2 relevant emojis in each section
-- Keep total main text under 250 characters (both languages combined)
-- Generate 5-7 relevant hashtags (mix of Korean and English)
+Requirements for KOREAN tweet:
+- Write entirely in Korean
+- Concise, engaging (~100-150 chars main text)
+- Include 1-2 relevant emojis
+- Include the video URL at the end
 - Focus on K-Pop dance, cover dance, and the creator
-- Make it catchy and engaging for global Twitter/X audience
-- Include the video URL at the end of the English section
 
-Example format:
-🔥 [Korean text about the video]\n\n✨ [English text about the video]\n👉 URL
+Requirements for ENGLISH tweet:
+- Write entirely in English
+- Concise, engaging (~100-150 chars main text)
+- Include 1-2 relevant emojis
+- Include the video URL at the end
+- Focus on K-Pop dance, cover dance, and the creator
+- Make it catchy for a global Twitter/X audience
 
-Return ONLY a JSON object with this format:
-{"tweetText": "bilingual tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
+Generate separate hashtags for each language:
+- Korean hashtags: mix of Korean and English hashtags (5-7 total)
+- English hashtags: English-only hashtags (5-7 total)
 
-    const influencerPrompt = `You are a casual K-Pop dance fan who runs a popular social media account. Write a tweet that feels like a natural, personal recommendation — as if you're excitedly sharing something cool you just found.
+Return ONLY a JSON object with this exact format:
+{"tweetTextKo": "Korean tweet with URL", "hashtagsKo": "#한글태그 #tag1", "tweetTextEn": "English tweet with URL", "hashtagsEn": "#tag1 #tag2"}`
+
+    const influencerPrompt = `You are a casual K-Pop dance fan who runs a popular social media account. Write TWO SEPARATE tweets — one in KOREAN and one in ENGLISH — that feel like natural, personal recommendations.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
 Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
-Requirements:
-- Write in a CASUAL, conversational tone — like texting a friend or posting on your personal feed
+Requirements for KOREAN tweet:
+- Write entirely in Korean, casual conversational tone
 - Use Korean internet slang naturally (e.g., ㅋㅋ, 미쳤다, 진짜, 대박, ㄹㅇ, etc.)
-- Mix Korean and English naturally (code-switching style)
-- Sound like a real person, NOT a brand or company
-- Keep it short and punchy (under 200 characters for main text)
-- Include 1-3 emojis but don't overdo it
-- The video URL MUST appear at the end of the main text
-- Generate 4-6 relevant hashtags
-- Do NOT mention "kStreamer" or any platform name directly
-- Focus on the dance performance, the vibe, or how amazing the creator is
+- Sound like a real person, NOT a brand
+- Keep it short and punchy (under 200 chars)
+- Include 1-3 emojis
+- Video URL MUST appear at the end
+- Do NOT mention "kStreamer" or any platform name
 
-Example tones (DO NOT copy these exactly, create original ones):
-"이거 진짜 미쳤다ㅋㅋ 요즘 이 분 영상만 보는 중 🔥\n👉 URL"
-"오늘의 추천 영상 ㄹㅇ 이건 봐야됨\n${displayName} 댄스 실력 레전드급이다\n👉 URL"
-"이 영상 발견하고 3번 돌려봄... 진짜 잘 춘다 😭\n👉 URL"
+Requirements for ENGLISH tweet:
+- Write entirely in English, casual Gen-Z/millennial Twitter tone
+- Use casual expressions (e.g., "no cap", "literally can't stop watching", "obsessed", "this hits different", etc.)
+- Sound like a real person, NOT a brand
+- Keep it short and punchy (under 200 chars)
+- Include 1-3 emojis
+- Video URL MUST appear at the end
+- Do NOT mention "kStreamer" or any platform name
 
-Return ONLY a JSON object with this format:
-{"tweetText": "casual tweet text with URL at end", "hashtags": "#tag1 #tag2 #tag3"}`
+Generate separate hashtags:
+- Korean: 4-6 hashtags (mix Korean/English)
+- English: 4-6 hashtags (English only)
+
+Return ONLY a JSON object with this exact format:
+{"tweetTextKo": "한글 캐주얼 트윗 with URL", "hashtagsKo": "#태그", "tweetTextEn": "English casual tweet with URL", "hashtagsEn": "#tag1"}`
 
     const prompt = isInfluencer ? influencerPrompt : standardPrompt
 
@@ -130,7 +145,7 @@ Return ONLY a JSON object with this format:
             model: 'gpt-4o-mini',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.8,
-            max_tokens: 500,
+            max_tokens: 800,
             response_format: { type: 'json_object' }
         })
     })
@@ -143,16 +158,19 @@ Return ONLY a JSON object with this format:
     const data = await response.json()
     try {
         const parsed = JSON.parse(data.choices[0].message.content)
+        const fallback = generateFallback(input)
         return {
-            tweetText: parsed.tweetText || generateFallback(input).tweetText,
-            hashtags: parsed.hashtags || generateFallback(input).hashtags
+            tweetTextKo: parsed.tweetTextKo || fallback.tweetTextKo,
+            hashtagsKo: parsed.hashtagsKo || fallback.hashtagsKo,
+            tweetTextEn: parsed.tweetTextEn || fallback.tweetTextEn,
+            hashtagsEn: parsed.hashtagsEn || fallback.hashtagsEn,
         }
     } catch {
         return generateFallback(input)
     }
 }
 
-async function generateWithGemini(apiKey: string, input: GenerateInput) {
+async function generateWithGemini(apiKey: string, input: GenerateInput): Promise<GenerateResult> {
     const { videoTitle, streamerName, streamerKoreanName, tags, videoUrl } = input
     const tagList = (tags || []).map(t => t.replace('#', '')).join(', ')
     const displayName = streamerKoreanName ? `${streamerName}(${streamerKoreanName})` : streamerName
@@ -160,56 +178,66 @@ async function generateWithGemini(apiKey: string, input: GenerateInput) {
     const isInfluencer = input.style === 'influencer'
 
     const standardPrompt = `You are a social media manager for kStreamer dance, a K-Pop dance video platform.
-Generate an engaging BILINGUAL tweet (Korean + English) to promote this new dance video.
+Generate TWO SEPARATE tweets to promote this new dance video — one in KOREAN and one in ENGLISH.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
 Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
-Requirements:
-- Write in TWO languages: Korean FIRST, then English below
-- Format: Korean text first, then a blank line, then the English version
-- Each section should be concise (Korean ~100 chars, English ~100 chars)
-- Include 1-2 relevant emojis in each section
-- Keep total main text under 250 characters (both languages combined)
-- Generate 5-7 relevant hashtags (mix of Korean and English)
+Requirements for KOREAN tweet:
+- Write entirely in Korean
+- Concise, engaging (~100-150 chars main text)
+- Include 1-2 relevant emojis
+- Include the video URL at the end
 - Focus on K-Pop dance, cover dance, and the creator
-- Make it catchy and engaging for global Twitter/X audience
-- Include the video URL at the end of the English section
 
-Example format:
-🔥 [Korean text about the video]\n\n✨ [English text about the video]\n👉 URL
+Requirements for ENGLISH tweet:
+- Write entirely in English
+- Concise, engaging (~100-150 chars main text)
+- Include 1-2 relevant emojis
+- Include the video URL at the end
+- Focus on K-Pop dance, cover dance, and the creator
+- Make it catchy for a global Twitter/X audience
 
-Return ONLY a JSON object with this format:
-{"tweetText": "bilingual tweet text with URL", "hashtags": "#tag1 #tag2 #tag3"}`
+Generate separate hashtags for each language:
+- Korean hashtags: mix of Korean and English hashtags (5-7 total)
+- English hashtags: English-only hashtags (5-7 total)
 
-    const influencerPrompt = `You are a casual K-Pop dance fan who runs a popular social media account. Write a tweet that feels like a natural, personal recommendation — as if you're excitedly sharing something cool you just found.
+Return ONLY a JSON object with this exact format:
+{"tweetTextKo": "Korean tweet with URL", "hashtagsKo": "#한글태그 #tag1", "tweetTextEn": "English tweet with URL", "hashtagsEn": "#tag1 #tag2"}`
+
+    const influencerPrompt = `You are a casual K-Pop dance fan who runs a popular social media account. Write TWO SEPARATE tweets — one in KOREAN and one in ENGLISH — that feel like natural, personal recommendations.
 
 Video Title: ${videoTitle}
 Creator: ${displayName}
 Tags: ${tagList}
 Video URL: ${videoUrl || 'https://kstreamer.dance'}
 
-Requirements:
-- Write in a CASUAL, conversational tone — like texting a friend or posting on your personal feed
+Requirements for KOREAN tweet:
+- Write entirely in Korean, casual conversational tone
 - Use Korean internet slang naturally (e.g., ㅋㅋ, 미쳤다, 진짜, 대박, ㄹㅇ, etc.)
-- Mix Korean and English naturally (code-switching style)
-- Sound like a real person, NOT a brand or company
-- Keep it short and punchy (under 200 characters for main text)
-- Include 1-3 emojis but don't overdo it
-- The video URL MUST appear at the end of the main text
-- Generate 4-6 relevant hashtags
-- Do NOT mention "kStreamer" or any platform name directly
-- Focus on the dance performance, the vibe, or how amazing the creator is
+- Sound like a real person, NOT a brand
+- Keep it short and punchy (under 200 chars)
+- Include 1-3 emojis
+- Video URL MUST appear at the end
+- Do NOT mention "kStreamer" or any platform name
 
-Example tones (DO NOT copy these exactly, create original ones):
-"이거 진짜 미쳤다ㅋㅋ 요즘 이 분 영상만 보는 중 🔥\n👉 URL"
-"오늘의 추천 영상 ㄹㅇ 이건 봐야됨\n${displayName} 댄스 실력 레전드급이다\n👉 URL"
-"이 영상 발견하고 3번 돌려봄... 진짜 잘 춘다 😭\n👉 URL"
+Requirements for ENGLISH tweet:
+- Write entirely in English, casual Gen-Z/millennial Twitter tone
+- Use casual expressions (e.g., "no cap", "literally can't stop watching", "obsessed", "this hits different", etc.)
+- Sound like a real person, NOT a brand
+- Keep it short and punchy (under 200 chars)
+- Include 1-3 emojis
+- Video URL MUST appear at the end
+- Do NOT mention "kStreamer" or any platform name
 
-Return ONLY a JSON object with this format:
-{"tweetText": "casual tweet text with URL at end", "hashtags": "#tag1 #tag2 #tag3"}`
+Generate separate hashtags:
+- Korean: 4-6 hashtags (mix Korean/English)
+- English: 4-6 hashtags (English only)
+
+Return ONLY a JSON object with this exact format:
+{"tweetTextKo": "한글 캐주얼 트윗 with URL", "hashtagsKo": "#태그", "tweetTextEn": "English casual tweet with URL", "hashtagsEn": "#tag1"}`
 
     const prompt = isInfluencer ? influencerPrompt : standardPrompt
 
@@ -220,7 +248,7 @@ Return ONLY a JSON object with this format:
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
                 temperature: 0.8,
-                maxOutputTokens: 500,
+                maxOutputTokens: 800,
                 responseMimeType: 'application/json'
             }
         })
@@ -235,48 +263,77 @@ Return ONLY a JSON object with this format:
     try {
         const text = data.candidates[0].content.parts[0].text
         const parsed = JSON.parse(text)
+        const fallback = generateFallback(input)
         return {
-            tweetText: parsed.tweetText || generateFallback(input).tweetText,
-            hashtags: parsed.hashtags || generateFallback(input).hashtags
+            tweetTextKo: parsed.tweetTextKo || fallback.tweetTextKo,
+            hashtagsKo: parsed.hashtagsKo || fallback.hashtagsKo,
+            tweetTextEn: parsed.tweetTextEn || fallback.tweetTextEn,
+            hashtagsEn: parsed.hashtagsEn || fallback.hashtagsEn,
         }
     } catch {
         return generateFallback(input)
     }
 }
 
-function generateFallback(input: GenerateInput) {
+function generateFallback(input: GenerateInput): GenerateResult {
     const { videoTitle, streamerName, streamerKoreanName, tags, videoUrl } = input
     const displayName = streamerKoreanName ? `${streamerName}(${streamerKoreanName})` : streamerName
     const url = videoUrl || 'https://kstreamer.dance'
 
     const isInfluencer = input.style === 'influencer'
 
-    const standardTemplates = [
-        `🔥 새 영상 업로드!\n💃 ${displayName}의 최신 댄스 영상\n🎵 "${videoTitle}"\n\n✨ New upload!\n💃 ${displayName}'s latest dance video\n🎵 "${videoTitle}"\n👉 ${url}`,
-        `✨ NEW! ${displayName} 댄스 커버\n🎶 "${videoTitle}"\n\n🔥 ${displayName} dance cover\n🎶 "${videoTitle}"\nWatch now 👇\n🔗 ${url}`,
-        `💃 ${displayName}의 "${videoTitle}" 올라왔어요!\n\n💃 ${displayName}'s "${videoTitle}" is here!\nWatch the full video 🎵\n👉 ${url}`
+    // Korean templates
+    const standardKoTemplates = [
+        `🔥 새 영상 업로드!\n💃 ${displayName}의 최신 댄스 영상\n🎵 "${videoTitle}"\n👉 ${url}`,
+        `✨ NEW! ${displayName} 댄스 커버\n🎶 "${videoTitle}"\n지금 바로 확인하세요! 🔥\n👉 ${url}`,
+        `💃 ${displayName}의 "${videoTitle}" 올라왔어요!\n놓치지 마세요 🎵\n👉 ${url}`
     ]
 
-    const influencerTemplates = [
+    const influencerKoTemplates = [
         `이거 진짜 미쳤다ㅋㅋ ${displayName} 댄스 실력 뭐냐 🔥\n요즘 이 분 영상만 계속 보는 중...\n👉 ${url}`,
         `오늘의 추천 영상 ㄹㅇ 이건 꼭 봐야됨\n${displayName} 댄스 커버 레전드다 진짜 😭\n👉 ${url}`,
         `와 이 영상 발견하고 3번 돌려봄ㅋㅋ\n${displayName} 춤 진짜 잘 춘다... 대박\n👉 ${url}`,
         `${displayName} 새 영상 올라옴 🔥\n이번에도 역시 미쳤다ㅋㅋ 보자마자 소름\n👉 ${url}`
     ]
 
-    const templates = isInfluencer ? influencerTemplates : standardTemplates
-    const tweetText = templates[Math.floor(Math.random() * templates.length)]
+    // English templates
+    const standardEnTemplates = [
+        `🔥 New upload!\n💃 ${streamerName}'s latest dance video\n🎵 "${videoTitle}"\nWatch now 👇\n👉 ${url}`,
+        `✨ NEW! ${streamerName} dance cover\n🎶 "${videoTitle}"\nCheck it out now! 🔥\n👉 ${url}`,
+        `💃 ${streamerName}'s "${videoTitle}" is here!\nDon't miss this amazing performance 🎵\n👉 ${url}`
+    ]
 
-    // Generate hashtags from tags + defaults
-    const defaultTags = isInfluencer
-        ? ['#kpop', '#댄스', '#커버댄스', '#dance']
-        : ['#kpop', '#댄스', '#커버댄스', '#kstreamer', '#dance']
+    const influencerEnTemplates = [
+        `ok but ${streamerName}'s dance skills are actually insane 🔥\ncan't stop watching this one...\n👉 ${url}`,
+        `today's recommendation — you NEED to watch this\n${streamerName}'s cover is literally legendary 😭\n👉 ${url}`,
+        `found this and watched it 3 times already lol\n${streamerName} is so talented it's not even fair\n👉 ${url}`,
+        `${streamerName} just dropped a new video 🔥\nthis hits different no cap\n👉 ${url}`
+    ]
+
+    const koTemplates = isInfluencer ? influencerKoTemplates : standardKoTemplates
+    const enTemplates = isInfluencer ? influencerEnTemplates : standardEnTemplates
+
+    const tweetTextKo = koTemplates[Math.floor(Math.random() * koTemplates.length)]
+    const tweetTextEn = enTemplates[Math.floor(Math.random() * enTemplates.length)]
+
+    // Generate hashtags
     const videoTags = (tags || []).slice(0, 3).map(t => t.startsWith('#') ? t : `#${t}`)
     const streamerTag = `#${streamerName.replace(/\s/g, '')}`
-    const allTags = Array.from(new Set([streamerTag, ...videoTags, ...defaultTags])).slice(0, 7)
+
+    const defaultKoTags = isInfluencer
+        ? ['#kpop', '#댄스', '#커버댄스', '#dance']
+        : ['#kpop', '#댄스', '#커버댄스', '#kstreamer', '#dance']
+    const koTags = Array.from(new Set([streamerTag, ...videoTags, ...defaultKoTags])).slice(0, 7)
+
+    const defaultEnTags = isInfluencer
+        ? ['#kpop', '#dance', '#coverdance', '#kpopdance']
+        : ['#kpop', '#dance', '#coverdance', '#kstreamer', '#kpopdance']
+    const enTags = Array.from(new Set([streamerTag, ...defaultEnTags])).slice(0, 7)
 
     return {
-        tweetText,
-        hashtags: allTags.join(' ')
+        tweetTextKo,
+        hashtagsKo: koTags.join(' '),
+        tweetTextEn,
+        hashtagsEn: enTags.join(' '),
     }
 }

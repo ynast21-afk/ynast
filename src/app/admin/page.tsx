@@ -264,11 +264,12 @@ export default function AdminPage() {
     const [streamerSearch, setStreamerSearch] = useState('')
 
     // Twitter/X integration states (v3.2)
-    const [twitterModal, setTwitterModal] = useState<{ video: any; tweetText: string; hashtags: string; isGenerating: boolean; isPosting: boolean; posted: boolean; tweetUrl?: string; error?: string; gifUrl?: string; isGeneratingGif?: boolean; gifProgress?: number; videoClipUrl?: string; videoClipPreviewUrl?: string; isGeneratingClip?: boolean; clipProgress?: number } | null>(null)
+    const [twitterModal, setTwitterModal] = useState<{ video: any; tweetText: string; hashtags: string; tweetTextKo?: string; hashtagsKo?: string; tweetTextEn?: string; hashtagsEn?: string; isGenerating: boolean; isPosting: boolean; posted: boolean; tweetUrl?: string; error?: string; gifUrl?: string; isGeneratingGif?: boolean; gifProgress?: number; videoClipUrl?: string; videoClipPreviewUrl?: string; isGeneratingClip?: boolean; clipProgress?: number } | null>(null)
     const [tweetHistory, setTweetHistory] = useState<string[]>([]) // videoIds that have been tweeted
     const [gifScriptLoaded, setGifScriptLoaded] = useState(false)
     const [twitterMediaType, setTwitterMediaType] = useState<'images' | 'video'>('images')
     const [twitterMentStyle, setTwitterMentStyle] = useState<'standard' | 'influencer'>('standard')
+    const [twitterLang, setTwitterLang] = useState<'ko' | 'en'>('ko')
 
     // AI Auto-Tagging states (v3.4)
     const [isGeneratingAiTags, setIsGeneratingAiTags] = useState(false)
@@ -474,66 +475,59 @@ export default function AdminPage() {
             .catch(() => { })
     }, [])
 
-    // Helper: Extract frames from video URL using canvas (for link-uploaded videos without previewUrls)
-    const extractFramesForTwitter = async (videoSrc: string, authToken: string | null, frameCount: number = 3): Promise<Blob[]> => {
-        return new Promise((resolve, reject) => {
+    // Helper: Extract frames from video URL as base64 strings (streaming, no full download)
+    const extractFramesAsBase64 = async (videoSrc: string, frameCount: number = 3): Promise<string[]> => {
+        return new Promise((resolve) => {
             const video = document.createElement('video')
             video.crossOrigin = 'anonymous'
-            video.preload = 'auto'
+            video.preload = 'metadata'
             video.muted = true
+            // Set src directly - browser will stream, not download entire file
+            video.src = videoSrc
 
-            // Add auth header via fetch + object URL for proxy
-            const loadVideo = async () => {
-                try {
-                    const headers: Record<string, string> = {}
-                    if (authToken) {
-                        headers['Authorization'] = `Bearer ${authToken}`
-                    }
-                    const response = await fetch(videoSrc, { headers })
-                    if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`)
-                    const blob = await response.blob()
-                    video.src = URL.createObjectURL(blob)
-                } catch (err) {
-                    // Fallback: try direct src
-                    video.src = videoSrc
-                }
-            }
+            let resolved = false
 
             video.onloadedmetadata = () => {
                 const duration = video.duration
-                if (!duration || duration < 1) {
-                    resolve([])
+                if (!duration || duration < 1 || resolved) {
+                    if (!resolved) { resolved = true; resolve([]) }
                     return
                 }
 
                 const canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')
                 if (!ctx) {
-                    resolve([])
-                    return
+                    resolved = true; resolve([]); return
                 }
 
-                canvas.width = Math.min(video.videoWidth, 1280)
-                canvas.height = Math.round(canvas.width * (video.videoHeight / video.videoWidth))
+                // Use reasonable resolution
+                const maxWidth = 1280
+                canvas.width = Math.min(video.videoWidth || 640, maxWidth)
+                canvas.height = Math.round(canvas.width * ((video.videoHeight || 360) / (video.videoWidth || 640)))
 
-                const frames: Blob[] = []
-                // Pick frames at 10%, 40%, 70% of video duration
-                const timePoints = [0.1, 0.4, 0.7].slice(0, frameCount).map(p => p * duration)
+                const frames: string[] = []
+                // Pick frames at 5%, 35%, 65% (early positions load faster)
+                const timePoints = [0.05, 0.35, 0.65].slice(0, frameCount).map(p => Math.max(1, p * duration))
                 let currentFrame = 0
 
                 const captureFrame = () => {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-                    canvas.toBlob((blob) => {
-                        if (blob) frames.push(blob)
-                        currentFrame++
-                        if (currentFrame < timePoints.length) {
-                            video.currentTime = timePoints[currentFrame]
-                        } else {
-                            // Clean up
-                            if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
-                            resolve(frames)
+                    if (resolved) return
+                    try {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+                        if (dataUrl && dataUrl.length > 100) {
+                            frames.push(dataUrl)
                         }
-                    }, 'image/jpeg', 0.85)
+                    } catch (e) {
+                        console.warn('[Twitter] Frame capture error (CORS?):', e)
+                    }
+                    currentFrame++
+                    if (currentFrame < timePoints.length) {
+                        video.currentTime = timePoints[currentFrame]
+                    } else {
+                        resolved = true
+                        resolve(frames)
+                    }
                 }
 
                 video.onseeked = captureFrame
@@ -541,51 +535,19 @@ export default function AdminPage() {
             }
 
             video.onerror = () => {
-                if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
-                reject(new Error('Failed to load video for frame extraction'))
+                console.warn('[Twitter] Video load error for frame extraction')
+                if (!resolved) { resolved = true; resolve([]) }
             }
 
-            // Timeout after 30 seconds
+            // Timeout after 15 seconds
             setTimeout(() => {
-                if (video.src.startsWith('blob:')) URL.revokeObjectURL(video.src)
-                resolve([]) // Return empty instead of rejecting
-            }, 30000)
-
-            loadVideo()
-        })
-    }
-
-    // Helper: Upload extracted frame blobs to B2 via upload-preview API
-    const uploadFramesToB2 = async (frames: Blob[], videoId: string): Promise<string[]> => {
-        const urls: string[] = []
-        const token = adminToken || localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token')
-
-        for (let i = 0; i < frames.length; i++) {
-            try {
-                const formData = new FormData()
-                formData.append('file', frames[i], `twitter-frame-${videoId}-${i}.jpg`)
-                formData.append('videoId', videoId)
-                formData.append('type', 'preview')
-
-                const res = await fetch('/api/admin/twitter/upload-preview', {
-                    method: 'POST',
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-                    body: formData
-                })
-
-                if (res.ok) {
-                    const data = await res.json()
-                    if (data.previewGifUrl) {
-                        urls.push(data.previewGifUrl)
-                    } else if (data.url) {
-                        urls.push(data.url)
-                    }
+                if (!resolved) {
+                    console.warn('[Twitter] Frame extraction timed out')
+                    resolved = true
+                    resolve([])
                 }
-            } catch (err) {
-                console.warn(`[Twitter] Failed to upload frame ${i}:`, err)
-            }
-        }
-        return urls
+            }, 15000)
+        })
     }
 
     const handleOpenTwitterModal = async (video: any) => {
@@ -615,12 +577,16 @@ export default function AdminPage() {
             })
             const data = await res.json()
             if (data.success) {
-                setTwitterModal(prev => prev ? { ...prev, tweetText: data.tweetText, hashtags: data.hashtags, isGenerating: false } : null)
+                const activeText = twitterLang === 'en' ? (data.tweetTextEn || data.tweetText) : (data.tweetTextKo || data.tweetText)
+                const activeHashtags = twitterLang === 'en' ? (data.hashtagsEn || data.hashtags) : (data.hashtagsKo || data.hashtags)
+                setTwitterModal(prev => prev ? { ...prev, tweetText: activeText, hashtags: activeHashtags, tweetTextKo: data.tweetTextKo, hashtagsKo: data.hashtagsKo, tweetTextEn: data.tweetTextEn, hashtagsEn: data.hashtagsEn, isGenerating: false } : null)
             } else {
-                setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n\n✨ New video!\n💃 ${video.title}\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', isGenerating: false } : null)
+                const fallbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`
+                setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', tweetTextKo: `🔥 새 영상!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtagsKo: '#kpop #댄스 #커버댄스 #kstreamer #dance', tweetTextEn: `🔥 New video!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtagsEn: '#kpop #dance #coverdance #kstreamer', isGenerating: false } : null)
             }
         } catch {
-            setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n\n✨ New video!\n💃 ${video.title}\n👉 ${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', isGenerating: false } : null)
+            const fallbackUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://kstreamer.dance'}/video/${video.id}`
+            setTwitterModal(prev => prev ? { ...prev, tweetText: `🔥 새 영상!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtags: '#kpop #댄스 #커버댄스 #kstreamer #dance', tweetTextKo: `🔥 새 영상!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtagsKo: '#kpop #댄스 #커버댄스 #kstreamer #dance', tweetTextEn: `🔥 New video!\n💃 ${video.title}\n👉 ${fallbackUrl}`, hashtagsEn: '#kpop #dance #coverdance #kstreamer', isGenerating: false } : null)
         }
     }
 
@@ -648,17 +614,33 @@ export default function AdminPage() {
                 } else if (video.videoUrl) {
                     // 링크 업로드 영상: previewUrls가 없으면 실시간 프레임 추출 시도
                     try {
-                        console.log('[Twitter] No previewUrls, attempting real-time frame extraction...')
-                        const proxyUrl = `/api/proxy-video?url=${encodeURIComponent(video.videoUrl)}`
-                        const token = adminToken || localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token')
-                        const extractedFrames = await extractFramesForTwitter(proxyUrl, token, 3)
-                        if (extractedFrames.length > 0) {
-                            // B2에 업로드하여 URL 획득
-                            const uploadedUrls = await uploadFramesToB2(extractedFrames, video.id)
-                            if (uploadedUrls.length > 0) {
-                                mediaUrls = uploadedUrls
-                                console.log(`[Twitter] Extracted and uploaded ${uploadedUrls.length} frames`)
+                        console.log('[Twitter] No previewUrls, attempting streaming frame extraction...')
+                        // 비디오 URL을 직접 video 요소에 설정 (전체 다운로드 없이 스트리밍)
+                        const base64Frames = await extractFramesAsBase64(video.videoUrl, 3)
+                        if (base64Frames.length > 0) {
+                            console.log(`[Twitter] Extracted ${base64Frames.length} frames as base64`)
+                            // base64 이미지를 직접 서버에 전달 (B2 업로드 생략)
+                            const res = await fetchWithAuth('/api/admin/twitter/post', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    tweetText: fullText,
+                                    videoId: video.id,
+                                    videoTitle: video.title,
+                                    streamerName: video.streamerName,
+                                    base64Images: base64Frames,
+                                    mediaType: 'images',
+                                    videoClipUrl
+                                })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                                setTwitterModal(prev => prev ? { ...prev, isPosting: false, posted: true, tweetUrl: data.tweetUrl } : null)
+                                setTweetHistory(prev => [...prev, twitterModal.video.id])
+                            } else {
+                                setTwitterModal(prev => prev ? { ...prev, isPosting: false, error: data.error || '트윗 게시 실패' } : null)
                             }
+                            return // 이미 처리 완료
                         }
                     } catch (frameErr) {
                         console.warn('[Twitter] Frame extraction failed, falling back to thumbnail:', frameErr)
@@ -1969,6 +1951,35 @@ export default function AdminPage() {
                                         >
                                             🔥 인플루언서 스타일
                                             <span className="block text-[10px] mt-0.5 opacity-70">자연스러운 SNS 톤</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Language Selector */}
+                                <div className="mb-3">
+                                    <label className="block text-xs text-text-secondary mb-2">언어 / Language</label>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setTwitterLang('ko')
+                                                if (twitterLang !== 'ko' && twitterModal.tweetTextKo) {
+                                                    setTwitterModal(prev => prev ? { ...prev, tweetText: prev.tweetTextKo || prev.tweetText, hashtags: prev.hashtagsKo || prev.hashtags } : null)
+                                                }
+                                            }}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${twitterLang === 'ko' ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/50' : 'bg-white/5 text-text-tertiary border border-white/10 hover:bg-white/10'}`}
+                                        >
+                                            🇰🇷 한글
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setTwitterLang('en')
+                                                if (twitterLang !== 'en' && twitterModal.tweetTextEn) {
+                                                    setTwitterModal(prev => prev ? { ...prev, tweetText: prev.tweetTextEn || prev.tweetText, hashtags: prev.hashtagsEn || prev.hashtags } : null)
+                                                }
+                                            }}
+                                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${twitterLang === 'en' ? 'bg-blue-500/30 text-blue-300 border border-blue-400/50' : 'bg-white/5 text-text-tertiary border border-white/10 hover:bg-white/10'}`}
+                                        >
+                                            🇺🇸 English
                                         </button>
                                     </div>
                                 </div>
