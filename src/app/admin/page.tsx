@@ -413,10 +413,10 @@ export default function AdminPage() {
                 images = await extractFramesFromVideo(item.file, 4)
             }
 
-            // Call API with timeout
+            // Call API with timeout (120s to allow for retries)
             setAiTagProgress('AI 분석 중...')
             const controller = new AbortController()
-            const apiTimeout = setTimeout(() => controller.abort(), 60000) // 60s timeout
+            const apiTimeout = setTimeout(() => controller.abort(), 120000) // 120s timeout for retries
 
             const response = await fetch('/api/admin/ai-tags', {
                 method: 'POST',
@@ -447,7 +447,11 @@ export default function AdminPage() {
                 }
             }
 
-            alert(`✅ AI 태그 ${data.tags?.length || 0}개가 생성되었습니다!`)
+            if (data.warning) {
+                alert(`⚠️ ${data.warning}\n\n기본 태그 ${data.tags?.length || 0}개가 추가되었습니다.\n더 정확한 태그를 원하시면 잠시 후 다시 시도해 주세요.`)
+            } else {
+                alert(`✅ AI 태그 ${data.tags?.length || 0}개가 생성되었습니다! (${data.model || 'AI'})`)
+            }
         } catch (error: any) {
             console.error('[AI Tags] Error:', error)
             if (error?.name === 'AbortError') {
