@@ -193,10 +193,9 @@ async function addVideo(streamerId, videoId, videoData) {
  * Update streamer (via add-video endpoint, which also syncs streamer data)
  */
 async function updateStreamer(streamerId, updates) {
-    // Not all updates are supported via API, but basic ones work
-    try {
-        await apiRequestWithRetry('/api/db', 'POST', { streamerId, ...updates })
-    } catch { }
+    // Note: videoCount is automatically managed by /api/db/add-video endpoint
+    // This function is kept for backwards compatibility but is a no-op
+    // to avoid 'Invalid data format' errors from /api/db POST
     return true
 }
 

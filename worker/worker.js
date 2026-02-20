@@ -179,7 +179,7 @@ async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = 
     const fileSize = fs.statSync(filePath).size
     const PART_SIZE = 50 * 1024 * 1024 // 50MB parts
     const partCount = Math.ceil(fileSize / PART_SIZE)
-    const PARALLEL_PARTS = 2 // Upload 2 parts simultaneously
+    const PARALLEL_PARTS = 5 // Upload 5 parts simultaneously for faster speed
 
     console.log(`   📦 Large file upload: ${partCount} parts of ${(PART_SIZE / 1024 / 1024).toFixed(0)}MB each (${PARALLEL_PARTS} parallel)`)
 
@@ -1255,15 +1255,7 @@ async function processJob(job) {
 
             const videoId = `vid_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
             await addVideo(streamerId, videoId, video)
-
-            // Increment video count
-            try {
-                const currentData = await getStreamer(streamerId)
-                await updateStreamer(streamerId, {
-                    videoCount: (currentData?.videoCount || 0) + 1,
-                    updatedAt: new Date().toISOString(),
-                })
-            } catch { }
+            // Note: videoCount is automatically incremented by /api/db/add-video endpoint
 
             console.log(`   📺 DB에 영상 등록 완료: "${video.title}" (${duration})`)
         } catch (regError) {

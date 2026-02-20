@@ -48,3 +48,5 @@ setup-vercel-paddle.ps1
 .vercel
 
 .vercel
+
+worker/temp/

@@ -241,6 +241,9 @@ async function startWatching() {
     console.log(`   영상 파일을 이 폴더에 넣으면 자동으로 업로드됩니다.`)
     console.log(`   처리 완료된 파일은 done/ 폴더로 이동됩니다.\n`)
 
+    // Debounce map to prevent duplicate events from OS
+    const debounceTimers = new Map()
+
     const watcher = fs.watch(WATCH_DIR, (eventType, filename) => {
         if (!filename) return
 
@@ -248,12 +251,20 @@ async function startWatching() {
         const ext = path.extname(filename).toLowerCase()
 
         if (eventType === 'rename' && VIDEO_EXTENSIONS.includes(ext)) {
-            // Small delay to avoid processing during initial creation
-            setTimeout(() => {
-                if (fs.existsSync(filePath)) {
+            // Skip if already processing or processed
+            if (processingFiles.has(filePath) || processedFiles.has(filePath)) return
+
+            // Debounce: cancel previous timer for same file, set new one
+            if (debounceTimers.has(filePath)) {
+                clearTimeout(debounceTimers.get(filePath))
+            }
+
+            debounceTimers.set(filePath, setTimeout(() => {
+                debounceTimers.delete(filePath)
+                if (fs.existsSync(filePath) && !processingFiles.has(filePath) && !processedFiles.has(filePath)) {
                     processNewFile(filePath)
                 }
-            }, 1000)
+            }, 3000))
         }
     })
 
