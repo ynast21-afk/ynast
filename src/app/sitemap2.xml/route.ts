@@ -14,7 +14,8 @@ const BASE_URL = 'https://kdance.xyz'
  * - Safe date parsing (prevents '1d ago' etc. from breaking XML)
  * - <video:tag> as individual tags (Google spec)
  * - <video:content_loc> for free videos only (VIP protected)
- * - <video:player_loc> removed (page URL ??embed player)
+ * - <video:player_loc> removed (page URL ≠ embed player)
+ * - URL encoding for all URLs (Korean chars, spaces, special chars)
  *
  * References:
  * - https://developers.google.com/search/docs/crawling-indexing/sitemaps/image-sitemaps
@@ -124,7 +125,7 @@ export async function GET() {
                 : `${BASE_URL}${streamer.profileImage}`
             xml += `
     <image:image>
-      <image:loc>${escapeXml(profileUrl)}</image:loc>
+      <image:loc>${escapeXmlUrl(profileUrl)}</image:loc>
       <image:title>${escapeXml(displayName)} - kStreamer dance creator</image:title>
       <image:caption>${escapeXml(displayName)} profile on kStreamer dance - premium dance video platform</image:caption>
     </image:image>`
@@ -138,7 +139,7 @@ export async function GET() {
                     : `${BASE_URL}${video.thumbnailUrl}`
                 xml += `
     <image:image>
-      <image:loc>${escapeXml(thumbUrl)}</image:loc>
+      <image:loc>${escapeXmlUrl(thumbUrl)}</image:loc>
       <image:title>${escapeXml(video.title || '')} - ${escapeXml(name)} dance</image:title>
       <image:caption>${escapeXml(name)}${koreanName ? ` (${escapeXml(koreanName)})` : ''} dance video - ${escapeXml(video.title || '')}</image:caption>
     </image:image>`
@@ -178,7 +179,7 @@ export async function GET() {
                 : `${BASE_URL}${video.thumbnailUrl}`
             xml += `
     <image:image>
-      <image:loc>${escapeXml(thumbUrl)}</image:loc>
+      <image:loc>${escapeXmlUrl(thumbUrl)}</image:loc>
       <image:title>${escapeXml(video.title || '')} - ${escapeXml(streamerName)} dance video</image:title>
       <image:caption>${escapeXml(displayName)} - ${escapeXml(video.title || '')} on kStreamer dance</image:caption>
     </image:image>`
@@ -193,7 +194,7 @@ export async function GET() {
                 ? video.thumbnailUrl
                 : `${BASE_URL}${video.thumbnailUrl}`
 
-            // Convert duration "7:42" ??seconds
+            // Convert duration "7:42" → seconds
             let durationSeconds = 300 // default 5 min
             if (video.duration && video.duration.includes(':')) {
                 const parts = video.duration.split(':')
@@ -214,18 +215,18 @@ export async function GET() {
 
             xml += `
     <video:video>
-      <video:thumbnail_loc>${escapeXml(thumbUrl)}</video:thumbnail_loc>
+      <video:thumbnail_loc>${escapeXmlUrl(thumbUrl)}</video:thumbnail_loc>
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
       <video:description>${escapeXml(description)}</video:description>${hasRealVideoUrl ? `
-      <video:content_loc>${escapeXml(video.videoUrl as string)}</video:content_loc>` : ''}
-      <video:player_loc>${escapeXml(playerLocUrl)}</video:player_loc>
+      <video:content_loc>${escapeXmlUrl(video.videoUrl as string)}</video:content_loc>` : ''}
+      <video:player_loc>${escapeXmlUrl(playerLocUrl)}</video:player_loc>
       <video:duration>${durationSeconds}</video:duration>
       <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
       <video:live>no</video:live>${video.isVip ? `
       <video:requires_subscription>yes</video:requires_subscription>` : ''}${video.views !== undefined ? `
       <video:view_count>${video.views}</video:view_count>` : ''}${streamerName ? `
-      <video:uploader info="${escapeXml(`${BASE_URL}/actors/${encodeURIComponent(String(video.streamerId || ''))}`)}">${escapeXml(displayName)}</video:uploader>` : ''}`
+      <video:uploader info="${escapeXmlUrl(`${BASE_URL}/actors/${encodeURIComponent(String(video.streamerId || ''))}`)}">${escapeXml(displayName)}</video:uploader>` : ''}`
 
             // INDIVIDUAL <video:tag> elements (Google spec, max 32)
             const cleanTags = tags
@@ -281,6 +282,7 @@ function safeISODate(dateStr: string | undefined | null): string | null {
     // Reject obvious relative time strings like '1d ago', '2w ago', etc.
     if (/\d+[dhwm]\s*ago/i.test(dateStr)) return null
     if (/ago$/i.test(dateStr)) return null
+    if (dateStr === 'Just now') return null
 
     try {
         const d = new Date(dateStr)
@@ -293,6 +295,9 @@ function safeISODate(dateStr: string | undefined | null): string | null {
     }
 }
 
+/**
+ * Escape XML special characters in text content.
+ */
 function escapeXml(str: string): string {
     return str
         .replace(/&/g, '&amp;')
@@ -300,4 +305,26 @@ function escapeXml(str: string): string {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;')
+}
+
+/**
+ * Encode a URL for use in XML <loc>, <image:loc>, <video:thumbnail_loc> etc.
+ * - encodeURI handles Korean chars, spaces → %XX encoding
+ * - Then XML-escape the result (& in query strings → &amp;)
+ */
+function escapeXmlUrl(url: string): string {
+    try {
+        // Parse the URL to properly encode each component
+        const parsed = new URL(url)
+        // Encode the pathname (handles Korean, spaces, special chars)
+        parsed.pathname = parsed.pathname
+            .split('/')
+            .map(segment => encodeURIComponent(decodeURIComponent(segment)))
+            .join('/')
+        // Reconstruct and XML-escape
+        return escapeXml(parsed.toString())
+    } catch {
+        // Fallback: simple encodeURI + XML escape
+        return escapeXml(encodeURI(url))
+    }
 }
