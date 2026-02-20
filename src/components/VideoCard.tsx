@@ -156,13 +156,14 @@ export default function VideoCard({
         setTimeout(() => { video.removeEventListener('seeked', handleSeeked); video.src = ''; video.load() }, 15000)
     }, [thumbnailUrl, videoUrl, isInView, videoSrcWithAuth, autoPosterUrl, duration, id])
 
-    // 세로 영상: 배경도 contain으로 맞춰 pillarbox 효과 유지
-    const bgSize = isVertical ? 'contain' : 'cover'
-    const backgroundStyle = thumbnailUrl
-        ? { backgroundImage: `url(${thumbnailWithAuth})`, backgroundSize: bgSize, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' as const }
-        : autoPosterUrl
-            ? { backgroundImage: `url(${autoPosterUrl})`, backgroundSize: bgSize, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' as const }
-            : { backgroundColor: '#0a0a0a' }
+    // 세로 영상: 배경이미지 비활성화 → 검정 배경 + object-contain으로 pillarbox 효과
+    const backgroundStyle = isVertical
+        ? { backgroundColor: '#0a0a0a' }
+        : thumbnailUrl
+            ? { backgroundImage: `url(${thumbnailWithAuth})`, backgroundSize: 'cover' as const, backgroundPosition: 'center' }
+            : autoPosterUrl
+                ? { backgroundImage: `url(${autoPosterUrl})`, backgroundSize: 'cover' as const, backgroundPosition: 'center' }
+                : { backgroundColor: '#0a0a0a' }
 
     const handleMouseEnter = () => {
         setIsHovering(true)
@@ -234,7 +235,7 @@ export default function VideoCard({
                                 fill
                                 className={`${objectFitClass} transition-opacity duration-300 ${showingFrames ? 'opacity-0' : 'opacity-100'}`}
                                 unoptimized
-                                priority={isInView}
+                                loading="lazy"
                                 onError={() => setImgError(true)}
                             />
                         )}
