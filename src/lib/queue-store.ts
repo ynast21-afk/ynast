@@ -1,15 +1,16 @@
-import { db } from '@/lib/firebase'
-import {
-    collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
-    writeBatch, Timestamp
-} from 'firebase/firestore'
+import { getJsonFile, saveJsonFile } from '@/lib/b2'
 import 'server-only'
 
 // ============================================
-// Firestore collection references
+// B2 Storage — queue stored as queue.json on B2
+// (Firestore API disabled → switched to B2)
 // ============================================
-const QUEUE_COLLECTION = 'upload-queue'
-const SETTINGS_DOC = 'settings/queue'
+const QUEUE_FILENAME = 'queue.json'
+
+// In-memory cache to reduce B2 reads
+let queueCache: UploadJob[] | null = null
+let cacheTime = 0
+const CACHE_TTL_MS = 3000 // 3 seconds
 
 // ============================================
 // Types (unchanged interface)
@@ -41,45 +42,26 @@ export interface QueueSettings {
 }
 
 // ============================================
-// Helper: convert Firestore doc to UploadJob
-// ============================================
-function docToJob(docData: any, docId: string): UploadJob {
-    return {
-        id: docId,
-        sourceUrl: docData.sourceUrl || '',
-        status: docData.status || 'queued',
-        title: docData.title || '',
-        titleSource: docData.titleSource || 'pageTitle',
-        streamerId: docData.streamerId || null,
-        streamerName: docData.streamerName || null,
-        pageNumber: docData.pageNumber ?? null,
-        itemOrder: docData.itemOrder ?? null,
-        priority: docData.priority ?? 0,
-        b2Url: docData.b2Url || null,
-        b2ThumbnailUrl: docData.b2ThumbnailUrl || null,
-        error: docData.error || null,
-        progress: docData.progress ?? 0,
-        workerId: docData.workerId || null,
-        lockedAt: docData.lockedAt || null,
-        createdAt: docData.createdAt || new Date().toISOString(),
-        updatedAt: docData.updatedAt || new Date().toISOString(),
-        retryCount: docData.retryCount ?? 0,
-    }
-}
-
-// ============================================
-// Queue CRUD (async — Firestore)
+// Queue CRUD (B2-backed)
 // ============================================
 
 /**
- * Get all jobs from Firestore upload-queue collection
+ * Get all jobs from B2 queue.json
  */
 export async function getQueue(): Promise<UploadJob[]> {
     try {
-        // Simple collection read — no orderBy to avoid needing a composite index
-        const snapshot = await getDocs(collection(db, QUEUE_COLLECTION))
-        const jobs = snapshot.docs.map(d => docToJob(d.data(), d.id))
-        // Sort client-side by priority ascending
+        // Use cache if fresh
+        if (queueCache && Date.now() - cacheTime < CACHE_TTL_MS) {
+            return [...queueCache]
+        }
+
+        const data = await getJsonFile(QUEUE_FILENAME)
+        const jobs: UploadJob[] = data?.jobs || []
+
+        // Update cache
+        queueCache = jobs
+        cacheTime = Date.now()
+
         return jobs.sort((a, b) => a.priority - b.priority)
     } catch (err) {
         console.error('[QueueStore] getQueue error:', err)
@@ -88,26 +70,23 @@ export async function getQueue(): Promise<UploadJob[]> {
 }
 
 /**
- * Save the entire queue (batch write — replaces all docs).
- * Used when bulk updating (claim stale unlock, etc.)
+ * Save queue to B2 (internal)
+ */
+async function saveQueueInternal(jobs: UploadJob[]): Promise<boolean> {
+    const success = await saveJsonFile(QUEUE_FILENAME, { jobs, updatedAt: new Date().toISOString() })
+    if (success) {
+        queueCache = jobs
+        cacheTime = Date.now()
+    }
+    return success
+}
+
+/**
+ * Save the entire queue
  */
 export async function saveQueue(jobs: UploadJob[]): Promise<boolean> {
     try {
-        const batch = writeBatch(db)
-
-        // Delete all existing docs first
-        const snapshot = await getDocs(collection(db, QUEUE_COLLECTION))
-        snapshot.docs.forEach(d => batch.delete(d.ref))
-
-        // Write all jobs
-        for (const job of jobs) {
-            const ref = doc(db, QUEUE_COLLECTION, job.id)
-            const { id, ...data } = job
-            batch.set(ref, data)
-        }
-
-        await batch.commit()
-        return true
+        return await saveQueueInternal(jobs)
     } catch (err) {
         console.error('[QueueStore] saveQueue error:', err)
         return false
@@ -115,14 +94,13 @@ export async function saveQueue(jobs: UploadJob[]): Promise<boolean> {
 }
 
 /**
- * Add a single job to the queue (more efficient than saveQueue for single adds)
+ * Add a single job to the queue
  */
 export async function addJob(job: UploadJob): Promise<boolean> {
     try {
-        const ref = doc(db, QUEUE_COLLECTION, job.id)
-        const { id, ...data } = job
-        await setDoc(ref, data)
-        return true
+        const jobs = await getQueue()
+        jobs.push(job)
+        return await saveQueueInternal(jobs)
     } catch (err) {
         console.error('[QueueStore] addJob error:', err)
         return false
@@ -134,9 +112,14 @@ export async function addJob(job: UploadJob): Promise<boolean> {
  */
 export async function updateJob(jobId: string, updates: Partial<UploadJob>): Promise<boolean> {
     try {
-        const ref = doc(db, QUEUE_COLLECTION, jobId)
-        await updateDoc(ref, { ...updates })
-        return true
+        const jobs = await getQueue()
+        const idx = jobs.findIndex(j => j.id === jobId)
+        if (idx === -1) {
+            console.warn(`[QueueStore] Job not found: ${jobId}`)
+            return false
+        }
+        jobs[idx] = { ...jobs[idx], ...updates }
+        return await saveQueueInternal(jobs)
     } catch (err) {
         console.error('[QueueStore] updateJob error:', err)
         return false
@@ -148,10 +131,8 @@ export async function updateJob(jobId: string, updates: Partial<UploadJob>): Pro
  */
 export async function getJob(jobId: string): Promise<UploadJob | null> {
     try {
-        const ref = doc(db, QUEUE_COLLECTION, jobId)
-        const snap = await getDoc(ref)
-        if (!snap.exists()) return null
-        return docToJob(snap.data(), snap.id)
+        const jobs = await getQueue()
+        return jobs.find(j => j.id === jobId) || null
     } catch (err) {
         console.error('[QueueStore] getJob error:', err)
         return null
@@ -163,9 +144,12 @@ export async function getJob(jobId: string): Promise<UploadJob | null> {
  */
 export async function deleteJob(jobId: string): Promise<boolean> {
     try {
-        const ref = doc(db, QUEUE_COLLECTION, jobId)
-        await deleteDoc(ref)
-        return true
+        const jobs = await getQueue()
+        const filtered = jobs.filter(j => j.id !== jobId)
+        if (filtered.length === jobs.length) {
+            return false // Not found
+        }
+        return await saveQueueInternal(filtered)
     } catch (err) {
         console.error('[QueueStore] deleteJob error:', err)
         return false
@@ -173,17 +157,16 @@ export async function deleteJob(jobId: string): Promise<boolean> {
 }
 
 // ============================================
-// Settings CRUD (async — Firestore)
+// Settings CRUD (B2-backed)
 // ============================================
 
+const SETTINGS_FILENAME = 'queue-settings.json'
 const DEFAULT_SETTINGS: QueueSettings = { titleSource: 'pageTitle' }
 
 export async function getSettings(): Promise<QueueSettings> {
     try {
-        const ref = doc(db, SETTINGS_DOC)
-        const snap = await getDoc(ref)
-        if (!snap.exists()) return DEFAULT_SETTINGS
-        return snap.data() as QueueSettings
+        const data = await getJsonFile(SETTINGS_FILENAME)
+        return data || DEFAULT_SETTINGS
     } catch {
         return DEFAULT_SETTINGS
     }
@@ -191,9 +174,7 @@ export async function getSettings(): Promise<QueueSettings> {
 
 export async function saveSettings(settings: QueueSettings): Promise<boolean> {
     try {
-        const ref = doc(db, SETTINGS_DOC)
-        await setDoc(ref, settings)
-        return true
+        return await saveJsonFile(SETTINGS_FILENAME, settings)
     } catch (err) {
         console.error('[QueueStore] Save settings error:', err)
         return false
