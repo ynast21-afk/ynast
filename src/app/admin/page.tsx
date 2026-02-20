@@ -4206,11 +4206,11 @@ export default function AdminPage() {
                                                                 <h4 className="text-sm font-semibold mb-3 text-text-secondary">
                                                                     📈 {seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'} 방문자 추이
                                                                 </h4>
-                                                                <div className="flex items-end gap-1 h-32">
+                                                                <div className="flex items-stretch gap-1 h-32">
                                                                     {(() => {
                                                                         const maxVisits = Math.max(...chartData.map((d: any) => d.visits), 1)
                                                                         return chartData.map((d: any, i: number) => (
-                                                                            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                                                            <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1 group relative">
                                                                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
                                                                                     {d.label || d.date}: {d.visits}명
                                                                                 </div>
@@ -4450,7 +4450,7 @@ export default function AdminPage() {
                                                                 })}
                                                             </div>
                                                             {/* Chart area */}
-                                                            <div className="flex items-end gap-1 h-36 overflow-x-auto">
+                                                            <div className="flex items-stretch gap-1 h-36 overflow-x-auto">
                                                                 {(() => {
                                                                     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
                                                                     const allValues = seoAnalytics.countryTrend.flatMap((d: any) =>
@@ -4459,7 +4459,7 @@ export default function AdminPage() {
                                                                     const maxVal = Math.max(...allValues, 1)
                                                                     const showLabels = seoAnalytics.countryTrend.length <= 14
                                                                     return seoAnalytics.countryTrend.map((d: any, di: number) => (
-                                                                        <div key={di} className="flex-1 min-w-[20px] flex flex-col items-center gap-0.5 group relative">
+                                                                        <div key={di} className="flex-1 min-w-[20px] h-full flex flex-col items-center gap-0.5 group relative">
                                                                             {/* Tooltip */}
                                                                             <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full bg-black/95 text-white text-[10px] px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-20 border border-white/10 shadow-lg">
                                                                                 <div className="font-semibold mb-1">{d.date}</div>
@@ -4472,7 +4472,7 @@ export default function AdminPage() {
                                                                                 ))}
                                                                             </div>
                                                                             {/* Grouped bars */}
-                                                                            <div className="w-full flex gap-px items-end h-full">
+                                                                            <div className="w-full flex gap-px items-end flex-1">
                                                                                 {seoAnalytics.top5CountryCodes.map((c: any, ci: number) => {
                                                                                     const val = d.countries[c.code] || 0
                                                                                     return (
@@ -4550,11 +4550,11 @@ export default function AdminPage() {
                                                     {seoAnalytics.hourlyDistribution && (
                                                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                                                             <h4 className="text-sm font-semibold mb-3 text-text-secondary">⏰ 시간대별 방문 (UTC)</h4>
-                                                            <div className="flex items-end gap-0.5 h-20">
+                                                            <div className="flex items-stretch gap-0.5 h-20">
                                                                 {(() => {
                                                                     const maxH = Math.max(...seoAnalytics.hourlyDistribution, 1)
                                                                     return seoAnalytics.hourlyDistribution.map((count: number, hr: number) => (
-                                                                        <div key={hr} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                                                                        <div key={hr} className="flex-1 h-full flex flex-col items-center justify-end gap-0.5 group relative">
                                                                             <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
                                                                                 {hr}시: {count}
                                                                             </div>
