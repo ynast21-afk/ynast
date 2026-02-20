@@ -208,18 +208,17 @@ export async function GET() {
 
             const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.`
 
-            // content_loc for free videos with real mp4 URL
-            const hasRealVideoUrl = !video.isVip && video.videoUrl && video.videoUrl.startsWith('http')
-            // player_loc for ALL videos (required by Google spec: need content_loc OR player_loc)
-            const playerLocUrl = `${BASE_URL}/video/${videoId}`
+            // Only include <video:video> if we have a real video file URL
+            // Google requires content_loc OR player_loc, and player_loc must NOT equal <loc>
+            const hasRealVideoUrl = video.videoUrl && video.videoUrl.startsWith('http')
 
-            xml += `
+            if (hasRealVideoUrl) {
+                xml += `
     <video:video>
       <video:thumbnail_loc>${escapeXmlUrl(thumbUrl)}</video:thumbnail_loc>
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
-      <video:description>${escapeXml(description)}</video:description>${hasRealVideoUrl ? `
-      <video:content_loc>${escapeXmlUrl(video.videoUrl as string)}</video:content_loc>` : ''}
-      <video:player_loc>${escapeXmlUrl(playerLocUrl)}</video:player_loc>
+      <video:description>${escapeXml(description)}</video:description>
+      <video:content_loc>${escapeXmlUrl(video.videoUrl as string)}</video:content_loc>
       <video:duration>${durationSeconds}</video:duration>
       <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
@@ -228,19 +227,20 @@ export async function GET() {
       <video:view_count>${video.views}</video:view_count>` : ''}${streamerName ? `
       <video:uploader info="${escapeXmlUrl(`${BASE_URL}/actors/${encodeURIComponent(String(video.streamerId || ''))}`)}">${escapeXml(displayName)}</video:uploader>` : ''}`
 
-            // INDIVIDUAL <video:tag> elements (Google spec, max 32)
-            const cleanTags = tags
-                .map((t: string) => t.trim().replace(/^#/, ''))
-                .filter((t: string) => t.length > 0)
-                .slice(0, 32)
+                // INDIVIDUAL <video:tag> elements (Google spec, max 32)
+                const cleanTags = tags
+                    .map((t: string) => t.trim().replace(/^#/, ''))
+                    .filter((t: string) => t.length > 0)
+                    .slice(0, 32)
 
-            for (const tag of cleanTags) {
-                xml += `
+                for (const tag of cleanTags) {
+                    xml += `
       <video:tag>${escapeXml(tag)}</video:tag>`
-            }
+                }
 
-            xml += `
+                xml += `
     </video:video>`
+            }
         }
 
         xml += `
