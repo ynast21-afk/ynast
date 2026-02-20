@@ -49,8 +49,9 @@ export default function VideoCard({
     minDownloadLevel = 'guest',
     orientation
 }: VideoCardProps) {
-    const isVertical = orientation === 'vertical'
-    // 세로 영상: 프레임은 16:9 유지, 썸네일만 object-contain으로 원본 세로 비율 표시
+    // 세로 영상 자동 감지: orientation prop으로 즉시 판단하거나, 썸네일 로드 시 비율로 자동 감지
+    const [detectedVertical, setDetectedVertical] = useState(false)
+    const isVertical = orientation === 'vertical' || detectedVertical
     const objectFitClass = isVertical ? 'object-contain' : 'object-cover'
     const [isHovering, setIsHovering] = useState(false)
     const [previewIndex, setPreviewIndex] = useState(-1)
@@ -237,6 +238,13 @@ export default function VideoCard({
                                 unoptimized
                                 loading="lazy"
                                 onError={() => setImgError(true)}
+                                onLoad={(e) => {
+                                    // 썸네일 로드 시 세로 비율 자동 감지
+                                    const img = e.target as HTMLImageElement
+                                    if (img.naturalHeight > img.naturalWidth && !detectedVertical && orientation !== 'vertical') {
+                                        setDetectedVertical(true)
+                                    }
+                                }}
                             />
                         )}
 
