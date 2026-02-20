@@ -36,7 +36,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { tweetText, videoId, videoTitle, streamerName, mediaUrls, mediaType, videoClipUrl, base64Images } = body
+        const { tweetText, videoId, videoTitle, streamerName, mediaUrls, mediaType, videoClipUrl, base64Images, videoUrl, thumbnailUrl } = body
 
         if (!tweetText) {
             return NextResponse.json({ error: 'Missing tweet text' }, { status: 400 })
@@ -63,23 +63,61 @@ export async function POST(request: NextRequest) {
         const creds = { apiKey, apiSecret, accessToken, accessTokenSecret }
 
         // Upload media (images or video clip)
+        // Fallback chain: mediaUrls → base64Images → thumbnailUrl → videoUrl (server-side)
         let mediaIds: string[] = []
         if (mediaType === 'video' && videoClipUrl) {
             // Video clip mode: upload single MP4 video
             const videoMediaId = await uploadVideoFromUrl(videoClipUrl, creds)
             if (videoMediaId) {
                 mediaIds = [videoMediaId]
-                console.log(`Uploaded video clip to Twitter, mediaId: ${videoMediaId}`)
+                console.log(`[Twitter] Uploaded video clip, mediaId: ${videoMediaId}`)
             }
         } else if (mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 0) {
-            // Image mode: upload up to 4 images from URLs
+            // Image mode: upload up to 4 images from URLs (previewUrls from B2)
             const urlsToUpload = mediaUrls.slice(0, 4)
             mediaIds = await uploadMediaFromUrls(urlsToUpload, creds)
-            console.log(`Uploaded ${mediaIds.length} media to Twitter`)
+            console.log(`[Twitter] Uploaded ${mediaIds.length} media from previewUrls`)
         } else if (base64Images && Array.isArray(base64Images) && base64Images.length > 0) {
             // Base64 image mode: upload images directly from base64 data
             mediaIds = await uploadMediaFromBase64(base64Images.slice(0, 4), creds)
-            console.log(`Uploaded ${mediaIds.length} base64 media to Twitter`)
+            console.log(`[Twitter] Uploaded ${mediaIds.length} base64 media`)
+        }
+
+        // 🔄 Server-side fallback: if no media uploaded yet, try thumbnailUrl or videoUrl
+        if (mediaIds.length === 0) {
+            console.log('[Twitter] No media from primary sources, trying server-side fallbacks...')
+
+            // Fallback 1: thumbnailUrl (single image, fast)
+            if (thumbnailUrl && typeof thumbnailUrl === 'string') {
+                try {
+                    console.log(`[Twitter] Fallback: using thumbnailUrl`)
+                    const thumbIds = await uploadMediaFromUrls([thumbnailUrl], creds)
+                    if (thumbIds.length > 0) {
+                        mediaIds = thumbIds
+                        console.log(`[Twitter] ✅ Fallback thumbnailUrl succeeded`)
+                    }
+                } catch (err: any) {
+                    console.warn(`[Twitter] Fallback thumbnailUrl failed:`, err?.message)
+                }
+            }
+
+            // Fallback 2: extract frame from videoUrl on server (B2 download + ffmpeg)
+            if (mediaIds.length === 0 && videoUrl && typeof videoUrl === 'string') {
+                try {
+                    console.log(`[Twitter] Fallback: extracting frame from videoUrl server-side`)
+                    const frameMediaId = await extractAndUploadFrameFromVideo(videoUrl, creds)
+                    if (frameMediaId) {
+                        mediaIds = [frameMediaId]
+                        console.log(`[Twitter] ✅ Fallback server-side frame extraction succeeded`)
+                    }
+                } catch (err: any) {
+                    console.warn(`[Twitter] Fallback server-side frame extraction failed:`, err?.message)
+                }
+            }
+
+            if (mediaIds.length === 0) {
+                console.warn('[Twitter] ⚠️ All media fallbacks exhausted, posting text-only tweet')
+            }
         }
 
         // Post tweet using twitter-api-v2 library
@@ -345,6 +383,101 @@ async function uploadVideoFromUrl(url: string, creds: TwitterCredentials): Promi
         return mediaId
     } catch (err: any) {
         console.error(`Failed to upload video from ${url}:`, err?.message || err)
+        return null
+    }
+}
+
+// Server-side: Download video from B2, extract a single frame with ffmpeg, upload to Twitter
+async function extractAndUploadFrameFromVideo(url: string, creds: TwitterCredentials): Promise<string | null> {
+    try {
+        // Authorize B2 for downloading
+        let headers: Record<string, string> = {}
+        const isB2Url = url.includes('backblazeb2.com')
+        if (isB2Url) {
+            try {
+                const b2Auth = await authorizeB2()
+                headers['Authorization'] = b2Auth.authorizationToken
+            } catch (err: any) {
+                console.warn('[Twitter] B2 auth failed for video frame extraction:', err?.message)
+            }
+        }
+
+        // Download only first ~8MB of video (enough for a frame at 5s)
+        headers['Range'] = 'bytes=0-8388607'
+        console.log(`[Twitter] Downloading partial video for frame extraction...`)
+        const response = await fetch(url, { headers })
+
+        if (!response.ok && response.status !== 206) {
+            console.error(`[Twitter] Video download failed: ${response.status} ${response.statusText}`)
+            return null
+        }
+
+        const arrayBuffer = await response.arrayBuffer()
+        const videoBuffer = Buffer.from(arrayBuffer)
+        console.log(`[Twitter] Downloaded ${videoBuffer.length} bytes for frame extraction`)
+
+        // Try dynamic ffmpeg import for frame extraction
+        let ffmpegPath: string | null = null
+        try {
+            const ffmpegStatic = await import('ffmpeg-static')
+            ffmpegPath = (ffmpegStatic as any).default || ffmpegStatic
+        } catch {
+            console.warn('[Twitter] ffmpeg-static not available, trying system ffmpeg')
+            ffmpegPath = 'ffmpeg'
+        }
+
+        if (!ffmpegPath) {
+            console.warn('[Twitter] No ffmpeg available for server-side frame extraction')
+            return null
+        }
+
+        // Write video chunk to temp file, extract frame, clean up
+        const os = await import('os')
+        const path = await import('path')
+        const fs = await import('fs')
+        const { execSync } = await import('child_process')
+
+        const tmpDir = os.tmpdir()
+        const tmpVideo = path.join(tmpDir, `tw_vid_${Date.now()}.mp4`)
+        const tmpFrame = path.join(tmpDir, `tw_frame_${Date.now()}.jpg`)
+
+        try {
+            fs.writeFileSync(tmpVideo, new Uint8Array(videoBuffer))
+
+            // Extract frame at 2 seconds (safe for short clips too)
+            execSync(
+                `"${ffmpegPath}" -y -i "${tmpVideo}" -ss 2 -vframes 1 -q:v 2 -vf "scale=1280:-1" "${tmpFrame}"`,
+                { encoding: 'utf8', timeout: 30000, stdio: 'pipe' }
+            )
+
+            if (!fs.existsSync(tmpFrame) || fs.statSync(tmpFrame).size === 0) {
+                console.warn('[Twitter] Frame extraction produced no output')
+                return null
+            }
+
+            const frameBuffer = fs.readFileSync(tmpFrame)
+            console.log(`[Twitter] Extracted frame: ${frameBuffer.length} bytes`)
+
+            // Upload frame to Twitter
+            const client = new TwitterApi({
+                appKey: creds.apiKey,
+                appSecret: creds.apiSecret,
+                accessToken: creds.accessToken,
+                accessSecret: creds.accessTokenSecret,
+            })
+
+            const mediaId = await client.v1.uploadMedia(frameBuffer, {
+                mimeType: 'image/jpeg' as any,
+            })
+            console.log(`[Twitter] Uploaded extracted frame, mediaId: ${mediaId}`)
+            return mediaId
+        } finally {
+            // Clean up temp files
+            try { if (fs.existsSync(tmpVideo)) fs.unlinkSync(tmpVideo) } catch { }
+            try { if (fs.existsSync(tmpFrame)) fs.unlinkSync(tmpFrame) } catch { }
+        }
+    } catch (err: any) {
+        console.error(`[Twitter] extractAndUploadFrameFromVideo failed:`, err?.message || err)
         return null
     }
 }

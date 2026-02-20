@@ -634,7 +634,9 @@ export default function AdminPage() {
                                     streamerName: video.streamerName,
                                     base64Images: base64Frames,
                                     mediaType: 'images',
-                                    videoClipUrl
+                                    videoClipUrl,
+                                    videoUrl: video.videoUrl,
+                                    thumbnailUrl: video.thumbnailUrl
                                 })
                             })
                             const data = await res.json()
@@ -668,7 +670,9 @@ export default function AdminPage() {
                     streamerName: video.streamerName,
                     mediaUrls,
                     mediaType,
-                    videoClipUrl
+                    videoClipUrl,
+                    videoUrl: video.videoUrl,
+                    thumbnailUrl: video.thumbnailUrl
                 })
             })
             const data = await res.json()
