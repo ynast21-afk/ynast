@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdminProtection } from '@/lib/security'
-import { getQueue, saveQueue, UploadJob } from '@/lib/queue-store'
+import { getQueue, addJob, UploadJob } from '@/lib/queue-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +13,7 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'urls array is required' }, { status: 400 })
         }
 
+        // Read existing queue to check duplicates
         const jobs = await getQueue()
         const existingUrls = new Set(
             jobs.filter(j => j.status === 'queued' || j.status === 'processing').map(j => j.sourceUrl)
@@ -55,15 +56,11 @@ async function handlePOST(request: NextRequest) {
                 retryCount: 0,
             }
 
-            jobs.push(newJob)
-            existingUrls.add(url)
-            created++
-        }
-
-        if (created > 0) {
-            const saved = await saveQueue(jobs)
-            if (!saved) {
-                return NextResponse.json({ error: 'Failed to save queue' }, { status: 500 })
+            // Individual doc writes (parallel-safe, no batch rewrite)
+            const saved = await addJob(newJob)
+            if (saved) {
+                existingUrls.add(url)
+                created++
             }
         }
 

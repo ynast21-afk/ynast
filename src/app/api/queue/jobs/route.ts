@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getQueue, saveQueue, UploadJob } from '@/lib/queue-store'
+import { getQueue, addJob, deleteJob, UploadJob } from '@/lib/queue-store'
 import { withAdminProtection } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
@@ -20,9 +20,8 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'sourceUrl is required' }, { status: 400 })
         }
 
+        // Check for duplicate (same URL, not done/failed) — still needs full queue read
         const jobs = await getQueue()
-
-        // Check for duplicate (same URL, not done/failed)
         const existing = jobs.find(
             j => j.sourceUrl === sourceUrl && (j.status === 'queued' || j.status === 'processing')
         )
@@ -53,11 +52,10 @@ async function handlePOST(request: NextRequest) {
             retryCount: 0,
         }
 
-        jobs.push(newJob)
-        const saved = await saveQueue(jobs)
-
+        // Single document add (not batch rewrite)
+        const saved = await addJob(newJob)
         if (!saved) {
-            return NextResponse.json({ error: 'Failed to save queue' }, { status: 500 })
+            return NextResponse.json({ error: 'Failed to save job' }, { status: 500 })
         }
 
         return NextResponse.json({ success: true, job: newJob })
@@ -76,14 +74,12 @@ async function handleDELETE(request: NextRequest) {
             return NextResponse.json({ error: 'id is required' }, { status: 400 })
         }
 
-        const jobs = await getQueue()
-        const filtered = jobs.filter(j => j.id !== id)
-
-        if (filtered.length === jobs.length) {
-            return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+        // Single document delete (not batch rewrite)
+        const deleted = await deleteJob(id)
+        if (!deleted) {
+            return NextResponse.json({ error: 'Failed to delete job' }, { status: 500 })
         }
 
-        await saveQueue(filtered)
         return NextResponse.json({ success: true })
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })

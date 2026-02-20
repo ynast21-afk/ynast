@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdminProtection } from '@/lib/security'
-import { getQueue, saveQueue } from '@/lib/queue-store'
+import { getQueue, updateJob } from '@/lib/queue-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,21 +17,23 @@ async function handlePOST(request: NextRequest) {
 
         const jobs = await getQueue()
         const now = Date.now()
+        const isoNow = new Date().toISOString()
 
-        // Unlock stale jobs first
-        let changed = false
+        // Unlock stale jobs (individual Firestore updates, not batch rewrite)
         for (const job of jobs) {
             if (
                 job.status === 'processing' &&
                 job.lockedAt &&
                 now - new Date(job.lockedAt).getTime() > STALE_LOCK_MS
             ) {
-                job.status = 'queued'
-                job.workerId = null
-                job.lockedAt = null
-                job.progress = 0
-                job.updatedAt = new Date().toISOString()
-                changed = true
+                await updateJob(job.id, {
+                    status: 'queued',
+                    workerId: null,
+                    lockedAt: null,
+                    progress: 0,
+                    updatedAt: isoNow,
+                })
+                job.status = 'queued' // Update in-memory for next step
             }
         }
 
@@ -42,19 +44,19 @@ async function handlePOST(request: NextRequest) {
 
         const nextJob = queuedJobs[0]
         if (!nextJob) {
-            if (changed) await saveQueue(jobs)
             return NextResponse.json({ job: null })
         }
 
-        // Claim it
-        nextJob.status = 'processing'
-        nextJob.workerId = workerId
-        nextJob.lockedAt = new Date().toISOString()
-        nextJob.updatedAt = new Date().toISOString()
+        // Claim it — single document update
+        const updates = {
+            status: 'processing' as const,
+            workerId,
+            lockedAt: isoNow,
+            updatedAt: isoNow,
+        }
+        await updateJob(nextJob.id, updates)
 
-        await saveQueue(jobs)
-
-        return NextResponse.json({ job: nextJob })
+        return NextResponse.json({ job: { ...nextJob, ...updates } })
     } catch (err: any) {
         console.error('[Queue Claim] POST error:', err)
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
