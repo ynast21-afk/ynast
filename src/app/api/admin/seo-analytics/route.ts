@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     try {
         const url = new URL(request.url)
         const range = url.searchParams.get('range') || '7' // days
-        const days = Math.min(parseInt(range) || 7, 90) // max 90 days
+        const days = Math.min(parseInt(range) || 7, 1095) // max ~3 years
         const view = url.searchParams.get('view') || 'daily' // daily | weekly | monthly
 
         const dateKeys = getDateRange(days)

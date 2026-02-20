@@ -10,6 +10,7 @@ import { useSiteSettings } from '@/contexts/SiteSettingsContext'
 import { resolveContentType, isVideoFile, getAcceptedVideoExtensions } from '@/utils/mimeTypes'
 import UserManagementPanel from '@/components/UserManagementPanel'
 import VideoQueuePanel from '@/components/VideoQueuePanel'
+import InteractiveVisitorChart from '@/components/admin/InteractiveVisitorChart'
 import dynamic from 'next/dynamic'
 
 const AdminDashboardCharts = dynamic(() => import('@/components/AdminDashboardCharts'), {
@@ -4086,7 +4087,7 @@ export default function AdminPage() {
                                                 <h3 className="font-semibold text-accent-primary text-lg">📊 SEO 통계 대시보드</h3>
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     {/* Range selector */}
-                                                    {[7, 14, 30].map(d => (
+                                                    {[7, 14, 30, 90, 365, 1095].map(d => (
                                                         <button
                                                             key={d}
                                                             onClick={() => {
@@ -4103,7 +4104,7 @@ export default function AdminPage() {
                                                                 : 'bg-white/5 text-text-secondary hover:bg-white/10'
                                                                 }`}
                                                         >
-                                                            {d}일
+                                                            {d <= 90 ? `${d}일` : d === 365 ? '1년' : '3년'}
                                                         </button>
                                                     ))}
                                                     <span className="text-white/20">|</span>
@@ -4198,34 +4199,14 @@ export default function AdminPage() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Visitors Chart (adapts to view type) */}
+                                                    {/* Visitors Chart — Interactive (recharts Brush) */}
                                                     {(() => {
                                                         const chartData = seoAnalytics.aggregatedVisitors || seoAnalytics.dailyVisitors || []
                                                         return chartData.length > 0 && (
-                                                            <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                                                <h4 className="text-sm font-semibold mb-3 text-text-secondary">
-                                                                    📈 {seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'} 방문자 추이
-                                                                </h4>
-                                                                <div className="flex items-stretch gap-1 h-32">
-                                                                    {(() => {
-                                                                        const maxVisits = Math.max(...chartData.map((d: any) => d.visits), 1)
-                                                                        return chartData.map((d: any, i: number) => (
-                                                                            <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1 group relative">
-                                                                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                                                                    {d.label || d.date}: {d.visits}명
-                                                                                </div>
-                                                                                <div
-                                                                                    className="w-full bg-accent-primary/70 rounded-t-sm hover:bg-accent-primary transition-colors cursor-pointer"
-                                                                                    style={{ height: `${Math.max((d.visits / maxVisits) * 100, 2)}%` }}
-                                                                                />
-                                                                                {chartData.length <= 14 && (
-                                                                                    <span className="text-[9px] text-text-tertiary">{(d.label || d.date || '').slice(-5)}</span>
-                                                                                )}
-                                                                            </div>
-                                                                        ))
-                                                                    })()}
-                                                                </div>
-                                                            </div>
+                                                            <InteractiveVisitorChart
+                                                                data={chartData}
+                                                                viewType={seoAnalyticsView}
+                                                            />
                                                         )
                                                     })()}
 
