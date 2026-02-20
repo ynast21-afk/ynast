@@ -156,10 +156,12 @@ export default function VideoCard({
         setTimeout(() => { video.removeEventListener('seeked', handleSeeked); video.src = ''; video.load() }, 15000)
     }, [thumbnailUrl, videoUrl, isInView, videoSrcWithAuth, autoPosterUrl, duration, id])
 
+    // 세로 영상: 배경도 contain으로 맞춰 pillarbox 효과 유지
+    const bgSize = isVertical ? 'contain' : 'cover'
     const backgroundStyle = thumbnailUrl
-        ? { backgroundImage: `url(${thumbnailWithAuth})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        ? { backgroundImage: `url(${thumbnailWithAuth})`, backgroundSize: bgSize, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' as const }
         : autoPosterUrl
-            ? { backgroundImage: `url(${autoPosterUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            ? { backgroundImage: `url(${autoPosterUrl})`, backgroundSize: bgSize, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' as const }
             : { backgroundColor: '#0a0a0a' }
 
     const handleMouseEnter = () => {
