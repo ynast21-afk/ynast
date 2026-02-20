@@ -2,10 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import 'server-only'
 
-// Store queue data as a local JSON file in the project's data directory.
-// This avoids dependency on Firestore or B2 credentials for queue management.
-
-const DATA_DIR = path.join(process.cwd(), 'data')
+// Vercel serverless: process.cwd() is read-only (/var/task), use /tmp instead
+// Local dev: use project's data/ directory
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined
+const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'data') : path.join(process.cwd(), 'data')
 const QUEUE_FILE = path.join(DATA_DIR, 'upload-queue.json')
 const SETTINGS_FILE = path.join(DATA_DIR, 'queue-settings.json')
 
