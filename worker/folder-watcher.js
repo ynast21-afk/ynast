@@ -75,9 +75,8 @@ async function matchStreamerFromFilename(filename) {
     const baseName = path.basename(filename, path.extname(filename)).toLowerCase()
 
     try {
-        // Read streamers directly from Firestore
-        const snapshot = await getDocs(collection(db, 'streamers'))
-        const streamers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+        // Read streamers via Vercel API
+        const streamers = await getStreamers()
 
         // Sort by name length (longest first) for most specific match
         const sorted = streamers.sort((a, b) =>
