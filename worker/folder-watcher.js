@@ -6,6 +6,8 @@
  */
 
 require('dotenv').config()
+// Also try .env.local (the project's main env file)
+require('dotenv').config({ path: require('path').join(__dirname, '.env.local') })
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
@@ -13,8 +15,8 @@ const os = require('os')
 // ============================================
 // Configuration
 // ============================================
-const SITE_URL = process.env.SITE_URL || 'http://localhost:3000'
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''
+const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_API_SECRET || ''
 const WATCH_DIR = process.env.WATCH_DIR || path.join(os.homedir(), 'Desktop', 'kstreamer-upload')
 const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.flv']
 const STABILIZE_INTERVAL_MS = 2000 // File size check interval

@@ -26,6 +26,8 @@
  */
 
 require('dotenv').config()
+// Also try .env.local (the project's main env file)
+require('dotenv').config({ path: require('path').join(__dirname, '.env.local') })
 const puppeteer = require('puppeteer')
 const https = require('https')
 const http = require('http')
@@ -37,8 +39,8 @@ const { execSync } = require('child_process')
 // ============================================
 // Configuration
 // ============================================
-const SITE_URL = process.env.SITE_URL || 'http://localhost:3000'
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN
+const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_API_SECRET
 const WORKER_ID = process.env.WORKER_ID || `worker-${crypto.randomBytes(3).toString('hex')}`
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000')
 const TEMP_DIR = path.join(__dirname, 'temp')
@@ -57,8 +59,7 @@ if (!ADMIN_TOKEN) {
     process.exit(1)
 }
 if (!SKBJ_EMAIL || !SKBJ_PASSWORD) {
-    console.error('❌ SKBJ_EMAIL and SKBJ_PASSWORD are required.')
-    process.exit(1)
+    console.warn('⚠️ SKBJ_EMAIL/SKBJ_PASSWORD 미설정 — URL 모드 사용 불가 (로컬 파일 모드만 가능)')
 }
 if (!B2_KEY_ID || !B2_KEY || !B2_BUCKET_ID) {
     console.error('❌ B2_APPLICATION_KEY_ID, B2_APPLICATION_KEY, and B2_BUCKET_ID are required.')
