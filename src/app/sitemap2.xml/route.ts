@@ -207,8 +207,10 @@ export async function GET() {
 
             const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.`
 
-            // content_loc only for free videos with real mp4 URL
+            // content_loc for free videos with real mp4 URL
             const hasRealVideoUrl = !video.isVip && video.videoUrl && video.videoUrl.startsWith('http')
+            // player_loc for ALL videos (required by Google spec: need content_loc OR player_loc)
+            const playerLocUrl = `${BASE_URL}/video/${videoId}`
 
             xml += `
     <video:video>
@@ -216,6 +218,7 @@ export async function GET() {
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
       <video:description>${escapeXml(description)}</video:description>${hasRealVideoUrl ? `
       <video:content_loc>${escapeXml(video.videoUrl as string)}</video:content_loc>` : ''}
+      <video:player_loc>${escapeXml(playerLocUrl)}</video:player_loc>
       <video:duration>${durationSeconds}</video:duration>
       <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
@@ -224,47 +227,47 @@ export async function GET() {
       <video:view_count>${video.views}</video:view_count>` : ''}${streamerName ? `
       <video:uploader info="${escapeXml(`${BASE_URL}/actors/${encodeURIComponent(String(video.streamerId || ''))}`)}">${escapeXml(displayName)}</video:uploader>` : ''}`
 
-        // INDIVIDUAL <video:tag> elements (Google spec, max 32)
-        const cleanTags = tags
-            .map((t: string) => t.trim().replace(/^#/, ''))
-            .filter((t: string) => t.length > 0)
-            .slice(0, 32)
+            // INDIVIDUAL <video:tag> elements (Google spec, max 32)
+            const cleanTags = tags
+                .map((t: string) => t.trim().replace(/^#/, ''))
+                .filter((t: string) => t.length > 0)
+                .slice(0, 32)
 
-        for (const tag of cleanTags) {
-            xml += `
+            for (const tag of cleanTags) {
+                xml += `
       <video:tag>${escapeXml(tag)}</video:tag>`
+            }
+
+            xml += `
+    </video:video>`
         }
 
         xml += `
-    </video:video>`
+  </url>`
     }
 
-    xml += `
-  </url>`
-}
-
-// ============================================================
-// SECTION 4: Tag Pages
-// ============================================================
-for (const tag of Array.from(allTags)) {
-    xml += `
+    // ============================================================
+    // SECTION 4: Tag Pages
+    // ============================================================
+    for (const tag of Array.from(allTags)) {
+        xml += `
   <url>
     <loc>${BASE_URL}/tags/${encodeURIComponent(tag)}</loc>
     <lastmod>${now}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>`
-}
+    }
 
-xml += `
+    xml += `
 </urlset>`
 
-return new Response(xml, {
-    headers: {
-        'Content-Type': 'application/xml; charset=utf-8',
-        'Cache-Control': 'public, max-age=3600, s-maxage=3600',
-    },
-})
+    return new Response(xml, {
+        headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        },
+    })
 }
 
 /**
