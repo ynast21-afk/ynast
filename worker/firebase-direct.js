@@ -111,10 +111,21 @@ async function getQueue() {
 
 /**
  * Add a job to the queue
+ * Throws error with code 'DUPLICATE_JOB' if the URL is already queued (409)
  */
 async function addJob(job) {
-    await apiRequestWithRetry('/api/queue/jobs', 'POST', job)
-    return true
+    try {
+        // Use single attempt (no retry) — 409 duplicates should not be retried
+        await apiRequest('/api/queue/jobs', 'POST', job)
+        return true
+    } catch (e) {
+        if (e.message && e.message.includes('(409)')) {
+            const dupError = new Error('이미 대기열에 있는 URL입니다.')
+            dupError.code = 'DUPLICATE_JOB'
+            throw dupError
+        }
+        throw e
+    }
 }
 
 /**

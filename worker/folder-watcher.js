@@ -201,7 +201,12 @@ async function processNewFile(filePath) {
         console.log(`   ✅ 큐에 추가 완료! (ID: ${jobId})`)
         processedFiles.add(filePath)
     } catch (err) {
-        console.error(`   ❌ 처리 실패:`, err.message)
+        if (err.code === 'DUPLICATE_JOB') {
+            console.log(`   ⏭️ 이미 대기열에 있는 파일입니다. 건너뜁니다: ${fileName}`)
+            processedFiles.add(filePath) // Mark as processed so we don't retry
+        } else {
+            console.error(`   ❌ 처리 실패:`, err.message)
+        }
     } finally {
         processingFiles.delete(filePath)
     }
