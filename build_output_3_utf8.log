@@ -1,0 +1,53 @@
+﻿
+> streamvault@0.1.0 build
+> next build
+
+   ??Next.js 14.1.0
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ??Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/19) ...
+
+   Generating static pages (4/19) 
+
+   Generating static pages (9/19) 
+
+   Generating static pages (14/19) 
+
+ ??Generating static pages (19/19) 
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+??貫 /                                    1.74 kB         118 kB
+??貫 /_not-found                          882 B          85.1 kB
+??貫 /actors                              3.62 kB         115 kB
+??貫 /actors/[id]                         4.2 kB          116 kB
+??貫 /admin                               15.1 kB         110 kB
+??貫 /api/paypal/activate-subscription    0 B                0 B
+??貫 /api/paypal/create-subscription      0 B                0 B
+??貫 /api/upload                          0 B                0 B
+??貫 /api/videos                          0 B                0 B
+??貫 /coming-soon                         864 B           112 kB
+??貫 /contact                             2.16 kB         114 kB
+??貫 /login                               1.95 kB        96.8 kB
+??貫 /membership                          7.95 kB         120 kB
+??貫 /mypage                              5.47 kB         117 kB
+????/robots.txt                          0 B                0 B
+??貫 /signup                              2.08 kB        96.9 kB
+????/sitemap.xml                         0 B                0 B
+??貫 /video/[id]                          6.6 kB          118 kB
+??貫 /videos                              1.38 kB         117 kB
++ First Load JS shared by all            84.2 kB
+  ??chunks/69-5a151ab9451cc7da.js        28.9 kB
+  ??chunks/fd9d1056-8eb2e515af5c75cc.js  53.4 kB
+  ??other shared chunks (total)          1.96 kB
+
+
+?? (Static)   prerendered as static content
+貫  (Dynamic)  server-rendered on demand using Node.js
+
+

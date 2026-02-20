@@ -1,0 +1,16 @@
+Videos with previewUrls: 84
+
+Example: 2025_09_09_golaniyule0_033149_mp4_ljv80w5w1u_세로
+previewUrls count: 5
+  [0] https://f005.backblazeb2.com/file/kbjkbj/previews/1771495786171_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로_prev_
+  [1] https://f005.backblazeb2.com/file/kbjkbj/previews/1771495786730_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로_prev_
+  [2] https://f005.backblazeb2.com/file/kbjkbj/previews/1771495787054_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로_prev_
+  [3] https://f005.backblazeb2.com/file/kbjkbj/previews/1771495787293_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로_prev_
+  [4] https://f005.backblazeb2.com/file/kbjkbj/previews/1771495787548_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로_prev_
+gradient: from-blue-900 to-indigo-900
+thumbnailUrl: https://f005.backblazeb2.com/file/kbjkbj/thumbnails/1771495784861_고라니율 20250909_033149  golaniyule0m
+
+Test video rud9281:
+  previewUrls: []
+  gradient: from-pink-700 to-purple-700
+  thumbnailUrl: NONE

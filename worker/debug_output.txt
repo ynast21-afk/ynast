@@ -1,0 +1,60 @@
+Total videos: 87
+
+=== First 5 videos ===
+
+[0] 2026-02-17_b24ip7
+  id: 1771513833517-d7xnd0
+  videoUrl: /api/b2-proxy?file=videos%2F1771512782812_upload-1771484825205-7xworennyd.mp4
+  thumbnailUrl: NONE
+  duration: 0:00
+  createdAt: 2026-02-19T15:22:18.990Z
+  uploadedAt: Just now
+  gradient: from-cyan-700 to-teal-700
+
+[1] 2026-02-17_rud9281
+  id: 1771513828070-5pyz0d
+  videoUrl: /api/b2-proxy?file=videos%2F1771512299890_upload-1771485227228-yb0yafk6to.mp4
+  thumbnailUrl: NONE
+  duration: 0:00
+  createdAt: 2026-02-19T15:22:18.991Z
+  uploadedAt: Just now
+  gradient: from-pink-700 to-purple-700
+
+[2] 2025_09_09_golaniyule0_033149_mp4_ljv80w5w1u_세로
+  id: 1771498662035-lob1gg
+  videoUrl: https://f005.backblazeb2.com/file/kbjkbj/videos/고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로.mp4
+  thumbnailUrl: https://f005.backblazeb2.com/file/kbjkbj/thumbnails/1771495784861_고라니율 20250909_033149  golaniyule0mp4-ljv80w5w1u_세로.jpg
+  duration: 24:29
+  createdAt: 2026-02-19T15:22:18.991Z
+  uploadedAt: 2026. 2. 19.
+  gradient: from-blue-900 to-indigo-900
+
+[3] 강민아 보라돌핀_세로
+  id: 1771495783141-uelhwh
+  videoUrl: https://f005.backblazeb2.com/file/kbjkbj/videos/강민아 보라돌핀_세로.mp4
+  thumbnailUrl: https://f005.backblazeb2.com/file/kbjkbj/thumbnails/1771495327608_강민아 보라돌핀_세로.jpg
+  duration: 8:00
+  createdAt: 2026-02-19T15:22:18.991Z
+  uploadedAt: 2026. 2. 19.
+  gradient: from-violet-900 to-purple-900
+
+[4] 2025_01_12_godsehee_갓세희_하이레그_숏돌핀_020649_mp4_1ujfcn4vnk_세로
+  id: 1771495325865-kyg5xs
+  videoUrl: https://f005.backblazeb2.com/file/kbjkbj/videos/갓세희 하이레그 숏돌핀 20250112_020649  godseheemp4-1ujfcn4vnk_세로.mp4
+  thumbnailUrl: https://f005.backblazeb2.com/file/kbjkbj/thumbnails/1771494852609_갓세희 하이레그 숏돌핀 20250112_020649  godseheemp4-1ujfcn4vnk_세로.jpg
+  duration: 22:16
+  createdAt: 2026-02-19T15:22:18.991Z
+  uploadedAt: 2026. 2. 19.
+  gradient: from-amber-900 to-orange-900
+
+=== Search for rud9281 ===
+Found: 2
+  1771513828070-5pyz0d | 2026-02-17_rud9281 | /api/b2-proxy?file=videos%2F1771512299890_upload-1771485227228-yb0yafk6to.mp4
+  1770987589962 | 2025_01_19_041202  rud9281mp4-dosmqx6mie | https://f005.backblazeb2.com/file/kbjkbj/videos/20250119_041202  rud9281mp4-dosmqx6mie.mp4
+
+=== Search for b24ip7 ===
+Found: 1
+  1771513833517-d7xnd0 | 2026-02-17_b24ip7 | /api/b2-proxy?file=videos%2F1771512782812_upload-1771484825205-7xworennyd.mp4
+
+Videos WITHOUT thumbnailUrl: 2 / 87
+Videos with 0:00 duration: 2 / 87

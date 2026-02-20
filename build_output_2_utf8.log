@@ -1,0 +1,52 @@
+﻿
+> streamvault@0.1.0 build
+> next build
+
+   ??Next.js 14.1.0
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ??Compiled successfully
+   Linting and checking validity of types ...
+node.exe : Failed to compile.
+위치 줄:1 문자:1
++ & "C:\Program Files\nodejs/node.ex
+e" "C:\Program Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSp 
+   ecified: (Failed to compile.:St  
+  ring) [], RemoteException
+    + FullyQualifiedErrorId : Nativ 
+   eCommandError
+ 
+
+./src/app/videos/page.tsx:29:37
+Type error: Property 'replace' does 
+not exist on type 'number'.
+
+[0m [90m 27 |[39m         }[0m
+[0m [90m 28 |[39m         [36mif
+[39m (sort [33m===[39m [32m'popu
+lar'[39m) {[0m
+[0m[31m[1m>[22m[39m[90m 29 |[
+39m             [36mreturn[39m par
+seInt(b[33m.[39mviews[33m.[39mre
+place([35m/[^0-9]/g[39m[33m,[39m
+ [32m''[39m)) [33m-[39m parseInt
+(a[33m.[39mviews[33m.[39mreplace
+([35m/[^0-9]/g[39m[33m,[39m [32
+m''[39m))[0m
+[0m [90m    |[39m                
+                     [31m[1m^[22m
+[39m[0m
+[0m [90m 30 |[39m         }[0m
+[0m [90m 31 |[39m         [36mif
+[39m (sort [33m===[39m [32m'like
+d'[39m) {[0m
+[0m [90m 32 |[39m             [3
+6mreturn[39m parseInt(b[33m.[39ml
+ikes) [33m-[39m parseInt(a[33m.[
+39mlikes)[0m
+

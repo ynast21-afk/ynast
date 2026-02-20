@@ -1,0 +1,47 @@
+# 작업: 종합 시스템 및 기능 업그레이드
+
+## Phase 1: 업로드 및 콘텐츠 관리 (항목 2, 4, 7, 11)
+- [x] **업로드 기능 개선** <!-- id: 22 -->
+    - [x] `UploadForm`/`page.tsx` 개선하여 대량 업로드 UI 구현 (다중 선택, 카드형 편집)
+    - [x] 클라이언트 사이드 썸네일 자동 추출 구현 (Canvas 사용, 단색 배경 방지, loadeddata 이벤트 활용) <!-- id: 23 -->
+    - [ ] "사용자 지정 썸네일" 업로드 버튼 추가
+    - [x] 파일 형식 유효성 검사 (mp4/webm 권장) 및 호환되지 않는 형식 경고 <!-- id: 24 -->
+    - [x] 태그 파싱 (쉼표(,) 및 샵(#) 지원) 및 제목 자동 완성 로직 구현
+- [x] **DMCA 정책 업데이트** <!-- id: 25 -->
+    - [x] 이메일 주소 `ynast21@gmail.com`으로 변경
+    - [x] 정책 텍스트 업데이트 (사용자 제공 스크린샷 내용 반영)
+
+## Phase 2: 사용자 경험 및 참여 유도 (항목 3, 5, 8, 9, 10, 12)
+- [x] **비디오 미리보기 시스템** <!-- id: 26 -->
+    - [x] `VideoCard` 수정: 마우스 오버 시 선형 재생 대신 랜덤 5프레임 반복 재생(Slideshow 효과)
+- [x] **마이 페이지 및 스트리머 기능** <!-- id: 27 -->
+    - [x] 마이페이지에 "찜한 영상" 및 "팔로잉" 탭 추가
+    - [x] 스트리머 페이지에 "팔로우" 버튼 구현 및 카운터 업데이트
+    - [x] 마이페이지 및 상단바(Navbar)에 VIP 만료일 표시
+- [x] **SEO 및 메타데이터** <!-- id: 28 -->
+    - [x] `layout.tsx` 및 동적 페이지에 적절한 `generateMetadata` 적용
+    - [x] 썸네일과 크리에이터 이름이 메타 태그에 포함되도록 확인
+- [x] **형식 업데이트** <!-- id: 29 -->
+    - [x] `VideoCard`의 날짜 표시를 "YYYY.MM.DD" 형식으로 변경 (사용자 요청 반영)
+
+## Phase 3: 시스템 로직 및 안정성 (항목 1, 6)
+- [x] **멤버십 로직** <!-- id: 30 -->
+    - [x] "구독 취소" 버튼 로직 변경: 즉시 등급 하락이 아닌 `subscriptionEnd` 날짜까지 VIP 유지 (PayPal API 연동 확인 및 AuthContext 만료 체크 로직 구현)
+    - [x] 로그인/방문 시 만료된 VIP 회원을 자동으로 일반 회원으로 등급 조정하는 로직 구현 (`AuthContext` useEffect)
+- [x] **시스템 안정성** <!-- id: 31 -->
+    - [x] Vercel DDoS/방화벽 설정 확인 및 문서화 (Walkthrough에 포함)
+    - [x] 에러 경계(Error Boundaries) 및 폴백(Fallback) 상태 점검 (`error.tsx`, `global-error.tsx` 생성)
+
+## Phase 4: 배포 (Deployment)
+- [ ] **GitHub & Vercel 배포** <!-- id: 32 -->
+    - [x] GitHub Main 브랜치 푸시 완료
+    - [ ] Vercel 프로덕션 배포 (인증 만료: `vercel login` 후 `vercel --prod` 직접 실행 필요)
+
+## Phase 5: 유저 피드백 반영 및 기능 보완 (긴급)
+- [x] **Fix View Count Bug**: Prevent infinite increment loop in `VideoClient.tsx`.
+- [x] **Custom Thumbnail Upload**: Add file input for custom thumbnails in `admin/page.tsx`.
+- [x] **Tag System**: Create `/tags` page and `/tags/[tag]` page, and link tags from video details.
+- [ ] **Video Compatibility**: Investigate why "졈니 청핫팬츠 모음, 청바지" is not playing.
+- [x] **Fix Header Overlap**: Change Header to sticky and remove hardcoded spacers.
+- [x] **Fix Tags Link**: Update sub-nav "Tags" link to point to `/tags`.
+- [x] **Vercel Deployment**: ⚠️ User needs to run `vercel login` and then `vercel --prod`.

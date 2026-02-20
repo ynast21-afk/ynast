@@ -1,0 +1,14 @@
+{
+    "name": "kstreamer-upload-worker",
+    "version": "1.0.0",
+    "description": "kStreamer Upload Worker - 영상 다운로드 & B2 업로드",
+    "main": "worker.js",
+    "scripts": {
+        "start": "node worker.js"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.7",
+        "puppeteer": "^24.37.4",
+        "puppeteer-core": "^24.37.4"
+    }
+}

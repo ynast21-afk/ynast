@@ -1,0 +1,18 @@
+
+> streamvault@2.3.1.0 lint
+> next lint
+
+
+./src/app/video/[id]/VideoClient.tsx
+36:8  Warning: React Hook useEffect has a missing dependency: 'incrementVideoView'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/RelatedVideoCard.tsx
+70:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/VideoCard.tsx
+175:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/hooks/useInView.ts
+20:53  Warning: The ref value 'ref.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'ref.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules

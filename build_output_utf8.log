@@ -1,0 +1,52 @@
+﻿
+> streamvault@0.1.0 build
+> next build
+
+   ??Next.js 14.1.0
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ??Compiled successfully
+   Linting and checking validity of types ...
+node.exe : Failed to compile.
+위치 줄:1 문자:1
++ & "C:\Program Files\nodejs/node.ex
+e" "C:\Program Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSp 
+   ecified: (Failed to compile.:St  
+  ring) [], RemoteException
+    + FullyQualifiedErrorId : Nativ 
+   eCommandError
+ 
+
+./src/app/video/[id]/page.tsx:92:58
+Type error: Property 'replace' does 
+not exist on type 'number'.
+
+[0m [90m 90 |[39m             [3
+2m'@type'[39m[33m:[39m [32m'Inte
+ractionCounter'[39m[33m,[39m[0m
+[0m [90m 91 |[39m             [3
+2m'interactionType'[39m[33m:[39m 
+{ [32m'@type'[39m[33m:[39m [32m
+'WatchAction'[39m }[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 92 |[
+39m             [32m'userInteractio
+nCount'[39m[33m:[39m parseInt(vid
+eo[33m.[39mviews[33m.[39mreplace
+([35m/[^0-9]/g[39m[33m,[39m [32
+m''[39m)) [33m*[39m [35m1000[39
+m [33m||[39m [35m1000[39m[0m
+[0m [90m    |[39m                
+                                    
+      [31m[1m^[22m[39m[0m
+[0m [90m 93 |[39m         }[33m,
+[39m[0m
+[0m [90m 94 |[39m         [32m'r
+egionsAllowed'[39m[33m:[39m [32m
+'US,KR,JP'[39m[0m
+[0m [90m 95 |[39m     }[0m
+
