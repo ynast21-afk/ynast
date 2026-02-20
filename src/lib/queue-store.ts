@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase'
 import {
     collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
-    query, orderBy, writeBatch, Timestamp
+    writeBatch, Timestamp
 } from 'firebase/firestore'
 import 'server-only'
 
@@ -76,9 +76,11 @@ function docToJob(docData: any, docId: string): UploadJob {
  */
 export async function getQueue(): Promise<UploadJob[]> {
     try {
-        const q = query(collection(db, QUEUE_COLLECTION), orderBy('priority', 'asc'))
-        const snapshot = await getDocs(q)
-        return snapshot.docs.map(d => docToJob(d.data(), d.id))
+        // Simple collection read — no orderBy to avoid needing a composite index
+        const snapshot = await getDocs(collection(db, QUEUE_COLLECTION))
+        const jobs = snapshot.docs.map(d => docToJob(d.data(), d.id))
+        // Sort client-side by priority ascending
+        return jobs.sort((a, b) => a.priority - b.priority)
     } catch (err) {
         console.error('[QueueStore] getQueue error:', err)
         return []
