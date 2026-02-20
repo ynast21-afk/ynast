@@ -2,15 +2,16 @@
  * kStreamer Folder Watcher — 바탕화면 폴더 감시 자동 업로드
  * 
  * 지정 폴더에 영상 파일을 넣으면 자동으로 큐에 추가합니다.
- * 기존 워커(worker.js)가 나머지를 처리합니다.
+ * Firebase에 직접 연결 (Vercel API 우회)
  */
 
 require('dotenv').config()
-// Also try .env.local (the project's main env file)
 require('dotenv').config({ path: require('path').join(__dirname, '.env.local') })
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { addJob, db } = require('./firebase-direct')
+const { collection, getDocs } = require('firebase/firestore')
 
 // ============================================
 // Configuration
@@ -51,25 +52,21 @@ const processingFiles = new Set()
 const processedFiles = new Set()
 
 // ============================================
-// API Request helper
+// API Request helper (used only for non-Firebase endpoints)
 // ============================================
 async function apiRequest(endpoint, method = 'GET', body = null) {
     const url = `${SITE_URL}${endpoint}`
-    try {
-        const options = {
-            method,
-            headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
-        }
-        if (body) options.body = JSON.stringify(body)
-        const res = await fetch(url, options)
-        if (!res.ok) {
-            const text = await res.text()
-            throw new Error(`API ${method} ${endpoint} failed (${res.status}): ${text}`)
-        }
-        return res.json()
-    } catch (err) {
-        throw err
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
     }
+    if (body) options.body = JSON.stringify(body)
+    const res = await fetch(url, options)
+    if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`API ${method} ${endpoint} failed (${res.status}): ${text}`)
+    }
+    return res.json()
 }
 
 // ============================================
@@ -79,19 +76,20 @@ async function matchStreamerFromFilename(filename) {
     const baseName = path.basename(filename, path.extname(filename)).toLowerCase()
 
     try {
-        const dbRes = await apiRequest('/api/db')
-        if (dbRes && dbRes.streamers) {
-            // Sort by name length (longest first) for most specific match
-            const sorted = [...dbRes.streamers].sort((a, b) =>
-                (b.name?.length || 0) - (a.name?.length || 0)
-            )
+        // Read streamers directly from Firestore
+        const snapshot = await getDocs(collection(db, 'streamers'))
+        const streamers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
 
-            for (const s of sorted) {
-                if (baseName.includes(s.id?.toLowerCase()) ||
-                    baseName.includes(s.name?.toLowerCase()) ||
-                    (s.koreanName && baseName.includes(s.koreanName.toLowerCase()))) {
-                    return { streamerId: s.id, streamerName: s.name }
-                }
+        // Sort by name length (longest first) for most specific match
+        const sorted = streamers.sort((a, b) =>
+            (b.name?.length || 0) - (a.name?.length || 0)
+        )
+
+        for (const s of sorted) {
+            if (baseName.includes(s.id?.toLowerCase()) ||
+                baseName.includes(s.name?.toLowerCase()) ||
+                (s.koreanName && baseName.includes(s.koreanName.toLowerCase()))) {
+                return { streamerId: s.id, streamerName: s.name }
             }
         }
     } catch (e) {
@@ -176,21 +174,34 @@ async function processNewFile(filePath) {
             console.log(`   👤 파일명에서 스트리머 미감지 (워커에서 추가 매칭 시도)`)
         }
 
-        // Add to queue with local:// prefix
+        // Add to queue with local:// prefix — direct to Firestore
         const localUrl = `local://${filePath}`
-        const res = await apiRequest('/api/queue/jobs', 'POST', {
+        const jobId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+        const job = {
+            id: jobId,
             sourceUrl: localUrl,
+            status: 'queued',
+            title: path.basename(filePath, path.extname(filePath)),
             titleSource: 'fileName',
-            streamerId: streamerId || undefined,
-            streamerName: streamerName || undefined,
-        })
-
-        if (res.success) {
-            console.log(`   ✅ 큐에 추가 완료! (ID: ${res.job?.id || 'unknown'})`)
-            processedFiles.add(filePath)
-        } else {
-            console.error(`   ❌ 큐 추가 실패:`, res.error)
+            streamerId: streamerId || null,
+            streamerName: streamerName || null,
+            pageNumber: null,
+            itemOrder: null,
+            priority: 0,
+            b2Url: null,
+            b2ThumbnailUrl: null,
+            error: null,
+            progress: 0,
+            workerId: null,
+            lockedAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            retryCount: 0,
         }
+
+        await addJob(job)
+        console.log(`   ✅ 큐에 추가 완료! (ID: ${jobId})`)
+        processedFiles.add(filePath)
     } catch (err) {
         console.error(`   ❌ 처리 실패:`, err.message)
     } finally {

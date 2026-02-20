@@ -35,6 +35,8 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { execSync } = require('child_process')
+const { claimJob, updateJob, getQueue, db } = require('./firebase-direct')
+const { collection, getDocs, doc, setDoc, getDoc, updateDoc } = require('firebase/firestore')
 
 // ============================================
 // Configuration
@@ -216,7 +218,7 @@ async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = 
             // Report upload progress to UI (50% → 95%)
             if (jobId) {
                 const uploadProgress = Math.round(50 + (partNum / partCount) * 45)
-                apiRequest('/api/queue/update', 'POST', { jobId, progress: uploadProgress }).catch(() => { })
+                updateJob(jobId, { progress: uploadProgress, updatedAt: new Date().toISOString() }).catch(() => { })
 
                 // Check if user cancelled every 3 parts
                 if (partNum % 3 === 0) {
@@ -323,7 +325,7 @@ async function uploadToB2(filePath, fileName, jobId = null) {
 
     // Report small file upload complete
     if (jobId) {
-        apiRequest('/api/queue/update', 'POST', { jobId, progress: 95 }).catch(() => { })
+        updateJob(jobId, { progress: 95, updatedAt: new Date().toISOString() }).catch(() => { })
     }
 
     const b2Url = `/api/b2-proxy?file=${encodeURIComponent(b2FileName)}`
@@ -641,7 +643,7 @@ async function _extractVideoUrlInner(pageUrl) {
 }
 
 // ============================================
-// API Request (for queue management only)
+// API Request (for non-queue endpoints only, e.g. add-video)
 // ============================================
 async function apiRequest(endpoint, method = 'GET', body = null, timeoutMs = 15000) {
     const url = `${SITE_URL}${endpoint}`
@@ -670,16 +672,30 @@ async function apiRequest(endpoint, method = 'GET', body = null, timeoutMs = 150
     }
 }
 
-// Check if job was cancelled by user
+// Check if job was cancelled by user (direct Firestore)
 async function checkJobCancelled(jobId) {
     try {
-        const result = await apiRequest('/api/queue/jobs')
-        const job = result.jobs?.find(j => j.id === jobId)
-        if (job && (job.status === 'failed' || job.status === 'queued')) {
-            return true
+        const ref = doc(db, 'upload-queue', jobId)
+        const snap = await getDoc(ref)
+        if (snap.exists()) {
+            const data = snap.data()
+            if (data.status === 'failed' || data.status === 'queued') {
+                return true
+            }
         }
     } catch { }
     return false
+}
+
+// Get streamers from Firestore directly
+async function getStreamersFromDB() {
+    try {
+        const snapshot = await getDocs(collection(db, 'streamers'))
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+    } catch (e) {
+        console.warn('   ⚠️ 스트리머 DB 조회 오류:', e.message)
+        return []
+    }
 }
 
 // ============================================
@@ -809,7 +825,7 @@ async function processJob(job) {
     try {
         console.log(`   [${new Date().toLocaleTimeString()}] ▶ 작업 시작`)
         // Progress 5 update — non-blocking, don't fail job if this fails
-        apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress: 5 }).catch(e => {
+        updateJob(job.id, { progress: 5, updatedAt: new Date().toISOString() }).catch(e => {
             console.warn(`   ⚠️ progress 5 업데이트 실패 (무시):`, e.message)
         })
 
@@ -844,9 +860,10 @@ async function processJob(job) {
             title = job.title || cleanedSlug || 'Untitled'
             console.log(`   📋 파일명에서 제목 추출: "${title}"`)
 
-            await apiRequest('/api/queue/update', 'POST', {
-                jobId: job.id, progress: 40,
+            await updateJob(job.id, {
+                progress: 40,
                 title: title,
+                updatedAt: new Date().toISOString(),
             })
         } else {
             // ============================================
@@ -880,15 +897,16 @@ async function processJob(job) {
             console.log(`     ├ 페이지 추출: "${extractedTitle || '(없음)'}"`)
             console.log(`     └ URL slug: "${cleanedSlug || '(없음)'}"`)
 
-            await apiRequest('/api/queue/update', 'POST', {
-                jobId: job.id, progress: 10,
+            await updateJob(job.id, {
+                progress: 10,
                 title: title,
+                updatedAt: new Date().toISOString(),
             })
 
             // Download
             console.log('   ⬇ 다운로드 시작...')
             await downloadFile(result.videoUrl, tempFile, result.cookieString, (progress) => {
-                apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress }).catch(() => { })
+                updateJob(job.id, { progress, updatedAt: new Date().toISOString() }).catch(() => { })
             })
 
             try {
@@ -906,8 +924,9 @@ async function processJob(job) {
 
         if (codec === 'hevc' || codec === 'h265') {
             console.log(`   ⚠️ HEVC 코덱 감지 → H.264로 트랜스코딩 필요`)
-            await apiRequest('/api/queue/update', 'POST', {
-                jobId: job.id, progress: 45,
+            await updateJob(job.id, {
+                progress: 45,
+                updatedAt: new Date().toISOString(),
             })
 
             const success = transcodeToH264(tempFile, transcodedFile, job.id)
@@ -920,9 +939,10 @@ async function processJob(job) {
             }
         }
 
-        await apiRequest('/api/queue/update', 'POST', {
-            jobId: job.id, progress: 50,
+        await updateJob(job.id, {
+            progress: 50,
             title: title,
+            updatedAt: new Date().toISOString(),
         })
 
         // B2에 직접 업로드
@@ -930,9 +950,10 @@ async function processJob(job) {
 
         const finalTitle = title
 
-        await apiRequest('/api/queue/update', 'POST', {
-            jobId: job.id, status: 'done', progress: 100, b2Url,
+        await updateJob(job.id, {
+            status: 'done', progress: 100, b2Url,
             title: finalTitle,
+            updatedAt: new Date().toISOString(),
         })
 
         // ============================================
@@ -948,10 +969,10 @@ async function processJob(job) {
 
             if (!streamerName) {
                 try {
-                    const dbCheck = await apiRequest('/api/db')
-                    if (dbCheck && dbCheck.streamers) {
+                    const allStreamers = await getStreamersFromDB()
+                    if (allStreamers.length > 0) {
                         // Sort by name length (longest first) to match most specific name
-                        const sortedStreamers = [...dbCheck.streamers].sort((a, b) =>
+                        const sortedStreamers = allStreamers.sort((a, b) =>
                             (b.name?.length || 0) - (a.name?.length || 0)
                         )
 
@@ -1117,9 +1138,9 @@ async function processJob(job) {
             // Find or match streamer in database (secondary check for job-provided streamers)
             if (job.streamerName || job.streamerId) {
                 try {
-                    const dbRes = await apiRequest('/api/db')
-                    if (dbRes && dbRes.streamers) {
-                        const found = dbRes.streamers.find(s =>
+                    const allStreamers = await getStreamersFromDB()
+                    if (allStreamers.length > 0) {
+                        const found = allStreamers.find(s =>
                             s.id === streamerId ||
                             s.name === streamerName ||
                             s.id === streamerName ||
@@ -1162,16 +1183,33 @@ async function processJob(job) {
                 orientation: videoOrientation,
             }
 
-            const addRes = await apiRequest('/api/db/add-video', 'POST', {
-                video,
-                streamerId,
-            })
-
-            if (addRes.success) {
-                console.log(`   📺 DB에 영상 등록 완료: "${video.title}" (${duration})`)
-            } else {
-                console.warn(`   ⚠️ DB 영상 등록 실패:`, addRes.error)
+            // Register video directly in Firestore
+            const streamerRef = doc(db, 'streamers', streamerId)
+            const streamerSnap = await getDoc(streamerRef)
+            if (!streamerSnap.exists()) {
+                // Create streamer doc if doesn't exist
+                await setDoc(streamerRef, {
+                    id: streamerId,
+                    name: streamerName || streamerId,
+                    videoCount: 0,
+                    createdAt: new Date().toISOString(),
+                })
             }
+
+            const videoId = `vid_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
+            const videoRef = doc(db, 'streamers', streamerId, 'videos', videoId)
+            await setDoc(videoRef, video)
+
+            // Increment video count
+            try {
+                const currentData = (await getDoc(streamerRef)).data()
+                await updateDoc(streamerRef, {
+                    videoCount: (currentData?.videoCount || 0) + 1,
+                    updatedAt: new Date().toISOString(),
+                })
+            } catch { }
+
+            console.log(`   📺 DB에 영상 등록 완료: "${video.title}" (${duration})`)
         } catch (regError) {
             console.warn(`   ⚠️ DB 등록 오류:`, regError.message)
             // Don't fail the job - the video is already uploaded to B2
@@ -1180,9 +1218,10 @@ async function processJob(job) {
         console.log(`   🎉 작업 완료!`)
     } catch (error) {
         console.error(`   ❌ 작업 실패:`, error.message)
-        await apiRequest('/api/queue/update', 'POST', {
-            jobId: job.id, status: 'failed',
+        await updateJob(job.id, {
+            status: 'failed',
             error: error.message?.substring(0, 500) || 'Unknown error',
+            updatedAt: new Date().toISOString(),
         }).catch(e => console.error('상태 업데이트 실패:', e))
     } finally {
         // Clean up both original and transcoded files
@@ -1225,11 +1264,11 @@ async function pollLoop() {
 
     while (true) {
         try {
-            const result = await apiRequest('/api/queue/claim', 'POST', { workerId: WORKER_ID })
-            if (result.job) {
+            const job = await claimJob(WORKER_ID)
+            if (job) {
                 consecutiveErrors = 0 // Reset on successful claim
-                console.log(`\n[${new Date().toLocaleTimeString()}] 📦 작업 수신: ${result.job.sourceUrl}`)
-                await processJob(result.job)
+                console.log(`\n[${new Date().toLocaleTimeString()}] 📦 작업 수신: ${job.sourceUrl}`)
+                await processJob(job)
             } else {
                 process.stdout.write('.')
             }
