@@ -44,6 +44,7 @@ const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'ht
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_API_SECRET
 const WORKER_ID = process.env.WORKER_ID || `worker-${crypto.randomBytes(3).toString('hex')}`
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000')
+const MAX_CONCURRENT_JOBS = parseInt(process.env.MAX_CONCURRENT_JOBS || '3')
 const TEMP_DIR = path.join(__dirname, 'temp')
 
 const SKBJ_EMAIL = process.env.SKBJ_EMAIL
@@ -132,13 +133,55 @@ async function getB2UploadUrl(auth) {
     return res.json()
 }
 
-// Large file upload (for files > 100MB)
+// Upload a single part of a large file
+async function uploadSinglePart(auth, fileId, filePath, partNum, offset, length, fileSize) {
+    // Get upload URL for this part
+    const partUrlRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
+        method: 'POST',
+        headers: {
+            'Authorization': auth.authorizationToken,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileId })
+    })
+    if (!partUrlRes.ok) {
+        throw new Error(`Failed to get part upload URL: ${await partUrlRes.text()}`)
+    }
+    const partUrlData = await partUrlRes.json()
+
+    // Read part from file
+    const buffer = Buffer.alloc(length)
+    const fd = fs.openSync(filePath, 'r')
+    fs.readSync(fd, buffer, 0, length, offset)
+    fs.closeSync(fd)
+
+    const sha1 = crypto.createHash('sha1').update(buffer).digest('hex')
+
+    const uploadRes = await fetch(partUrlData.uploadUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': partUrlData.authorizationToken,
+            'Content-Length': length.toString(),
+            'X-Bz-Part-Number': partNum.toString(),
+            'X-Bz-Content-Sha1': sha1,
+        },
+        body: buffer,
+    })
+    if (!uploadRes.ok) {
+        const errText = await uploadRes.text()
+        throw new Error(`Part ${partNum} upload failed: ${errText}`)
+    }
+    return { partNum, sha1 }
+}
+
+// Large file upload (for files > 100MB) — parallel part uploads (2 at a time)
 async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = null) {
     const fileSize = fs.statSync(filePath).size
     const PART_SIZE = 50 * 1024 * 1024 // 50MB parts
     const partCount = Math.ceil(fileSize / PART_SIZE)
+    const PARALLEL_PARTS = 2 // Upload 2 parts simultaneously
 
-    console.log(`   📦 Large file upload: ${partCount} parts of ${(PART_SIZE / 1024 / 1024).toFixed(0)}MB each`)
+    console.log(`   📦 Large file upload: ${partCount} parts of ${(PART_SIZE / 1024 / 1024).toFixed(0)}MB each (${PARALLEL_PARTS} parallel)`)
 
     // Step 1: Start large file
     const startRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_start_large_file`, {
@@ -153,74 +196,43 @@ async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = 
             contentType,
         })
     })
-
     if (!startRes.ok) {
         const text = await startRes.text()
         throw new Error(`B2 start large file failed: ${text}`)
     }
-
     const { fileId } = await startRes.json()
     console.log(`   📄 Large file ID: ${fileId}`)
 
-    const partSha1s = []
+    const partSha1s = new Array(partCount) // indexed by partNum-1
+    let completedParts = 0
 
     try {
-        // Step 2: Upload each part
-        for (let partNum = 1; partNum <= partCount; partNum++) {
-            const offset = (partNum - 1) * PART_SIZE
-            const length = Math.min(PART_SIZE, fileSize - offset)
+        // Step 2: Upload parts in parallel batches
+        for (let batchStart = 1; batchStart <= partCount; batchStart += PARALLEL_PARTS) {
+            const batchEnd = Math.min(batchStart + PARALLEL_PARTS - 1, partCount)
+            const promises = []
 
-            // Get upload URL for this part
-            const partUrlRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': auth.authorizationToken,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ fileId })
-            })
-
-            if (!partUrlRes.ok) {
-                throw new Error(`Failed to get part upload URL: ${await partUrlRes.text()}`)
+            for (let partNum = batchStart; partNum <= batchEnd; partNum++) {
+                const offset = (partNum - 1) * PART_SIZE
+                const length = Math.min(PART_SIZE, fileSize - offset)
+                promises.push(uploadSinglePart(auth, fileId, filePath, partNum, offset, length, fileSize))
             }
 
-            const partUrlData = await partUrlRes.json()
+            process.stdout.write(`\r   ⬆ Uploading parts ${batchStart}-${batchEnd}/${partCount}...`)
+            const results = await Promise.all(promises)
 
-            // Read part from file
-            const buffer = Buffer.alloc(length)
-            const fd = fs.openSync(filePath, 'r')
-            fs.readSync(fd, buffer, 0, length, offset)
-            fs.closeSync(fd)
-
-            const sha1 = crypto.createHash('sha1').update(buffer).digest('hex')
-
-            process.stdout.write(`\r   ⬆ Uploading part ${partNum}/${partCount} (${(length / 1024 / 1024).toFixed(1)}MB)...`)
-
-            const uploadRes = await fetch(partUrlData.uploadUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': partUrlData.authorizationToken,
-                    'Content-Length': length.toString(),
-                    'X-Bz-Part-Number': partNum.toString(),
-                    'X-Bz-Content-Sha1': sha1,
-                },
-                body: buffer,
-            })
-
-            if (!uploadRes.ok) {
-                const errText = await uploadRes.text()
-                throw new Error(`Part ${partNum} upload failed: ${errText}`)
+            for (const { partNum, sha1 } of results) {
+                partSha1s[partNum - 1] = sha1
+                completedParts++
             }
-
-            partSha1s.push(sha1)
 
             // Report upload progress to UI (50% → 95%)
             if (jobId) {
-                const uploadProgress = Math.round(50 + (partNum / partCount) * 45)
+                const uploadProgress = Math.round(50 + (completedParts / partCount) * 45)
                 updateJob(jobId, { progress: uploadProgress, updatedAt: new Date().toISOString() }).catch(() => { })
 
-                // Check if user cancelled every 3 parts
-                if (partNum % 3 === 0) {
+                // Check if user cancelled every 2 batches
+                if (batchStart % (PARALLEL_PARTS * 2) === 1) {
                     const cancelled = await checkJobCancelled(jobId)
                     if (cancelled) {
                         throw new Error('사용자에 의해 취소됨')
@@ -229,7 +241,7 @@ async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = 
             }
         }
 
-        console.log(`\n   ✅ All ${partCount} parts uploaded`)
+        console.log(`\n   ✅ All ${partCount} parts uploaded (parallel)`)
 
         // Step 3: Finish large file
         const finishRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_finish_large_file`, {
@@ -243,12 +255,10 @@ async function uploadLargeFile(auth, filePath, b2FileName, contentType, jobId = 
                 partSha1Array: partSha1s,
             })
         })
-
         if (!finishRes.ok) {
             const text = await finishRes.text()
             throw new Error(`B2 finish large file failed: ${text}`)
         }
-
         return await finishRes.json()
     } catch (err) {
         // Cancel the large file on error
@@ -300,10 +310,21 @@ async function uploadToB2(filePath, fileName, jobId = null) {
         return b2Url
     }
 
-    // Small file: single upload
+    // Small file: streaming upload (avoid loading entire file into memory)
     const uploadUrl = await getB2UploadUrl(auth)
-    const fileContent = fs.readFileSync(filePath)
-    const sha1 = crypto.createHash('sha1').update(fileContent).digest('hex')
+
+    // Compute SHA1 via streaming
+    const sha1 = await new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha1')
+        const stream = fs.createReadStream(filePath)
+        stream.on('data', chunk => hash.update(chunk))
+        stream.on('end', () => resolve(hash.digest('hex')))
+        stream.on('error', reject)
+    })
+
+    // Use streaming body for upload
+    const { Readable } = require('stream')
+    const fileStream = fs.createReadStream(filePath)
 
     const uploadRes = await fetch(uploadUrl.uploadUrl, {
         method: 'POST',
@@ -314,7 +335,8 @@ async function uploadToB2(filePath, fileName, jobId = null) {
             'Content-Length': fileSize.toString(),
             'X-Bz-Content-Sha1': sha1,
         },
-        body: fileContent,
+        body: fileStream,
+        duplex: 'half',
     })
 
     if (!uploadRes.ok) {
@@ -1235,8 +1257,11 @@ async function processJob(job) {
 let consecutiveErrors = 0
 const MAX_CONSECUTIVE_ERRORS = 5
 
+// Track active concurrent jobs
+const activeJobs = new Map() // jobId -> Promise
+
 async function pollLoop() {
-    console.log(`🔄 작업 대기 중... (${POLL_INTERVAL_MS / 1000}초 간격)`)
+    console.log(`🔄 작업 대기 중... (${POLL_INTERVAL_MS / 1000}초 간격, 동시 ${MAX_CONCURRENT_JOBS}개)`)
 
     try {
         await loginToSkbj()
@@ -1247,15 +1272,45 @@ async function pollLoop() {
 
     while (true) {
         try {
-            const job = await claimJob(WORKER_ID)
-            if (job) {
-                consecutiveErrors = 0 // Reset on successful claim
-                console.log(`\n[${new Date().toLocaleTimeString()}] 📦 작업 수신: ${job.sourceUrl}`)
-                await processJob(job)
-            } else {
-                process.stdout.write('.')
+            // Clean up completed jobs from tracking map
+            for (const [id, promise] of activeJobs.entries()) {
+                // Check if promise is settled by racing with an instant resolve
+                const settled = await Promise.race([
+                    promise.then(() => true, () => true),
+                    Promise.resolve(false)
+                ])
+                if (settled) activeJobs.delete(id)
             }
-            consecutiveErrors = 0
+
+            // Claim jobs up to concurrency limit
+            if (activeJobs.size < MAX_CONCURRENT_JOBS) {
+                const job = await claimJob(WORKER_ID)
+                if (job) {
+                    consecutiveErrors = 0
+                    const slotNum = activeJobs.size + 1
+                    console.log(`\n[${new Date().toLocaleTimeString()}] 📦 작업 수신 [${slotNum}/${MAX_CONCURRENT_JOBS}]: ${job.sourceUrl}`)
+
+                    // Start job processing but don't await — run concurrently
+                    const jobPromise = processJob(job).catch(err => {
+                        console.error(`   ❌ 작업 ${job.id} 예외:`, err.message)
+                    })
+                    activeJobs.set(job.id, jobPromise)
+
+                    // If we still have capacity, try claiming more immediately
+                    if (activeJobs.size < MAX_CONCURRENT_JOBS) {
+                        continue // Skip the sleep, try to claim another right away
+                    }
+                } else {
+                    if (activeJobs.size > 0) {
+                        process.stdout.write(`[${activeJobs.size} active]`)
+                    } else {
+                        process.stdout.write('.')
+                    }
+                }
+                consecutiveErrors = 0
+            } else {
+                process.stdout.write(`[${activeJobs.size}/${MAX_CONCURRENT_JOBS} full]`)
+            }
         } catch (error) {
             consecutiveErrors++
             console.error(`\n[${new Date().toLocaleTimeString()}] ⚠️ 폴링 오류 (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error.message)
