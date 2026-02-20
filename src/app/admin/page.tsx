@@ -1228,49 +1228,76 @@ export default function AdminPage() {
                     const { fileId } = await startRes.json()
                     console.log('Multi-part upload started. File ID:', fileId)
 
-                    const partSha1Array: string[] = []
                     const totalParts = Math.ceil(videoFile.size / CHUNK_SIZE)
+                    const PARALLEL_LIMIT = 4 // Max concurrent part uploads
 
-                    for (let i = 0; i < totalParts; i++) {
-                        const start = i * CHUNK_SIZE
-                        const end = Math.min(start + CHUNK_SIZE, videoFile.size)
-                        const chunk = videoFile.slice(start, end)
-                        const chunkBuffer = await chunk.arrayBuffer()
-                        const sha1 = await calculateSHA1(chunkBuffer)
-                        partSha1Array.push(sha1)
-
-                        // Get upload URL for this part
-                        const partUrlRes = await fetchWithAuth(`/api/upload?type=upload_part&fileId=${fileId}`)
-                        if (!partUrlRes.ok) throw new Error('Failed to get part upload URL')
-                        const { uploadUrl, authorizationToken } = await partUrlRes.json()
-
-                        console.log(`Uploading part ${i + 1}/${totalParts}...`)
-                        // Upload part
-                        const uploadPartRes = await fetch(uploadUrl, {
-                            method: 'POST',
-                            mode: 'cors',
-                            headers: {
-                                'Authorization': authorizationToken,
-                                'X-Bz-Part-Number': (i + 1).toString(),
-                                'Content-Length': chunk.size.toString(),
-                                'X-Bz-Content-Sha1': sha1,
-                                'Content-Type': 'application/octet-stream',
-                            },
-                            body: chunk,
+                    // Pre-slice all chunks and compute SHA-1 in parallel
+                    console.log(`Preparing ${totalParts} parts (parallel SHA-1)...`)
+                    const partMeta = await Promise.all(
+                        Array.from({ length: totalParts }, async (_, i) => {
+                            const start = i * CHUNK_SIZE
+                            const end = Math.min(start + CHUNK_SIZE, videoFile.size)
+                            const chunk = videoFile.slice(start, end)
+                            const buffer = await chunk.arrayBuffer()
+                            const sha1 = await calculateSHA1(buffer)
+                            return { index: i, chunk, sha1 }
                         })
+                    )
+                    const partSha1Array = partMeta.map(p => p.sha1)
 
-                        if (!uploadPartRes.ok) {
-                            const err = await uploadPartRes.text()
-                            console.error(`Part ${i + 1} upload failed:`, err)
-                            if (uploadPartRes.status === 0 || uploadPartRes.status === 403) {
-                                throw new Error(`Part ${i + 1} failed. B2 CORS settings likely missing "X-Bz-Part-Number" header.`)
+                    // Upload parts with concurrency control
+                    let completedParts = 0
+                    const uploadPart = async (meta: typeof partMeta[0]) => {
+                        const { index, chunk, sha1 } = meta
+                        // Retry up to 3 times per part
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            try {
+                                const partUrlRes = await fetchWithAuth(`/api/upload?type=upload_part&fileId=${fileId}`)
+                                if (!partUrlRes.ok) throw new Error('Failed to get part upload URL')
+                                const { uploadUrl, authorizationToken } = await partUrlRes.json()
+
+                                const uploadPartRes = await fetch(uploadUrl, {
+                                    method: 'POST',
+                                    mode: 'cors',
+                                    headers: {
+                                        'Authorization': authorizationToken,
+                                        'X-Bz-Part-Number': (index + 1).toString(),
+                                        'Content-Length': chunk.size.toString(),
+                                        'X-Bz-Content-Sha1': sha1,
+                                        'Content-Type': 'application/octet-stream',
+                                    },
+                                    body: chunk,
+                                })
+
+                                if (!uploadPartRes.ok) {
+                                    if (uploadPartRes.status >= 500 || uploadPartRes.status === 429) {
+                                        throw new Error(`Server status ${uploadPartRes.status}`)
+                                    }
+                                    const err = await uploadPartRes.text()
+                                    throw new Error(`Part ${index + 1} failed: ${err}`)
+                                }
+
+                                completedParts++
+                                console.log(`Part ${index + 1}/${totalParts} done.`)
+                                setUploadProgress(Math.floor((completedParts / totalParts) * 90))
+                                return
+                            } catch (err) {
+                                console.warn(`Part ${index + 1} attempt ${attempt}/3 failed:`, err)
+                                if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt))
+                                else throw err
                             }
-                            throw new Error(`Failed to upload part ${i + 1}: ${err}`)
                         }
-
-                        console.log(`Part ${i + 1} done.`)
-                        setUploadProgress(Math.floor(((i + 1) / totalParts) * 90))
                     }
+
+                    // Parallel execution with concurrency limit
+                    const queue = [...partMeta]
+                    const workers = Array.from({ length: Math.min(PARALLEL_LIMIT, totalParts) }, async () => {
+                        while (queue.length > 0) {
+                            const item = queue.shift()!
+                            await uploadPart(item)
+                        }
+                    })
+                    await Promise.all(workers)
 
                     console.log('Finishing large file...')
                     // Finish large file
@@ -1561,21 +1588,27 @@ export default function AdminPage() {
                     if (!startRes.ok) throw new Error('Failed to start large file')
                     const { fileId } = await startRes.json()
 
-                    const partSha1Array: string[] = []
                     const totalParts = Math.ceil(file.size / CHUNK_SIZE)
+                    const PARALLEL_LIMIT = 4 // Max concurrent part uploads
 
-                    for (let j = 0; j < totalParts; j++) {
-                        const start = j * CHUNK_SIZE
-                        const end = Math.min(start + CHUNK_SIZE, file.size)
-                        const chunk = file.slice(start, end)
-                        const chunkBuffer = await chunk.arrayBuffer()
-                        const sha1 = await calculateSHA1(chunkBuffer)
-                        partSha1Array.push(sha1)
+                    // Pre-slice all chunks and compute SHA-1 in parallel
+                    console.log(`[Batch] Preparing ${totalParts} parts (parallel SHA-1)...`)
+                    const partMeta = await Promise.all(
+                        Array.from({ length: totalParts }, async (_, k) => {
+                            const start = k * CHUNK_SIZE
+                            const end = Math.min(start + CHUNK_SIZE, file.size)
+                            const chunk = file.slice(start, end)
+                            const buffer = await chunk.arrayBuffer()
+                            const sha1 = await calculateSHA1(buffer)
+                            return { index: k, chunk, sha1 }
+                        })
+                    )
+                    const partSha1Array = partMeta.map(p => p.sha1)
 
-                        // Retry logic for part upload (Max 3 attempts)
-                        let uploaded = false
-                        let lastError = null
-
+                    // Upload parts with concurrency control
+                    let completedParts = 0
+                    const uploadPart = async (meta: typeof partMeta[0]) => {
+                        const { index, chunk, sha1 } = meta
                         for (let attempt = 1; attempt <= 3; attempt++) {
                             try {
                                 const partUrlRes = await fetchWithAuth(`/api/upload?type=upload_part&fileId=${fileId}`)
@@ -1587,7 +1620,7 @@ export default function AdminPage() {
                                     mode: 'cors',
                                     headers: {
                                         'Authorization': authorizationToken,
-                                        'X-Bz-Part-Number': (j + 1).toString(),
+                                        'X-Bz-Part-Number': (index + 1).toString(),
                                         'Content-Length': chunk.size.toString(),
                                         'X-Bz-Content-Sha1': sha1,
                                         'Content-Type': 'application/octet-stream',
@@ -1596,36 +1629,39 @@ export default function AdminPage() {
                                 })
 
                                 if (!uploadPartRes.ok) {
-                                    // 503 or 500 errors -> Retry
                                     if (uploadPartRes.status >= 500 || uploadPartRes.status === 429) {
                                         throw new Error(`Server status ${uploadPartRes.status}`)
                                     }
-                                    // 4xx errors -> Fail immediately (except 408/429)
                                     throw new Error(`Fatal upload error ${uploadPartRes.status}`)
                                 }
 
-                                uploaded = true
-                                break // Success!
+                                completedParts++
+                                console.log(`[Batch] Part ${index + 1}/${totalParts} done.`)
+
+                                // Progress Update (Granular)
+                                const currentFileProgress = completedParts / totalParts
+                                const totalProgress = ((i + currentFileProgress) / pendingItems.length) * 100
+                                setBatchProgress(totalProgress)
+                                const itemProgress = Math.round(currentFileProgress * 100)
+                                setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, progress: itemProgress } : it))
+                                return
                             } catch (err: any) {
-                                console.warn(`Part ${j + 1} upload failed (Attempt ${attempt}/3):`, err)
-                                lastError = err
-                                if (attempt < 3) {
-                                    await new Promise(r => setTimeout(r, 1000 * attempt)) // Backoff: 1s, 2s
-                                }
+                                console.warn(`[Batch] Part ${index + 1} attempt ${attempt}/3 failed:`, err)
+                                if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt))
+                                else throw err
                             }
                         }
-
-                        if (!uploaded) throw lastError || new Error(`Failed to upload part ${j + 1} after 3 attempts`)
-
-                        // Progress Update (Granular)
-                        const currentFileProgress = (j + 1) / totalParts
-                        const totalProgress = ((i + currentFileProgress) / pendingItems.length) * 100
-                        setBatchProgress(totalProgress)
-
-                        // Item Progress
-                        const itemProgress = Math.round(currentFileProgress * 100)
-                        setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, progress: itemProgress } : it))
                     }
+
+                    // Parallel execution with concurrency limit
+                    const queue = [...partMeta]
+                    const workers = Array.from({ length: Math.min(PARALLEL_LIMIT, totalParts) }, async () => {
+                        while (queue.length > 0) {
+                            const item2 = queue.shift()!
+                            await uploadPart(item2)
+                        }
+                    })
+                    await Promise.all(workers)
 
                     const finishData = new FormData()
                     finishData.append('action', 'finish_large_file')
