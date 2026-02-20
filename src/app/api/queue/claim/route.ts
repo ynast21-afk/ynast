@@ -15,7 +15,7 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'workerId is required' }, { status: 400 })
         }
 
-        const jobs = getQueue()
+        const jobs = await getQueue()
         const now = Date.now()
 
         // Unlock stale jobs first
@@ -42,7 +42,7 @@ async function handlePOST(request: NextRequest) {
 
         const nextJob = queuedJobs[0]
         if (!nextJob) {
-            if (changed) saveQueue(jobs)
+            if (changed) await saveQueue(jobs)
             return NextResponse.json({ job: null })
         }
 
@@ -52,7 +52,7 @@ async function handlePOST(request: NextRequest) {
         nextJob.lockedAt = new Date().toISOString()
         nextJob.updatedAt = new Date().toISOString()
 
-        saveQueue(jobs)
+        await saveQueue(jobs)
 
         return NextResponse.json({ job: nextJob })
     } catch (err: any) {

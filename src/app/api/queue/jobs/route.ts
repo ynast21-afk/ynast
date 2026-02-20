@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 // GET: list all jobs
 async function handleGET() {
-    const jobs = getQueue()
+    const jobs = await getQueue()
     return NextResponse.json({ jobs })
 }
 
@@ -20,7 +20,7 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'sourceUrl is required' }, { status: 400 })
         }
 
-        const jobs = getQueue()
+        const jobs = await getQueue()
 
         // Check for duplicate (same URL, not done/failed)
         const existing = jobs.find(
@@ -54,7 +54,7 @@ async function handlePOST(request: NextRequest) {
         }
 
         jobs.push(newJob)
-        const saved = saveQueue(jobs)
+        const saved = await saveQueue(jobs)
 
         if (!saved) {
             return NextResponse.json({ error: 'Failed to save queue' }, { status: 500 })
@@ -76,14 +76,14 @@ async function handleDELETE(request: NextRequest) {
             return NextResponse.json({ error: 'id is required' }, { status: 400 })
         }
 
-        const jobs = getQueue()
+        const jobs = await getQueue()
         const filtered = jobs.filter(j => j.id !== id)
 
         if (filtered.length === jobs.length) {
             return NextResponse.json({ error: 'Job not found' }, { status: 404 })
         }
 
-        saveQueue(filtered)
+        await saveQueue(filtered)
         return NextResponse.json({ success: true })
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })

@@ -13,7 +13,7 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'jobId is required' }, { status: 400 })
         }
 
-        const jobs = getQueue()
+        const jobs = await getQueue()
         const job = jobs.find(j => j.id === jobId)
 
         if (!job) {
@@ -48,7 +48,7 @@ async function handlePOST(request: NextRequest) {
             job.error = null
         }
 
-        const saved = saveQueue(jobs)
+        const saved = await saveQueue(jobs)
         if (!saved) {
             return NextResponse.json({ error: 'Failed to save queue' }, { status: 500 })
         }

@@ -5,7 +5,7 @@ import { withAdminProtection } from '@/lib/security'
 export const dynamic = 'force-dynamic'
 
 async function handleGET() {
-    return NextResponse.json(getSettings())
+    return NextResponse.json(await getSettings())
 }
 
 async function handlePOST(request: NextRequest) {
@@ -14,7 +14,7 @@ async function handlePOST(request: NextRequest) {
         const settings = {
             titleSource: body.titleSource === 'fileName' ? 'fileName' as const : 'pageTitle' as const,
         }
-        const saved = saveSettings(settings)
+        const saved = await saveSettings(settings)
         if (!saved) {
             return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
         }

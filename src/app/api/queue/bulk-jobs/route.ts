@@ -13,7 +13,7 @@ async function handlePOST(request: NextRequest) {
             return NextResponse.json({ error: 'urls array is required' }, { status: 400 })
         }
 
-        const jobs = getQueue()
+        const jobs = await getQueue()
         const existingUrls = new Set(
             jobs.filter(j => j.status === 'queued' || j.status === 'processing').map(j => j.sourceUrl)
         )
@@ -61,7 +61,7 @@ async function handlePOST(request: NextRequest) {
         }
 
         if (created > 0) {
-            const saved = saveQueue(jobs)
+            const saved = await saveQueue(jobs)
             if (!saved) {
                 return NextResponse.json({ error: 'Failed to save queue' }, { status: 500 })
             }
