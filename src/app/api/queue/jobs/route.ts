@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getQueue, addJob, deleteJob, UploadJob } from '@/lib/queue-store'
-import { withAdminProtection } from '@/lib/security'
+import { verifyAdminToken } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
 
+// Lightweight auth helper
+function unauthorized() {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
 // GET: list all jobs
-async function handleGET() {
+export async function GET(request: NextRequest) {
+    if (!verifyAdminToken(request)) return unauthorized()
     const jobs = await getQueue()
     return NextResponse.json({ jobs })
 }
 
 // POST: add a single job
-async function handlePOST(request: NextRequest) {
+export async function POST(request: NextRequest) {
+    if (!verifyAdminToken(request)) return unauthorized()
+
     try {
         const body = await request.json()
         const { sourceUrl, manualTitle, titleSource, streamerId: reqStreamerId, streamerName: reqStreamerName } = body
@@ -66,7 +74,9 @@ async function handlePOST(request: NextRequest) {
 }
 
 // DELETE: remove a job by id
-async function handleDELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
+    if (!verifyAdminToken(request)) return unauthorized()
+
     try {
         const { searchParams } = new URL(request.url)
         const id = searchParams.get('id')
@@ -84,16 +94,4 @@ async function handleDELETE(request: NextRequest) {
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
     }
-}
-
-export async function GET(request: NextRequest) {
-    return withAdminProtection(request, handleGET)
-}
-
-export async function POST(request: NextRequest) {
-    return withAdminProtection(request, () => handlePOST(request))
-}
-
-export async function DELETE(request: NextRequest) {
-    return withAdminProtection(request, () => handleDELETE(request))
 }

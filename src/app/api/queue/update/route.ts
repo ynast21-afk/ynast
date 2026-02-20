@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withAdminProtection } from '@/lib/security'
+import { verifyAdminToken } from '@/lib/security'
 import { getJob, updateJob } from '@/lib/queue-store'
 
 export const dynamic = 'force-dynamic'
 
-async function handlePOST(request: NextRequest) {
+// Lightweight auth — no security log overhead for frequent worker updates
+export async function POST(request: NextRequest) {
+    if (!verifyAdminToken(request)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     try {
         const body = await request.json()
         const { jobId, status, progress, error, b2Url, b2ThumbnailUrl, title } = body
@@ -59,8 +64,4 @@ async function handlePOST(request: NextRequest) {
         console.error('[Queue Update] POST error:', err)
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
     }
-}
-
-export async function POST(request: NextRequest) {
-    return withAdminProtection(request, () => handlePOST(request))
 }

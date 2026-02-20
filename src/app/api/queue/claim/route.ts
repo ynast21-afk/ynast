@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withAdminProtection } from '@/lib/security'
+import { verifyAdminToken } from '@/lib/security'
 import { getQueue, updateJob } from '@/lib/queue-store'
 
 export const dynamic = 'force-dynamic'
 
 const STALE_LOCK_MS = 10 * 60 * 1000 // 10 minutes
 
-async function handlePOST(request: NextRequest) {
+// Lightweight auth — no security log overhead for worker polling
+export async function POST(request: NextRequest) {
+    if (!verifyAdminToken(request)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     try {
         const body = await request.json()
         const { workerId } = body
@@ -61,8 +66,4 @@ async function handlePOST(request: NextRequest) {
         console.error('[Queue Claim] POST error:', err)
         return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
     }
-}
-
-export async function POST(request: NextRequest) {
-    return withAdminProtection(request, () => handlePOST(request))
 }
