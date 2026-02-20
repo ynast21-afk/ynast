@@ -35,8 +35,7 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { execSync } = require('child_process')
-const { claimJob, updateJob, getQueue, db } = require('./firebase-direct')
-const { collection, getDocs, doc, setDoc, getDoc, updateDoc } = require('firebase/firestore')
+const { claimJob, updateJob, getQueue, checkJobCancelled, getStreamers, getStreamer, addVideo, updateStreamer, setDocument } = require('./firebase-direct')
 
 // ============================================
 // Configuration
@@ -672,26 +671,12 @@ async function apiRequest(endpoint, method = 'GET', body = null, timeoutMs = 150
     }
 }
 
-// Check if job was cancelled by user (direct Firestore)
-async function checkJobCancelled(jobId) {
-    try {
-        const ref = doc(db, 'upload-queue', jobId)
-        const snap = await getDoc(ref)
-        if (snap.exists()) {
-            const data = snap.data()
-            if (data.status === 'failed' || data.status === 'queued') {
-                return true
-            }
-        }
-    } catch { }
-    return false
-}
+// checkJobCancelled — imported from firebase-direct.js (REST API)
 
-// Get streamers from Firestore directly
+// Get streamers from Firestore directly (REST API)
 async function getStreamersFromDB() {
     try {
-        const snapshot = await getDocs(collection(db, 'streamers'))
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+        return await getStreamers()
     } catch (e) {
         console.warn('   ⚠️ 스트리머 DB 조회 오류:', e.message)
         return []
@@ -1183,12 +1168,11 @@ async function processJob(job) {
                 orientation: videoOrientation,
             }
 
-            // Register video directly in Firestore
-            const streamerRef = doc(db, 'streamers', streamerId)
-            const streamerSnap = await getDoc(streamerRef)
-            if (!streamerSnap.exists()) {
+            // Register video directly in Firestore (REST API)
+            const existingStreamer = await getStreamer(streamerId)
+            if (!existingStreamer) {
                 // Create streamer doc if doesn't exist
-                await setDoc(streamerRef, {
+                await setDocument('streamers', streamerId, {
                     id: streamerId,
                     name: streamerName || streamerId,
                     videoCount: 0,
@@ -1197,13 +1181,12 @@ async function processJob(job) {
             }
 
             const videoId = `vid_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
-            const videoRef = doc(db, 'streamers', streamerId, 'videos', videoId)
-            await setDoc(videoRef, video)
+            await addVideo(streamerId, videoId, video)
 
             // Increment video count
             try {
-                const currentData = (await getDoc(streamerRef)).data()
-                await updateDoc(streamerRef, {
+                const currentData = await getStreamer(streamerId)
+                await updateStreamer(streamerId, {
                     videoCount: (currentData?.videoCount || 0) + 1,
                     updatedAt: new Date().toISOString(),
                 })

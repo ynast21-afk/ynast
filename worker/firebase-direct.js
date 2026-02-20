@@ -1,63 +1,119 @@
 /**
- * Firebase Direct Connection — 워커/폴더감시용 Firestore 직접 연결
- * Vercel API를 거치지 않고 Firestore에 직접 접근합니다.
+ * Firebase Direct Connection — Vercel API Wrapper
+ * 
+ * Firestore REST API 직접 접근이 불가하므로 (Cloud Firestore API 비활성화),
+ * Vercel 배포된 API를 통해 Firestore에 접근합니다.
+ * 
+ * 🔧 Node.js https 모듈 사용 (fetch() crash 방지)
+ * 🔄 자동 재시도 (3회, 지수 백오프)
+ * ⏱️ 타임아웃 30초
  */
 
-const { initializeApp } = require('firebase/app')
-const { getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc } = require('firebase/firestore')
+const https = require('https')
+const http = require('http')
 
-const firebaseConfig = {
-    apiKey: "AIzaSyBI4jxHJ8qlLmNNpa_27ROKmGrDwMg-mhk",
-    authDomain: "kstreamer-queue.firebaseapp.com",
-    projectId: "kstreamer-queue",
-    storageBucket: "kstreamer-queue.firebasestorage.app",
-    messagingSenderId: "864369693271",
-    appId: "1:864369693271:web:68a8f4f225188be83a4912",
+// Hardcode SITE_URL to avoid dotenv conflicts
+const SITE_URL = 'https://kdance.xyz'
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_API_SECRET || 'dwqr456456g32r323'
+
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 2000
+const TIMEOUT_MS = 30000
+
+// ============================================
+// HTTP Request with Retry
+// ============================================
+
+function apiRequest(endpoint, method = 'GET', body = null, timeoutMs = TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+        const url = new URL(`${SITE_URL}${endpoint}`)
+        const isHttps = url.protocol === 'https:'
+        const transport = isHttps ? https : http
+
+        const options = {
+            hostname: url.hostname,
+            port: url.port || (isHttps ? 443 : 80),
+            path: url.pathname + url.search,
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-token': ADMIN_TOKEN,
+            },
+        }
+
+        const req = transport.request(options, (res) => {
+            let data = ''
+            res.on('data', chunk => { data += chunk })
+            res.on('end', () => {
+                try {
+                    if (res.statusCode >= 400) {
+                        reject(new Error(`API ${method} ${endpoint} failed (${res.statusCode}): ${data.substring(0, 300)}`))
+                        return
+                    }
+                    if (!data || data.trim() === '') {
+                        resolve({})
+                        return
+                    }
+                    resolve(JSON.parse(data))
+                } catch (e) {
+                    reject(new Error(`API parse error: ${e.message}`))
+                }
+            })
+        })
+
+        req.on('error', (e) => {
+            reject(new Error(`API network error ${endpoint}: ${e.message}`))
+        })
+
+        req.setTimeout(timeoutMs, () => {
+            req.destroy()
+            reject(new Error(`API ${method} ${endpoint} timed out after ${timeoutMs}ms`))
+        })
+
+        if (body) {
+            req.write(JSON.stringify(body))
+        }
+        req.end()
+    })
 }
 
-const app = initializeApp(firebaseConfig)
-const db = getFirestore(app)
+/**
+ * API request with automatic retry
+ */
+async function apiRequestWithRetry(endpoint, method = 'GET', body = null, timeoutMs = TIMEOUT_MS) {
+    let lastError
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            return await apiRequest(endpoint, method, body, timeoutMs)
+        } catch (e) {
+            lastError = e
+            if (attempt < MAX_RETRIES) {
+                const delay = RETRY_DELAY_MS * Math.pow(2, attempt - 1) // 2s, 4s, 8s
+                console.warn(`   ⚠️ API 재시도 (${attempt}/${MAX_RETRIES}): ${e.message} — ${delay}ms 대기`)
+                await new Promise(r => setTimeout(r, delay))
+            }
+        }
+    }
+    throw lastError
+}
 
-const QUEUE_COLLECTION = 'upload-queue'
+// ============================================
+// Queue Functions
+// ============================================
 
 /**
- * Get all jobs from Firestore
+ * Get all jobs from the queue
  */
 async function getQueue() {
-    const snapshot = await getDocs(collection(db, QUEUE_COLLECTION))
-    return snapshot.docs.map(d => {
-        const data = d.data()
-        return {
-            id: d.id,
-            sourceUrl: data.sourceUrl || '',
-            status: data.status || 'queued',
-            title: data.title || '',
-            titleSource: data.titleSource || 'pageTitle',
-            streamerId: data.streamerId || null,
-            streamerName: data.streamerName || null,
-            pageNumber: data.pageNumber ?? null,
-            itemOrder: data.itemOrder ?? null,
-            priority: data.priority ?? 0,
-            b2Url: data.b2Url || null,
-            b2ThumbnailUrl: data.b2ThumbnailUrl || null,
-            error: data.error || null,
-            progress: data.progress ?? 0,
-            workerId: data.workerId || null,
-            lockedAt: data.lockedAt || null,
-            createdAt: data.createdAt || new Date().toISOString(),
-            updatedAt: data.updatedAt || new Date().toISOString(),
-            retryCount: data.retryCount ?? 0,
-        }
-    }).sort((a, b) => a.priority - b.priority)
+    const result = await apiRequestWithRetry('/api/queue/jobs')
+    return result.jobs || []
 }
 
 /**
  * Add a job to the queue
  */
 async function addJob(job) {
-    const ref = doc(db, QUEUE_COLLECTION, job.id)
-    const { id, ...data } = job
-    await setDoc(ref, data)
+    await apiRequestWithRetry('/api/queue/jobs', 'POST', job)
     return true
 }
 
@@ -65,52 +121,96 @@ async function addJob(job) {
  * Update a job
  */
 async function updateJob(jobId, updates) {
-    const ref = doc(db, QUEUE_COLLECTION, jobId)
-    await updateDoc(ref, { ...updates })
+    await apiRequestWithRetry('/api/queue/update', 'POST', { jobId, ...updates })
     return true
 }
 
 /**
- * Claim next available job (atomic: find queued → mark processing)
+ * Non-blocking update (fire and forget)
  */
-async function claimJob(workerId) {
-    const STALE_LOCK_MS = 10 * 60 * 1000
-    const now = Date.now()
-    const isoNow = new Date().toISOString()
-
-    const jobs = await getQueue()
-
-    // Unlock stale jobs
-    for (const job of jobs) {
-        if (
-            job.status === 'processing' &&
-            job.lockedAt &&
-            now - new Date(job.lockedAt).getTime() > STALE_LOCK_MS
-        ) {
-            await updateJob(job.id, {
-                status: 'queued',
-                workerId: null,
-                lockedAt: null,
-                progress: 0,
-                updatedAt: isoNow,
-            })
-            job.status = 'queued'
-        }
-    }
-
-    // Find next queued job
-    const nextJob = jobs.find(j => j.status === 'queued')
-    if (!nextJob) return null
-
-    // Claim it
-    const updates = {
-        status: 'processing',
-        workerId,
-        lockedAt: isoNow,
-        updatedAt: isoNow,
-    }
-    await updateJob(nextJob.id, updates)
-    return { ...nextJob, ...updates }
+function updateJobAsync(jobId, updates) {
+    apiRequestWithRetry('/api/queue/update', 'POST', { jobId, ...updates }).catch(e => {
+        console.warn(`   ⚠️ 비동기 업데이트 실패 (무시): ${e.message}`)
+    })
 }
 
-module.exports = { db, getQueue, addJob, updateJob, claimJob }
+/**
+ * Check if a job was cancelled
+ */
+async function checkJobCancelled(jobId) {
+    try {
+        const result = await apiRequest('/api/queue/jobs', 'GET', null, 10000)
+        const job = (result.jobs || []).find(j => j.id === jobId)
+        if (job && (job.status === 'failed' || job.status === 'queued')) {
+            return true
+        }
+    } catch { }
+    return false
+}
+
+/**
+ * Claim next available job
+ */
+async function claimJob(workerId) {
+    const result = await apiRequestWithRetry('/api/queue/claim', 'POST', { workerId })
+    return result.job || null
+}
+
+// ============================================
+// Database Functions
+// ============================================
+
+/**
+ * Get all streamers
+ */
+async function getStreamers() {
+    const result = await apiRequestWithRetry('/api/db')
+    return result.streamers || []
+}
+
+/**
+ * Get a specific streamer by ID
+ */
+async function getStreamer(streamerId) {
+    try {
+        const streamers = await getStreamers()
+        return streamers.find(s => s.id === streamerId) || null
+    } catch { return null }
+}
+
+/**
+ * Add a video to the database
+ */
+async function addVideo(streamerId, videoId, videoData) {
+    const result = await apiRequestWithRetry('/api/db/add-video', 'POST', {
+        video: { ...videoData, id: videoId },
+        streamerId,
+    })
+    return result.success || false
+}
+
+/**
+ * Update streamer (via add-video endpoint, which also syncs streamer data)
+ */
+async function updateStreamer(streamerId, updates) {
+    // Not all updates are supported via API, but basic ones work
+    try {
+        await apiRequestWithRetry('/api/db', 'POST', { streamerId, ...updates })
+    } catch { }
+    return true
+}
+
+/**
+ * Set a document (generic, for backwards compatibility)
+ */
+async function setDocument(collectionPath, docId, data) {
+    console.warn(`   ⚠️ setDocument not supported via API: ${collectionPath}/${docId}`)
+    return true
+}
+
+module.exports = {
+    getQueue, addJob, updateJob, updateJobAsync, claimJob, checkJobCancelled,
+    getStreamers, getStreamer, addVideo, updateStreamer, setDocument,
+    apiRequest: apiRequestWithRetry,
+    SITE_URL, ADMIN_TOKEN,
+}

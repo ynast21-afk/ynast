@@ -10,8 +10,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env.local') }
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
-const { addJob, db } = require('./firebase-direct')
-const { collection, getDocs } = require('firebase/firestore')
+const { addJob, getStreamers } = require('./firebase-direct')
 
 // ============================================
 // Configuration
