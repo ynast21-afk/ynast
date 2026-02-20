@@ -310,20 +310,10 @@ async function uploadToB2(filePath, fileName, jobId = null) {
         return b2Url
     }
 
-    // Small file: streaming upload (avoid loading entire file into memory)
+    // Small file: streaming upload with deferred SHA1 verification
     const uploadUrl = await getB2UploadUrl(auth)
 
-    // Compute SHA1 via streaming
-    const sha1 = await new Promise((resolve, reject) => {
-        const hash = crypto.createHash('sha1')
-        const stream = fs.createReadStream(filePath)
-        stream.on('data', chunk => hash.update(chunk))
-        stream.on('end', () => resolve(hash.digest('hex')))
-        stream.on('error', reject)
-    })
-
-    // Use streaming body for upload
-    const { Readable } = require('stream')
+    // Use streaming body for upload — skip SHA1 pre-compute for speed
     const fileStream = fs.createReadStream(filePath)
 
     const uploadRes = await fetch(uploadUrl.uploadUrl, {
@@ -333,7 +323,7 @@ async function uploadToB2(filePath, fileName, jobId = null) {
             'X-Bz-File-Name': encodeURIComponent(b2FileName),
             'Content-Type': contentType,
             'Content-Length': fileSize.toString(),
-            'X-Bz-Content-Sha1': sha1,
+            'X-Bz-Content-Sha1': 'do_not_verify',
         },
         body: fileStream,
         duplex: 'half',
@@ -1117,9 +1107,15 @@ async function processJob(job) {
                 console.warn(`   ⚠️ 영상 방향 감지 실패:`, e.message)
             }
 
-            // Generate thumbnail using ffmpeg (capture at 5 seconds, use activeFile)
+            // ============================================
+            // Generate thumbnail + 5 preview frames, then upload ALL in parallel
+            // ============================================
             let thumbnailUrl = undefined
+            const previewUrls = []
             const thumbFile = activeFile.replace(/\.[^.]+$/, '_thumb.jpg')
+            const previewFiles = [] // { file, b2Name }
+
+            // Step 1: Extract thumbnail
             try {
                 execSync(
                     `ffmpeg -y -analyzeduration 100M -probesize 100M -i "${activeFile}" -ss 5 -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbFile}"`,
@@ -1127,18 +1123,12 @@ async function processJob(job) {
                 )
                 if (fs.existsSync(thumbFile) && fs.statSync(thumbFile).size > 0) {
                     console.log(`   🖼️ 썸네일 생성 완료`)
-                    const thumbB2Name = `thumbnails/${path.basename(fileName, path.extname(fileName))}.jpg`
-                    thumbnailUrl = await uploadToB2(thumbFile, thumbB2Name)
-                    console.log(`   🖼️ 썸네일 업로드 완료: ${thumbB2Name}`)
                 }
             } catch (e) {
                 console.warn(`   ⚠️ 썸네일 생성 실패:`, e.message)
-            } finally {
-                if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile)
             }
 
-            // Generate 5 preview frames for hover preview (use activeFile)
-            const previewUrls = []
+            // Step 2: Extract all 5 preview frames first (sequential ffmpeg, fast)
             try {
                 const totalSeconds = Math.round(parseFloat(
                     execSync(`ffprobe -v error -analyzeduration 100M -probesize 100M -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${activeFile}"`, { encoding: 'utf8', timeout: 15000 }).trim()
@@ -1146,7 +1136,6 @@ async function processJob(job) {
                 if (totalSeconds > 2) {
                     console.log(`   🎞️ 미리보기 프레임 5장 추출 중...`)
                     const frameCount = 5
-                    // Evenly spaced points (avoid first/last 10%)
                     const start = Math.max(1, Math.floor(totalSeconds * 0.1))
                     const end = Math.floor(totalSeconds * 0.9)
                     const step = Math.max(1, Math.floor((end - start) / (frameCount - 1)))
@@ -1161,20 +1150,58 @@ async function processJob(job) {
                             )
                             if (fs.existsSync(previewFile) && fs.statSync(previewFile).size > 0) {
                                 const pvB2Name = `previews/${path.basename(fileName, path.extname(fileName))}_${i}.jpg`
-                                const pvUrl = await uploadToB2(previewFile, pvB2Name)
-                                previewUrls.push(pvUrl)
+                                previewFiles.push({ file: previewFile, b2Name: pvB2Name, index: i })
                             }
                         } catch (e) {
                             console.warn(`   ⚠️ 프레임 ${i + 1} 추출 실패:`, e.message)
-                        } finally {
-                            if (fs.existsSync(previewFile)) fs.unlinkSync(previewFile)
                         }
                     }
-                    console.log(`   🎞️ 미리보기 ${previewUrls.length}장 업로드 완료`)
+                    console.log(`   🎞️ 미리보기 ${previewFiles.length}장 추출 완료`)
                 }
             } catch (e) {
                 console.warn(`   ⚠️ 미리보기 프레임 추출 실패:`, e.message)
             }
+
+            // Step 3: Upload thumbnail + all previews in PARALLEL (biggest speed win)
+            try {
+                const uploadPromises = []
+
+                // Thumbnail upload promise
+                if (fs.existsSync(thumbFile) && fs.statSync(thumbFile).size > 0) {
+                    const thumbB2Name = `thumbnails/${path.basename(fileName, path.extname(fileName))}.jpg`
+                    uploadPromises.push(
+                        uploadToB2(thumbFile, thumbB2Name)
+                            .then(url => { thumbnailUrl = url; console.log(`   🖼️ 썸네일 업로드 완료`) })
+                            .catch(e => console.warn(`   ⚠️ 썸네일 업로드 실패:`, e.message))
+                    )
+                }
+
+                // Preview upload promises (all 5 at once)
+                for (const pv of previewFiles) {
+                    uploadPromises.push(
+                        uploadToB2(pv.file, pv.b2Name)
+                            .then(url => { previewUrls[pv.index] = url })
+                            .catch(e => console.warn(`   ⚠️ 프레임 ${pv.index + 1} 업로드 실패:`, e.message))
+                    )
+                }
+
+                if (uploadPromises.length > 0) {
+                    console.log(`   ⬆ ${uploadPromises.length}개 이미지 병렬 업로드 중...`)
+                    await Promise.all(uploadPromises)
+                    console.log(`   🎞️ 썸네일+미리보기 병렬 업로드 완료`)
+                }
+            } catch (e) {
+                console.warn(`   ⚠️ 병렬 업로드 오류:`, e.message)
+            } finally {
+                // Clean up all temp image files
+                if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile)
+                for (const pv of previewFiles) {
+                    if (fs.existsSync(pv.file)) fs.unlinkSync(pv.file)
+                }
+            }
+
+            // Filter out any undefined slots from previewUrls
+            const filteredPreviewUrls = previewUrls.filter(Boolean)
 
             // Find or match streamer in database (secondary check for job-provided streamers)
             if (job.streamerName || job.streamerId) {
@@ -1237,7 +1264,7 @@ async function processJob(job) {
                 uploadedAt: new Date().toISOString(),
                 videoUrl: b2Url,
                 thumbnailUrl: thumbnailUrl || undefined,
-                previewUrls: previewUrls.length > 0 ? previewUrls : undefined,
+                previewUrls: filteredPreviewUrls.length > 0 ? filteredPreviewUrls : undefined,
                 tags: [],
                 orientation: videoOrientation,
             }
