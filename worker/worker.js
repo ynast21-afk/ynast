@@ -812,54 +812,90 @@ async function processJob(job) {
             console.warn(`   ⚠️ progress 5 업데이트 실패 (무시):`, e.message)
         })
 
-        // Extract video URL
-        console.log('   🔍 영상 URL 추출 중...')
-        const result = await extractVideoUrl(job.sourceUrl)
-        if (!result.videoUrl) throw new Error('영상 URL을 찾을 수 없습니다. worker/temp/video_debug.png 확인')
-
-        console.log(`   📎 영상 URL: ${result.videoUrl.substring(0, 80)}...`)
-        // ============================================
-        // 제목 결정: 다중 소스 + slug 정리 폴백
-        // ============================================
-        const extractedTitle = result.pageTitle || ''
-        const urlPath = new URL(job.sourceUrl).pathname
-        const rawSlug = (urlPath.split('/').pop() || '').replace(/\.[^.]+$/, '')
-        // URL slug를 사람이 읽을 수 있는 제목으로 변환
-        const cleanedSlug = rawSlug
-            .replace(/[_-]+/g, ' ')  // underscores, dashes → spaces
-            .replace(/\b\w/g, c => c.toUpperCase())  // 각 단어 첫글자 대문자
-            .trim()
-
+        const isLocalFile = job.sourceUrl.startsWith('local://')
         let title = ''
-        if (job.titleSource === 'fileName') {
-            // fileName 모드: 파일명 대신 URL slug 사용 (해시값 방지)
-            title = cleanedSlug || extractedTitle || job.title || 'Untitled'
-        } else {
-            // pageTitle 모드 (기본): 추출된 제목 → 수동 제목 → slug 순
-            title = job.title || extractedTitle || cleanedSlug || 'Untitled'
-        }
-        console.log(`   📋 최종 제목 결정: "${title}"`)
-        console.log(`     ├ 수동 입력: "${job.title || '(없음)'}"`)
-        console.log(`     ├ 페이지 추출: "${extractedTitle || '(없음)'}"`)
-        console.log(`     └ URL slug: "${cleanedSlug || '(없음)'}"`)
-
-        await apiRequest('/api/queue/update', 'POST', {
-            jobId: job.id, progress: 10,
-            title: title,
-        })
-
-        // Download
-        console.log('   ⬇ 다운로드 시작...')
-        await downloadFile(result.videoUrl, tempFile, result.cookieString, (progress) => {
-            apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress }).catch(() => { })
-        })
-
+        let rawSlug = ''
         let fileName = 'video.mp4'
-        try {
-            const baseName = path.basename(new URL(result.videoUrl).pathname)
-            if (baseName && path.extname(baseName)) fileName = baseName
-        } catch { }
-        if (!path.extname(fileName)) fileName += '.mp4'
+        let extractedTitle = ''
+
+        if (isLocalFile) {
+            // ============================================
+            // 로컬 파일 모드: 폴더 감시에서 추가된 job
+            // ============================================
+            const localPath = job.sourceUrl.replace('local://', '')
+            console.log(`   📂 로컬 파일 모드: ${localPath}`)
+
+            if (!fs.existsSync(localPath)) {
+                throw new Error(`로컬 파일을 찾을 수 없습니다: ${localPath}`)
+            }
+
+            // Copy local file to temp (don't move original yet)
+            fileName = path.basename(localPath)
+            fs.copyFileSync(localPath, tempFile)
+            const fileSize = (fs.statSync(tempFile).size / 1024 / 1024).toFixed(1)
+            console.log(`   ✅ 로컬 파일 복사 완료: ${fileSize}MB`)
+
+            // Derive title from filename
+            rawSlug = path.basename(localPath, path.extname(localPath))
+            const cleanedSlug = rawSlug
+                .replace(/[_-]+/g, ' ')
+                .trim()
+            title = job.title || cleanedSlug || 'Untitled'
+            console.log(`   📋 파일명에서 제목 추출: "${title}"`)
+
+            await apiRequest('/api/queue/update', 'POST', {
+                jobId: job.id, progress: 40,
+                title: title,
+            })
+        } else {
+            // ============================================
+            // URL 모드: 기존 로직
+            // ============================================
+            // Extract video URL
+            console.log('   🔍 영상 URL 추출 중...')
+            const result = await extractVideoUrl(job.sourceUrl)
+            if (!result.videoUrl) throw new Error('영상 URL을 찾을 수 없습니다. worker/temp/video_debug.png 확인')
+
+            console.log(`   📎 영상 URL: ${result.videoUrl.substring(0, 80)}...`)
+            // ============================================
+            // 제목 결정: 다중 소스 + slug 정리 폴백
+            // ============================================
+            extractedTitle = result.pageTitle || ''
+            const urlPath = new URL(job.sourceUrl).pathname
+            rawSlug = (urlPath.split('/').pop() || '').replace(/\.[^.]+$/, '')
+            // URL slug를 사람이 읽을 수 있는 제목으로 변환
+            const cleanedSlug = rawSlug
+                .replace(/[_-]+/g, ' ')  // underscores, dashes → spaces
+                .replace(/\b\w/g, c => c.toUpperCase())  // 각 단어 첫글자 대문자
+                .trim()
+
+            if (job.titleSource === 'fileName') {
+                title = cleanedSlug || extractedTitle || job.title || 'Untitled'
+            } else {
+                title = job.title || extractedTitle || cleanedSlug || 'Untitled'
+            }
+            console.log(`   📋 최종 제목 결정: "${title}"`)
+            console.log(`     ├ 수동 입력: "${job.title || '(없음)'}"`)
+            console.log(`     ├ 페이지 추출: "${extractedTitle || '(없음)'}"`)
+            console.log(`     └ URL slug: "${cleanedSlug || '(없음)'}"`)
+
+            await apiRequest('/api/queue/update', 'POST', {
+                jobId: job.id, progress: 10,
+                title: title,
+            })
+
+            // Download
+            console.log('   ⬇ 다운로드 시작...')
+            await downloadFile(result.videoUrl, tempFile, result.cookieString, (progress) => {
+                apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress }).catch(() => { })
+            })
+
+            try {
+                const baseName = path.basename(new URL(result.videoUrl).pathname)
+                if (baseName && path.extname(baseName)) fileName = baseName
+            } catch { }
+            if (!path.extname(fileName)) fileName += '.mp4'
+        }
 
         // ============================================
         // HEVC Detection & Auto-Transcoding
@@ -920,9 +956,10 @@ async function processJob(job) {
 
                         let matched = null
 
-                        // 1단계: streamerHint (페이지 스크래핑 결과) 매칭 — 가장 정확
-                        if (result.streamerHint && result.streamerHint.length > 0) {
-                            for (const hint of result.streamerHint) {
+                        // 1단계: streamerHint (페이지 스크래핑 결과) 매칭 — URL 모드에서만 가능
+                        const streamerHints = (!isLocalFile && typeof result !== 'undefined' && result.streamerHint) ? result.streamerHint : []
+                        if (streamerHints.length > 0) {
+                            for (const hint of streamerHints) {
                                 const hintLower = hint.toLowerCase()
                                 matched = sortedStreamers.find(s =>
                                     hintLower.includes(s.name?.toLowerCase()) ||
@@ -1150,6 +1187,22 @@ async function processJob(job) {
         // Clean up both original and transcoded files
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
         if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
+
+        // Move processed local file to done/ folder
+        if (job.sourceUrl.startsWith('local://')) {
+            const localPath = job.sourceUrl.replace('local://', '')
+            if (fs.existsSync(localPath)) {
+                try {
+                    const doneDir = path.join(path.dirname(localPath), 'done')
+                    if (!fs.existsSync(doneDir)) fs.mkdirSync(doneDir, { recursive: true })
+                    const donePath = path.join(doneDir, path.basename(localPath))
+                    fs.renameSync(localPath, donePath)
+                    console.log(`   📁 원본 파일 이동: done/${path.basename(localPath)}`)
+                } catch (e) {
+                    console.warn(`   ⚠️ 원본 파일 이동 실패:`, e.message)
+                }
+            }
+        }
     }
 }
 
