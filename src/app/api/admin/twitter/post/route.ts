@@ -63,62 +63,101 @@ export async function POST(request: NextRequest) {
         const creds = { apiKey, apiSecret, accessToken, accessTokenSecret }
 
         // Upload media (images or video clip)
-        // Fallback chain: mediaUrls → base64Images → thumbnailUrl → videoUrl (server-side)
+        // Fallback chain: mediaUrls → base64Images → thumbnailUrl → videoUrl → branded image
         let mediaIds: string[] = []
+
+        console.log(`[Twitter] 📋 Media resolution starting...`)
+        console.log(`[Twitter]   mediaType=${mediaType}, videoClipUrl=${!!videoClipUrl}`)
+        console.log(`[Twitter]   mediaUrls=${JSON.stringify(mediaUrls?.length || 0)} items`)
+        console.log(`[Twitter]   base64Images=${base64Images?.length || 0} items`)
+        console.log(`[Twitter]   thumbnailUrl=${!!thumbnailUrl} (${thumbnailUrl ? thumbnailUrl.substring(0, 80) + '...' : 'none'})`)
+        console.log(`[Twitter]   videoUrl=${!!videoUrl} (${videoUrl ? videoUrl.substring(0, 80) + '...' : 'none'})`)
+
         if (mediaType === 'video' && videoClipUrl) {
             // Video clip mode: upload single MP4 video
+            console.log(`[Twitter] 🎬 Step 1: Video clip mode`)
             const videoMediaId = await uploadVideoFromUrl(videoClipUrl, creds)
             if (videoMediaId) {
                 mediaIds = [videoMediaId]
-                console.log(`[Twitter] Uploaded video clip, mediaId: ${videoMediaId}`)
+                console.log(`[Twitter] ✅ Video clip uploaded, mediaId: ${videoMediaId}`)
             }
         } else if (mediaUrls && Array.isArray(mediaUrls) && mediaUrls.length > 0) {
             // Image mode: upload up to 4 images from URLs (previewUrls from B2)
+            console.log(`[Twitter] 🖼️ Step 1: Uploading ${mediaUrls.length} previewUrl images`)
             const urlsToUpload = mediaUrls.slice(0, 4)
             mediaIds = await uploadMediaFromUrls(urlsToUpload, creds)
-            console.log(`[Twitter] Uploaded ${mediaIds.length} media from previewUrls`)
+            console.log(`[Twitter] ✅ Uploaded ${mediaIds.length} media from previewUrls`)
         } else if (base64Images && Array.isArray(base64Images) && base64Images.length > 0) {
             // Base64 image mode: upload images directly from base64 data
+            console.log(`[Twitter] 🖼️ Step 1: Uploading ${base64Images.length} base64 images`)
             mediaIds = await uploadMediaFromBase64(base64Images.slice(0, 4), creds)
-            console.log(`[Twitter] Uploaded ${mediaIds.length} base64 media`)
+            console.log(`[Twitter] ✅ Uploaded ${mediaIds.length} base64 media`)
+        } else {
+            console.log(`[Twitter] ⚠️ Step 1: No primary media sources available`)
         }
 
-        // 🔄 Server-side fallback: if no media uploaded yet, try thumbnailUrl or videoUrl
+        // 🔄 Server-side fallback chain (runs if no media uploaded yet)
         if (mediaIds.length === 0) {
-            console.log('[Twitter] No media from primary sources, trying server-side fallbacks...')
+            console.log('[Twitter] 🔄 Entering server-side fallback chain...')
 
-            // Fallback 1: thumbnailUrl (single image, fast)
+            // Fallback 1: thumbnailUrl
             if (thumbnailUrl && typeof thumbnailUrl === 'string') {
                 try {
-                    console.log(`[Twitter] Fallback: using thumbnailUrl`)
+                    console.log(`[Twitter] 🔄 Fallback 1: thumbnailUrl`)
                     const thumbIds = await uploadMediaFromUrls([thumbnailUrl], creds)
                     if (thumbIds.length > 0) {
                         mediaIds = thumbIds
-                        console.log(`[Twitter] ✅ Fallback thumbnailUrl succeeded`)
+                        console.log(`[Twitter] ✅ Fallback 1 succeeded: thumbnailUrl uploaded`)
                     }
                 } catch (err: any) {
-                    console.warn(`[Twitter] Fallback thumbnailUrl failed:`, err?.message)
+                    console.warn(`[Twitter] ❌ Fallback 1 failed:`, err?.message)
                 }
+            } else {
+                console.log(`[Twitter] ⏭️ Fallback 1 skipped: no thumbnailUrl`)
             }
 
             // Fallback 2: extract frame from videoUrl on server (B2 download + ffmpeg)
             if (mediaIds.length === 0 && videoUrl && typeof videoUrl === 'string') {
                 try {
-                    console.log(`[Twitter] Fallback: extracting frame from videoUrl server-side`)
+                    console.log(`[Twitter] 🔄 Fallback 2: server-side frame extraction from videoUrl`)
                     const frameMediaId = await extractAndUploadFrameFromVideo(videoUrl, creds)
                     if (frameMediaId) {
                         mediaIds = [frameMediaId]
-                        console.log(`[Twitter] ✅ Fallback server-side frame extraction succeeded`)
+                        console.log(`[Twitter] ✅ Fallback 2 succeeded: frame extracted and uploaded`)
+                    } else {
+                        console.log(`[Twitter] ❌ Fallback 2: frame extraction returned null`)
                     }
                 } catch (err: any) {
-                    console.warn(`[Twitter] Fallback server-side frame extraction failed:`, err?.message)
+                    console.warn(`[Twitter] ❌ Fallback 2 failed:`, err?.message)
+                }
+            } else if (mediaIds.length === 0) {
+                console.log(`[Twitter] ⏭️ Fallback 2 skipped: ${videoUrl ? 'already have media' : 'no videoUrl'}`)
+            }
+
+            // Fallback 3: Generate branded card image (guaranteed to work on Vercel)
+            if (mediaIds.length === 0) {
+                try {
+                    console.log(`[Twitter] 🔄 Fallback 3: generating branded card image`)
+                    const cardMediaId = await generateAndUploadBrandedImage(
+                        videoTitle || 'New Video',
+                        streamerName || 'kStreamer',
+                        creds
+                    )
+                    if (cardMediaId) {
+                        mediaIds = [cardMediaId]
+                        console.log(`[Twitter] ✅ Fallback 3 succeeded: branded card uploaded`)
+                    }
+                } catch (err: any) {
+                    console.warn(`[Twitter] ❌ Fallback 3 failed:`, err?.message)
                 }
             }
 
             if (mediaIds.length === 0) {
-                console.warn('[Twitter] ⚠️ All media fallbacks exhausted, posting text-only tweet')
+                console.warn('[Twitter] ⚠️ ALL fallbacks exhausted, posting text-only tweet')
             }
         }
+
+        console.log(`[Twitter] 📋 Final media count: ${mediaIds.length} media IDs`)
 
         // Post tweet using twitter-api-v2 library
         const tweetResult = await postTweet(tweetText, creds, mediaIds)
@@ -480,6 +519,150 @@ async function extractAndUploadFrameFromVideo(url: string, creds: TwitterCredent
         console.error(`[Twitter] extractAndUploadFrameFromVideo failed:`, err?.message || err)
         return null
     }
+}
+
+// Generate a branded card image and upload to Twitter (no ffmpeg/resvg needed, works on Vercel)
+async function generateAndUploadBrandedImage(
+    title: string,
+    streamerName: string,
+    creds: TwitterCredentials
+): Promise<string | null> {
+    try {
+        // Create a minimal valid PNG image (100x100 dark branded image)
+        // Using raw PNG generation without any external dependencies
+        const { createBrandedPNG } = await generateMinimalPNG()
+        const imageBuffer = createBrandedPNG()
+
+        console.log(`[Twitter] Generated branded PNG: ${imageBuffer.length} bytes`)
+
+        // Upload to Twitter
+        const client = new TwitterApi({
+            appKey: creds.apiKey,
+            appSecret: creds.apiSecret,
+            accessToken: creds.accessToken,
+            accessSecret: creds.accessTokenSecret,
+        })
+
+        const mediaId = await client.v1.uploadMedia(imageBuffer, {
+            mimeType: 'image/png' as any,
+        })
+        console.log(`[Twitter] Uploaded branded image, mediaId: ${mediaId}`)
+        return mediaId
+    } catch (err: any) {
+        console.error(`[Twitter] generateAndUploadBrandedImage failed:`, err?.message || err)
+        return null
+    }
+}
+
+// Generate a minimal valid PNG buffer without any external dependencies
+async function generateMinimalPNG() {
+    const zlib = await import('zlib')
+
+    function createBrandedPNG(): Buffer {
+        const width = 800
+        const height = 420
+
+        // Create raw pixel data (RGBA) - dark gradient with green accent
+        const pixelData = Buffer.alloc(width * height * 4)
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4
+                // Dark gradient background
+                const gradientFactor = (x / width + y / height) / 2
+                const r = Math.floor(10 + gradientFactor * 16)
+                const g = Math.floor(10 + gradientFactor * 16)
+                const b = Math.floor(15 + gradientFactor * 30)
+
+                // Green accent line at bottom
+                if (y >= height - 6) {
+                    pixelData[idx] = 0      // R
+                    pixelData[idx + 1] = 255 // G
+                    pixelData[idx + 2] = 136 // B
+                    pixelData[idx + 3] = 255 // A
+                } else {
+                    pixelData[idx] = r
+                    pixelData[idx + 1] = g
+                    pixelData[idx + 2] = b
+                    pixelData[idx + 3] = 255
+                }
+            }
+        }
+
+        // Add a green glow circle in the center
+        const cx = width / 2, cy = height / 2 - 20, radius = 120
+        for (let y = Math.max(0, Math.floor(cy - radius)); y < Math.min(height, Math.ceil(cy + radius)); y++) {
+            for (let x = Math.max(0, Math.floor(cx - radius)); x < Math.min(width, Math.ceil(cx + radius)); x++) {
+                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+                if (dist < radius) {
+                    const idx = (y * width + x) * 4
+                    const intensity = Math.max(0, 1 - dist / radius) * 0.3
+                    pixelData[idx + 1] = Math.min(255, pixelData[idx + 1] + Math.floor(255 * intensity)) // Green
+                    pixelData[idx + 2] = Math.min(255, pixelData[idx + 2] + Math.floor(136 * intensity)) // Blue
+                }
+            }
+        }
+
+        // Build PNG file
+        // PNG filter: prepend 0 (None filter) to each row
+        const filteredData = Buffer.alloc(height * (1 + width * 4))
+        for (let y = 0; y < height; y++) {
+            filteredData[y * (1 + width * 4)] = 0 // None filter
+            pixelData.copy(filteredData, y * (1 + width * 4) + 1, y * width * 4, (y + 1) * width * 4)
+        }
+
+        const compressedData = zlib.deflateSync(filteredData)
+
+        // PNG signature
+        const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+
+        // IHDR chunk
+        const ihdrData = Buffer.alloc(13)
+        ihdrData.writeUInt32BE(width, 0)
+        ihdrData.writeUInt32BE(height, 4)
+        ihdrData[8] = 8  // bit depth
+        ihdrData[9] = 6  // color type (RGBA)
+        ihdrData[10] = 0 // compression
+        ihdrData[11] = 0 // filter
+        ihdrData[12] = 0 // interlace
+        const ihdr = createPNGChunk('IHDR', ihdrData)
+
+        // IDAT chunk
+        const idat = createPNGChunk('IDAT', compressedData)
+
+        // IEND chunk
+        const iend = createPNGChunk('IEND', Buffer.alloc(0))
+
+        return Buffer.concat([signature, ihdr, idat, iend])
+    }
+
+    function createPNGChunk(type: string, data: Buffer): Buffer {
+        const length = Buffer.alloc(4)
+        length.writeUInt32BE(data.length)
+
+        const typeBuffer = Buffer.from(type, 'ascii')
+        const crcInput = Buffer.concat([typeBuffer, data])
+
+        // CRC32 calculation
+        let crc = 0xFFFFFFFF
+        for (let i = 0; i < crcInput.length; i++) {
+            crc = crc ^ crcInput[i]
+            for (let j = 0; j < 8; j++) {
+                if (crc & 1) {
+                    crc = (crc >>> 1) ^ 0xEDB88320
+                } else {
+                    crc = crc >>> 1
+                }
+            }
+        }
+        crc = (crc ^ 0xFFFFFFFF) >>> 0
+
+        const crcBuffer = Buffer.alloc(4)
+        crcBuffer.writeUInt32BE(crc)
+
+        return Buffer.concat([length, typeBuffer, data, crcBuffer])
+    }
+
+    return { createBrandedPNG }
 }
 
 async function postTweet(text: string, creds: TwitterCredentials, mediaIds: string[] = []): Promise<{ success: boolean; tweetId?: string; error?: string }> {
