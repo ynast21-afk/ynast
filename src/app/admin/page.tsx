@@ -248,6 +248,7 @@ export default function AdminPage() {
     const [seoAnalyticsRange, setSeoAnalyticsRange] = useState(7)
     const [seoAnalyticsView, setSeoAnalyticsView] = useState<'daily' | 'weekly' | 'monthly'>('daily')
     const [expandedReferrer, setExpandedReferrer] = useState<string | null>(null)
+    const [seoPeriodTab, setSeoPeriodTab] = useState<'all' | 'period'>('all')
 
     // Video list filter/sort/search states (v3.1)
     const [videoSearch, setVideoSearch] = useState('')
@@ -3890,7 +3891,15 @@ export default function AdminPage() {
                                                     {[7, 14, 30].map(d => (
                                                         <button
                                                             key={d}
-                                                            onClick={() => setSeoAnalyticsRange(d)}
+                                                            onClick={() => {
+                                                                setSeoAnalyticsRange(d)
+                                                                setSeoAnalyticsLoading(true)
+                                                                fetchWithAuth(`/api/admin/seo-analytics?range=${d}&view=${seoAnalyticsView}`)
+                                                                    .then(res => res.json())
+                                                                    .then(data => { if (!data.error) setSeoAnalytics(data) })
+                                                                    .catch(() => { })
+                                                                    .finally(() => setSeoAnalyticsLoading(false))
+                                                            }}
                                                             className={`px-3 py-1 text-xs rounded-lg transition-colors ${seoAnalyticsRange === d
                                                                 ? 'bg-accent-primary text-black font-bold'
                                                                 : 'bg-white/5 text-text-secondary hover:bg-white/10'
@@ -3904,7 +3913,16 @@ export default function AdminPage() {
                                                     {(['daily', 'weekly', 'monthly'] as const).map(v => (
                                                         <button
                                                             key={v}
-                                                            onClick={() => setSeoAnalyticsView(v)}
+                                                            onClick={() => {
+                                                                setSeoAnalyticsView(v)
+                                                                // 자동 re-fetch
+                                                                setSeoAnalyticsLoading(true)
+                                                                fetchWithAuth(`/api/admin/seo-analytics?range=${seoAnalyticsRange}&view=${v}`)
+                                                                    .then(res => res.json())
+                                                                    .then(data => { if (!data.error) setSeoAnalytics(data) })
+                                                                    .catch(() => { })
+                                                                    .finally(() => setSeoAnalyticsLoading(false))
+                                                            }}
                                                             className={`px-3 py-1 text-xs rounded-lg transition-colors ${seoAnalyticsView === v
                                                                 ? 'bg-purple-500 text-white font-bold'
                                                                 : 'bg-white/5 text-text-secondary hover:bg-white/10'
@@ -3983,133 +4001,236 @@ export default function AdminPage() {
                                                     </div>
 
                                                     {/* Visitors Chart (adapts to view type) */}
-                                                    {seoAnalytics.dailyVisitors && seoAnalytics.dailyVisitors.length > 0 && (
-                                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">
-                                                                📈 {seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'} 방문자 추이
-                                                            </h4>
-                                                            <div className="flex items-end gap-1 h-32">
-                                                                {(() => {
-                                                                    const maxVisits = Math.max(...seoAnalytics.dailyVisitors.map((d: any) => d.visits), 1)
-                                                                    return seoAnalytics.dailyVisitors.map((d: any, i: number) => (
-                                                                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                                                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                                                                {d.date}: {d.visits}명
+                                                    {(() => {
+                                                        const chartData = seoAnalytics.aggregatedVisitors || seoAnalytics.dailyVisitors || []
+                                                        return chartData.length > 0 && (
+                                                            <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                                                <h4 className="text-sm font-semibold mb-3 text-text-secondary">
+                                                                    📈 {seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'} 방문자 추이
+                                                                </h4>
+                                                                <div className="flex items-end gap-1 h-32">
+                                                                    {(() => {
+                                                                        const maxVisits = Math.max(...chartData.map((d: any) => d.visits), 1)
+                                                                        return chartData.map((d: any, i: number) => (
+                                                                            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                                                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+                                                                                    {d.label || d.date}: {d.visits}명
+                                                                                </div>
+                                                                                <div
+                                                                                    className="w-full bg-accent-primary/70 rounded-t-sm hover:bg-accent-primary transition-colors cursor-pointer"
+                                                                                    style={{ height: `${Math.max((d.visits / maxVisits) * 100, 2)}%` }}
+                                                                                />
+                                                                                {chartData.length <= 14 && (
+                                                                                    <span className="text-[9px] text-text-tertiary">{(d.label || d.date || '').slice(-5)}</span>
+                                                                                )}
                                                                             </div>
-                                                                            <div
-                                                                                className="w-full bg-accent-primary/70 rounded-t-sm hover:bg-accent-primary transition-colors cursor-pointer"
-                                                                                style={{ height: `${Math.max((d.visits / maxVisits) * 100, 2)}%` }}
-                                                                            />
-                                                                            {seoAnalytics.dailyVisitors.length <= 14 && (
-                                                                                <span className="text-[9px] text-text-tertiary">{d.date.slice(5)}</span>
-                                                                            )}
-                                                                        </div>
-                                                                    ))
-                                                                })()}
+                                                                        ))
+                                                                    })()}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )
+                                                    })()}
 
                                                     {/* Two column: Referrers + Countries */}
                                                     <div className="grid md:grid-cols-2 gap-4">
-                                                        {/* Top Referrers (Enhanced with expandable details) */}
+                                                        {/* Top Referrers */}
                                                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">🔗 유입 경로 TOP 10 <span className="text-[10px] text-text-tertiary font-normal">(클릭하면 상세정보)</span></h4>
-                                                            {seoAnalytics.topReferrers?.length > 0 ? (
-                                                                <div className="space-y-1">
-                                                                    {seoAnalytics.topReferrers.slice(0, 10).map((ref: any, i: number) => {
-                                                                        const maxRef = seoAnalytics.topReferrers[0]?.count || 1
-                                                                        const isExpanded = expandedReferrer === ref.domain
-                                                                        return (
-                                                                            <div key={i}>
-                                                                                <button
-                                                                                    onClick={() => setExpandedReferrer(isExpanded ? null : ref.domain)}
-                                                                                    className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 transition-colors text-left"
-                                                                                >
-                                                                                    <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
-                                                                                    <span className="text-sm">{ref.icon || '🔗'}</span>
-                                                                                    <div className="flex-1 min-w-0">
-                                                                                        <div className="flex justify-between mb-0.5">
-                                                                                            <span className="text-xs text-text-primary truncate">
-                                                                                                {ref.label || ref.domain}
-                                                                                                {ref.domain === 'direct' && (
-                                                                                                    <span className="ml-1 text-[10px] text-text-tertiary" title="주소 직접 입력, 북마크, 앱 내 브라우저 등">ⓘ</span>
-                                                                                                )}
-                                                                                            </span>
-                                                                                            <span className="text-xs font-mono text-blue-400 ml-2">{ref.count}</span>
-                                                                                        </div>
-                                                                                        <div className="w-full bg-white/5 rounded-full h-1.5">
-                                                                                            <div className="bg-blue-500 rounded-full h-1.5 transition-all" style={{ width: `${(ref.count / maxRef) * 100}%` }} />
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <span className={`text-[10px] text-text-tertiary transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                                                                                </button>
-                                                                                {/* Expanded details */}
-                                                                                {isExpanded && (
-                                                                                    <div className="ml-8 mr-2 mt-1 mb-2 p-3 bg-black/30 rounded-lg border border-white/5 space-y-3">
-                                                                                        {/* Countries for this referrer */}
-                                                                                        {ref.topCountries && ref.topCountries.length > 0 && (
-                                                                                            <div>
-                                                                                                <p className="text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">🌍 국가별 분포</p>
-                                                                                                <div className="flex flex-wrap gap-1.5">
-                                                                                                    {ref.topCountries.map((c: any, ci: number) => (
-                                                                                                        <span key={ci} className="text-[11px] bg-white/5 px-2 py-0.5 rounded-md text-text-secondary">
-                                                                                                            {c.name} <span className="text-blue-400 font-mono">{c.count}</span>
-                                                                                                        </span>
-                                                                                                    ))}
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        )}
-                                                                                        {/* Landing pages for this referrer */}
-                                                                                        {ref.topLandingPages && ref.topLandingPages.length > 0 && (
-                                                                                            <div>
-                                                                                                <p className="text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">📄 방문 페이지</p>
-                                                                                                <div className="space-y-1">
-                                                                                                    {ref.topLandingPages.map((pg: any, pi: number) => (
-                                                                                                        <div key={pi} className="flex justify-between text-[11px]">
-                                                                                                            <span className="text-text-secondary truncate max-w-[180px]">{pg.path}</span>
-                                                                                                            <span className="text-amber-400 font-mono ml-2">{pg.count}</span>
-                                                                                                        </div>
-                                                                                                    ))}
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        )
-                                                                    })}
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <h4 className="text-sm font-semibold text-text-secondary">🔗 유입 경로 TOP 10</h4>
+                                                                <div className="flex gap-1">
+                                                                    {(['all', 'period'] as const).map(tab => (
+                                                                        <button
+                                                                            key={tab}
+                                                                            onClick={() => setSeoPeriodTab(tab)}
+                                                                            className={`px-2 py-0.5 text-[10px] rounded-md transition-colors ${seoPeriodTab === tab
+                                                                                ? 'bg-blue-500/30 text-blue-400 font-bold'
+                                                                                : 'bg-white/5 text-text-tertiary hover:bg-white/10'
+                                                                                }`}
+                                                                        >
+                                                                            {tab === 'all' ? '전체' : seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'}
+                                                                        </button>
+                                                                    ))}
                                                                 </div>
+                                                            </div>
+                                                            {seoPeriodTab === 'all' ? (
+                                                                /* 전체 합산 (기존) */
+                                                                seoAnalytics.topReferrers?.length > 0 ? (
+                                                                    <div className="space-y-1">
+                                                                        {seoAnalytics.topReferrers.slice(0, 10).map((ref: any, i: number) => {
+                                                                            const maxRef = seoAnalytics.topReferrers[0]?.count || 1
+                                                                            const isExpanded = expandedReferrer === ref.domain
+                                                                            return (
+                                                                                <div key={i}>
+                                                                                    <button
+                                                                                        onClick={() => setExpandedReferrer(isExpanded ? null : ref.domain)}
+                                                                                        className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 transition-colors text-left"
+                                                                                    >
+                                                                                        <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
+                                                                                        <span className="text-sm">{ref.icon || '🔗'}</span>
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <div className="flex justify-between mb-0.5">
+                                                                                                <span className="text-xs text-text-primary truncate">
+                                                                                                    {ref.label || ref.domain}
+                                                                                                    {ref.domain === 'direct' && (
+                                                                                                        <span className="ml-1 text-[10px] text-text-tertiary" title="주소 직접 입력, 북마크, 앱 내 브라우저 등">ⓘ</span>
+                                                                                                    )}
+                                                                                                </span>
+                                                                                                <span className="text-xs font-mono text-blue-400 ml-2">{ref.count}</span>
+                                                                                            </div>
+                                                                                            <div className="w-full bg-white/5 rounded-full h-1.5">
+                                                                                                <div className="bg-blue-500 rounded-full h-1.5 transition-all" style={{ width: `${(ref.count / maxRef) * 100}%` }} />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <span className={`text-[10px] text-text-tertiary transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                                                                                    </button>
+                                                                                    {isExpanded && (
+                                                                                        <div className="ml-8 mr-2 mt-1 mb-2 p-3 bg-black/30 rounded-lg border border-white/5 space-y-3">
+                                                                                            {ref.topCountries && ref.topCountries.length > 0 && (
+                                                                                                <div>
+                                                                                                    <p className="text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">🌍 국가별 분포</p>
+                                                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                                                        {ref.topCountries.map((c: any, ci: number) => (
+                                                                                                            <span key={ci} className="text-[11px] bg-white/5 px-2 py-0.5 rounded-md text-text-secondary">
+                                                                                                                {c.name} <span className="text-blue-400 font-mono">{c.count}</span>
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {ref.topLandingPages && ref.topLandingPages.length > 0 && (
+                                                                                                <div>
+                                                                                                    <p className="text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">📄 방문 페이지</p>
+                                                                                                    <div className="space-y-1">
+                                                                                                        {ref.topLandingPages.map((pg: any, pi: number) => (
+                                                                                                            <div key={pi} className="flex justify-between text-[11px]">
+                                                                                                                <span className="text-text-secondary truncate max-w-[180px]">{pg.path}</span>
+                                                                                                                <span className="text-amber-400 font-mono ml-2">{pg.count}</span>
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                                )
                                                             ) : (
-                                                                <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                                /* 기간별 (일/주/월) */
+                                                                seoAnalytics.referrersByPeriod?.length > 0 ? (
+                                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                                        {seoAnalytics.referrersByPeriod.map((p: any, pi: number) => (
+                                                                            <div key={pi} className="bg-black/20 rounded-lg p-3 border border-white/5">
+                                                                                <p className="text-[11px] font-semibold text-purple-400 mb-2">📅 {p.period}</p>
+                                                                                <div className="space-y-1">
+                                                                                    {p.referrers.map((ref: any, ri: number) => {
+                                                                                        const maxR = p.referrers[0]?.count || 1
+                                                                                        return (
+                                                                                            <div key={ri} className="flex items-center gap-2">
+                                                                                                <span className="text-[10px] text-text-tertiary w-4">{ri + 1}</span>
+                                                                                                <span className="text-xs">{ref.icon}</span>
+                                                                                                <div className="flex-1 min-w-0">
+                                                                                                    <div className="flex justify-between mb-0.5">
+                                                                                                        <span className="text-[11px] text-text-primary truncate">{ref.label || ref.domain}</span>
+                                                                                                        <span className="text-[11px] font-mono text-blue-400 ml-1">{ref.count}</span>
+                                                                                                    </div>
+                                                                                                    <div className="w-full bg-white/5 rounded-full h-1">
+                                                                                                        <div className="bg-blue-500/70 rounded-full h-1" style={{ width: `${(ref.count / maxR) * 100}%` }} />
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-xs text-text-tertiary">기간별 데이터가 없습니다</p>
+                                                                )
                                                             )}
                                                         </div>
 
                                                         {/* Country Distribution */}
                                                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                                            <h4 className="text-sm font-semibold mb-3 text-text-secondary">🌍 국가별 방문자</h4>
-                                                            {seoAnalytics.countryDistribution?.length > 0 ? (
-                                                                <div className="space-y-2">
-                                                                    {seoAnalytics.countryDistribution.slice(0, 10).map((c: any, i: number) => {
-                                                                        const maxC = seoAnalytics.countryDistribution[0]?.count || 1
-                                                                        return (
-                                                                            <div key={i} className="flex items-center gap-2">
-                                                                                <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
-                                                                                <div className="flex-1">
-                                                                                    <div className="flex justify-between mb-0.5">
-                                                                                        <span className="text-xs text-text-primary">{c.name} ({c.code})</span>
-                                                                                        <span className="text-xs text-text-tertiary">{c.count}</span>
-                                                                                    </div>
-                                                                                    <div className="w-full bg-white/5 rounded-full h-1.5">
-                                                                                        <div className="bg-green-500 rounded-full h-1.5" style={{ width: `${(c.count / maxC) * 100}%` }} />
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <h4 className="text-sm font-semibold text-text-secondary">🌍 국가별 방문자</h4>
+                                                                <div className="flex gap-1">
+                                                                    {(['all', 'period'] as const).map(tab => (
+                                                                        <button
+                                                                            key={tab}
+                                                                            onClick={() => setSeoPeriodTab(tab)}
+                                                                            className={`px-2 py-0.5 text-[10px] rounded-md transition-colors ${seoPeriodTab === tab
+                                                                                ? 'bg-green-500/30 text-green-400 font-bold'
+                                                                                : 'bg-white/5 text-text-tertiary hover:bg-white/10'
+                                                                                }`}
+                                                                        >
+                                                                            {tab === 'all' ? '전체' : seoAnalyticsView === 'daily' ? '일별' : seoAnalyticsView === 'weekly' ? '주별' : '월별'}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            {seoPeriodTab === 'all' ? (
+                                                                /* 전체 합산 (기존) */
+                                                                seoAnalytics.countryDistribution?.length > 0 ? (
+                                                                    <div className="space-y-2">
+                                                                        {seoAnalytics.countryDistribution.slice(0, 10).map((c: any, i: number) => {
+                                                                            const maxC = seoAnalytics.countryDistribution[0]?.count || 1
+                                                                            return (
+                                                                                <div key={i} className="flex items-center gap-2">
+                                                                                    <span className="text-xs text-text-tertiary w-5">{i + 1}</span>
+                                                                                    <div className="flex-1">
+                                                                                        <div className="flex justify-between mb-0.5">
+                                                                                            <span className="text-xs text-text-primary">{c.name} ({c.code})</span>
+                                                                                            <span className="text-xs text-text-tertiary">{c.count}</span>
+                                                                                        </div>
+                                                                                        <div className="w-full bg-white/5 rounded-full h-1.5">
+                                                                                            <div className="bg-green-500 rounded-full h-1.5" style={{ width: `${(c.count / maxC) * 100}%` }} />
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )
-                                                                    })}
-                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                                )
                                                             ) : (
-                                                                <p className="text-xs text-text-tertiary">아직 데이터가 없습니다</p>
+                                                                /* 기간별 (일/주/월) */
+                                                                seoAnalytics.countriesByPeriod?.length > 0 ? (
+                                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                                        {seoAnalytics.countriesByPeriod.map((p: any, pi: number) => (
+                                                                            <div key={pi} className="bg-black/20 rounded-lg p-3 border border-white/5">
+                                                                                <p className="text-[11px] font-semibold text-purple-400 mb-2">📅 {p.period}</p>
+                                                                                <div className="space-y-1">
+                                                                                    {p.countries.map((c: any, ci: number) => {
+                                                                                        const maxC = p.countries[0]?.count || 1
+                                                                                        return (
+                                                                                            <div key={ci} className="flex items-center gap-2">
+                                                                                                <span className="text-[10px] text-text-tertiary w-4">{ci + 1}</span>
+                                                                                                <div className="flex-1 min-w-0">
+                                                                                                    <div className="flex justify-between mb-0.5">
+                                                                                                        <span className="text-[11px] text-text-primary">{c.name} ({c.code})</span>
+                                                                                                        <span className="text-[11px] font-mono text-green-400 ml-1">{c.count}</span>
+                                                                                                    </div>
+                                                                                                    <div className="w-full bg-white/5 rounded-full h-1">
+                                                                                                        <div className="bg-green-500/70 rounded-full h-1" style={{ width: `${(c.count / maxC) * 100}%` }} />
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-xs text-text-tertiary">기간별 데이터가 없습니다</p>
+                                                                )
                                                             )}
                                                         </div>
                                                     </div>

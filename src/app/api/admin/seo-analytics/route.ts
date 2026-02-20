@@ -271,21 +271,96 @@ export async function GET(request: NextRequest) {
             aggregatedVisitors = dailyVisitors.map(d => ({ label: d.date, visits: d.visits, bots: d.bots }))
         }
 
-        // --- Country trend (top 5 countries, daily) ---
+        // --- Country trend (top 5 countries) adapted to view ---
         const top5CountryCodes = Object.entries(allCountries)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5)
             .map(([code]) => code)
 
-        const countryTrend: { date: string; countries: Record<string, number> }[] = []
-        const sortedDates = dailyVisitors.map(d => d.date)
-        for (const date of sortedDates) {
-            const entry: Record<string, number> = {}
-            for (const cc of top5CountryCodes) {
-                entry[cc] = countryDailyMap[cc]?.[date] || 0
+        // Build country trend matching the selected view
+        let countryTrend: { date: string; countries: Record<string, number> }[] = []
+        if (view === 'weekly') {
+            const weekCountryMap: Record<string, Record<string, number>> = {}
+            for (const dv of dailyVisitors) {
+                const wk = getWeekKey(dv.date)
+                if (!weekCountryMap[wk]) weekCountryMap[wk] = {}
+                for (const cc of top5CountryCodes) {
+                    weekCountryMap[wk][cc] = (weekCountryMap[wk][cc] || 0) + (countryDailyMap[cc]?.[dv.date] || 0)
+                }
             }
-            countryTrend.push({ date, countries: entry })
+            countryTrend = Object.entries(weekCountryMap)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([wk, countries]) => ({ date: wk, countries }))
+        } else if (view === 'monthly') {
+            const monthCountryMap: Record<string, Record<string, number>> = {}
+            for (const dv of dailyVisitors) {
+                const mk = getMonthKey(dv.date)
+                if (!monthCountryMap[mk]) monthCountryMap[mk] = {}
+                for (const cc of top5CountryCodes) {
+                    monthCountryMap[mk][cc] = (monthCountryMap[mk][cc] || 0) + (countryDailyMap[cc]?.[dv.date] || 0)
+                }
+            }
+            countryTrend = Object.entries(monthCountryMap)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([mk, countries]) => ({ date: mk, countries }))
+        } else {
+            const sortedDates = dailyVisitors.map(d => d.date)
+            for (const date of sortedDates) {
+                const entry: Record<string, number> = {}
+                for (const cc of top5CountryCodes) {
+                    entry[cc] = countryDailyMap[cc]?.[date] || 0
+                }
+                countryTrend.push({ date, countries: entry })
+            }
         }
+
+        // --- Period-based referrer & country data ---
+        // Group visits by period key
+        const periodKey = (dateStr: string) =>
+            view === 'weekly' ? getWeekKey(dateStr)
+                : view === 'monthly' ? getMonthKey(dateStr)
+                    : dateStr
+
+        // Build period → { referrers, countries }
+        const periodReferrers: Record<string, Record<string, number>> = {}
+        const periodCountries: Record<string, Record<string, number>> = {}
+        for (const day of dailyData) {
+            const pk = periodKey(day.date)
+            if (!periodReferrers[pk]) periodReferrers[pk] = {}
+            if (!periodCountries[pk]) periodCountries[pk] = {}
+            if (day.visits) {
+                for (const v of day.visits) {
+                    const ref = v.r || 'direct'
+                    periodReferrers[pk][ref] = (periodReferrers[pk][ref] || 0) + 1
+                    const cc = v.c || 'XX'
+                    periodCountries[pk][cc] = (periodCountries[pk][cc] || 0) + 1
+                }
+            }
+        }
+
+        // Format period data for frontend
+        const referrersByPeriod = Object.entries(periodReferrers)
+            .sort((a, b) => b[0].localeCompare(a[0])) // newest first
+            .map(([period, refs]) => ({
+                period,
+                referrers: Object.entries(refs)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10)
+                    .map(([domain, count]) => {
+                        const info = getReferrerInfo(domain)
+                        return { domain, count, icon: info.icon, label: info.label }
+                    })
+            }))
+
+        const countriesByPeriod = Object.entries(periodCountries)
+            .sort((a, b) => b[0].localeCompare(a[0])) // newest first
+            .map(([period, ctrs]) => ({
+                period,
+                countries: Object.entries(ctrs)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10)
+                    .map(([code, count]) => ({ code, name: getCountryName(code), count }))
+            }))
 
         // Calculate averages
         const activeDays = dailyData.length || 1
@@ -338,6 +413,8 @@ export async function GET(request: NextRequest) {
             botDistribution,
             hourlyDistribution: allHourly,
             seoHealth,
+            referrersByPeriod,
+            countriesByPeriod,
         })
     } catch (error) {
         console.error('SEO Analytics API error:', error)
