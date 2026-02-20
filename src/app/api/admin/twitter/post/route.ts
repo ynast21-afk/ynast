@@ -100,44 +100,70 @@ export async function POST(request: NextRequest) {
         if (mediaIds.length === 0) {
             console.log('[Twitter] 🔄 Entering server-side fallback chain...')
 
-            // Fallback 1: thumbnailUrl
-            if (thumbnailUrl && typeof thumbnailUrl === 'string') {
+            // Extract B2 base filename from videoUrl for constructing preview/thumbnail URLs
+            const b2BaseName = extractB2BaseName(videoUrl)
+            console.log(`[Twitter]   b2BaseName=${b2BaseName || 'none'}`)
+
+            // Fallback 1: Auto-construct B2 preview URLs from videoUrl filename (3 images!)
+            if (b2BaseName) {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 1: thumbnailUrl`)
-                    const thumbIds = await uploadMediaFromUrls([thumbnailUrl], creds)
-                    if (thumbIds.length > 0) {
-                        mediaIds = thumbIds
-                        console.log(`[Twitter] ✅ Fallback 1 succeeded: thumbnailUrl uploaded`)
+                    console.log(`[Twitter] 🔄 Fallback 1: auto-construct B2 preview URLs`)
+                    const b2BucketUrl = getB2BucketUrl(videoUrl)
+                    const previewCandidates = [0, 1, 2].map(i =>
+                        `${b2BucketUrl}/previews/${b2BaseName}_${i}.jpg`
+                    )
+                    console.log(`[Twitter]   Trying preview URLs: ${previewCandidates.map(u => u.substring(u.lastIndexOf('/') + 1)).join(', ')}`)
+                    const previewIds = await uploadMediaFromUrls(previewCandidates, creds)
+                    if (previewIds.length > 0) {
+                        mediaIds = previewIds
+                        console.log(`[Twitter] ✅ Fallback 1 succeeded: ${previewIds.length} preview images uploaded`)
                     }
                 } catch (err: any) {
                     console.warn(`[Twitter] ❌ Fallback 1 failed:`, err?.message)
                 }
             } else {
-                console.log(`[Twitter] ⏭️ Fallback 1 skipped: no thumbnailUrl`)
+                console.log(`[Twitter] ⏭️ Fallback 1 skipped: cannot extract B2 base name`)
             }
 
-            // Fallback 2: extract frame from videoUrl on server (B2 download + ffmpeg)
-            if (mediaIds.length === 0 && videoUrl && typeof videoUrl === 'string') {
+            // Fallback 2: thumbnailUrl (direct from DB)
+            if (mediaIds.length === 0 && thumbnailUrl && typeof thumbnailUrl === 'string') {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 2: server-side frame extraction from videoUrl`)
-                    const frameMediaId = await extractAndUploadFrameFromVideo(videoUrl, creds)
-                    if (frameMediaId) {
-                        mediaIds = [frameMediaId]
-                        console.log(`[Twitter] ✅ Fallback 2 succeeded: frame extracted and uploaded`)
-                    } else {
-                        console.log(`[Twitter] ❌ Fallback 2: frame extraction returned null`)
+                    console.log(`[Twitter] 🔄 Fallback 2: thumbnailUrl from DB`)
+                    const thumbIds = await uploadMediaFromUrls([thumbnailUrl], creds)
+                    if (thumbIds.length > 0) {
+                        mediaIds = thumbIds
+                        console.log(`[Twitter] ✅ Fallback 2 succeeded: thumbnailUrl uploaded`)
                     }
                 } catch (err: any) {
                     console.warn(`[Twitter] ❌ Fallback 2 failed:`, err?.message)
                 }
             } else if (mediaIds.length === 0) {
-                console.log(`[Twitter] ⏭️ Fallback 2 skipped: ${videoUrl ? 'already have media' : 'no videoUrl'}`)
+                console.log(`[Twitter] ⏭️ Fallback 2 skipped: no thumbnailUrl`)
             }
 
-            // Fallback 3: Generate branded card image (guaranteed to work on Vercel)
+            // Fallback 3: Auto-construct B2 thumbnail URL from videoUrl filename
+            if (mediaIds.length === 0 && b2BaseName) {
+                try {
+                    console.log(`[Twitter] 🔄 Fallback 3: auto-construct B2 thumbnail URL`)
+                    const b2BucketUrl = getB2BucketUrl(videoUrl)
+                    const thumbUrl = `${b2BucketUrl}/thumbnails/${b2BaseName}.jpg`
+                    console.log(`[Twitter]   Trying thumbnail: ${thumbUrl.substring(thumbUrl.lastIndexOf('/') + 1)}`)
+                    const thumbIds = await uploadMediaFromUrls([thumbUrl], creds)
+                    if (thumbIds.length > 0) {
+                        mediaIds = thumbIds
+                        console.log(`[Twitter] ✅ Fallback 3 succeeded: auto-constructed thumbnail uploaded`)
+                    }
+                } catch (err: any) {
+                    console.warn(`[Twitter] ❌ Fallback 3 failed:`, err?.message)
+                }
+            } else if (mediaIds.length === 0) {
+                console.log(`[Twitter] ⏭️ Fallback 3 skipped: ${b2BaseName ? 'already have media' : 'no b2BaseName'}`)
+            }
+
+            // Fallback 4: Generate branded card image (guaranteed to work on Vercel)
             if (mediaIds.length === 0) {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 3: generating branded card image`)
+                    console.log(`[Twitter] 🔄 Fallback 4: generating branded card image`)
                     const cardMediaId = await generateAndUploadBrandedImage(
                         videoTitle || 'New Video',
                         streamerName || 'kStreamer',
@@ -145,10 +171,10 @@ export async function POST(request: NextRequest) {
                     )
                     if (cardMediaId) {
                         mediaIds = [cardMediaId]
-                        console.log(`[Twitter] ✅ Fallback 3 succeeded: branded card uploaded`)
+                        console.log(`[Twitter] ✅ Fallback 4 succeeded: branded card uploaded`)
                     }
                 } catch (err: any) {
-                    console.warn(`[Twitter] ❌ Fallback 3 failed:`, err?.message)
+                    console.warn(`[Twitter] ❌ Fallback 4 failed:`, err?.message)
                 }
             }
 
@@ -519,6 +545,59 @@ async function extractAndUploadFrameFromVideo(url: string, creds: TwitterCredent
         console.error(`[Twitter] extractAndUploadFrameFromVideo failed:`, err?.message || err)
         return null
     }
+}
+
+// Extract B2 base filename from a B2 URL (without extension)
+// e.g., "https://f005.backblazeb2.com/file/kbjkbj/videos/1234_some_video.mp4" → "1234_some_video"
+function extractB2BaseName(videoUrl: string | undefined): string | null {
+    if (!videoUrl || typeof videoUrl !== 'string') return null
+    try {
+        // Handle B2 URLs: https://f005.backblazeb2.com/file/bucket/videos/filename.ext
+        // Also handle /api/b2-proxy?file=videos/filename.ext
+        let filePath = ''
+
+        if (videoUrl.includes('backblazeb2.com')) {
+            const url = new URL(videoUrl)
+            // Path is like /file/bucket/videos/filename.ext
+            const parts = url.pathname.split('/')
+            filePath = parts[parts.length - 1] // filename.ext
+        } else if (videoUrl.includes('/api/b2-proxy')) {
+            const url = new URL(videoUrl, 'http://dummy')
+            const file = url.searchParams.get('file') || ''
+            filePath = file.split('/').pop() || '' // filename.ext
+        } else {
+            // Generic URL: just get the last path segment
+            filePath = videoUrl.split('/').pop() || ''
+        }
+
+        if (!filePath) return null
+
+        // Remove extension
+        const baseName = filePath.replace(/\.[^.]+$/, '')
+
+        // URL decode
+        return decodeURIComponent(baseName) || null
+    } catch {
+        return null
+    }
+}
+
+// Get B2 bucket base URL from a videoUrl
+// e.g., "https://f005.backblazeb2.com/file/kbjkbj/videos/filename.mp4" → "https://f005.backblazeb2.com/file/kbjkbj"
+function getB2BucketUrl(videoUrl: string | undefined): string {
+    if (!videoUrl || typeof videoUrl !== 'string') return ''
+    try {
+        if (videoUrl.includes('backblazeb2.com')) {
+            const url = new URL(videoUrl)
+            // Path: /file/bucket/videos/filename.ext → extract /file/bucket
+            const pathParts = url.pathname.split('/')
+            // pathParts = ['', 'file', 'bucket', 'videos', 'filename.ext']
+            if (pathParts.length >= 3) {
+                return `${url.origin}/file/${pathParts[2]}`
+            }
+        }
+    } catch { }
+    return ''
 }
 
 // Generate a branded card image and upload to Twitter (no ffmpeg/resvg needed, works on Vercel)
