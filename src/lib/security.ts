@@ -279,13 +279,14 @@ export async function withAdminProtection(
     const rateCheck = checkRateLimit(ip, isWrite)
 
     if (!rateCheck.allowed) {
-        await logSecurityEvent({
+        // Fire-and-forget: don't block API response on log write
+        logSecurityEvent({
             type: 'RATE_LIMIT_HIT',
             severity: 'high',
             ip, userAgent: ua, path, method,
             details: `Rate limit exceeded. IP blocked for ${RATE_LIMIT_CONFIG.blockDurationMs / 1000}s`,
             blocked: true,
-        })
+        }).catch(() => { })
         return NextResponse.json(
             { error: 'Too many requests. Please try again later.' },
             { status: 429, headers: { 'Retry-After': String(RATE_LIMIT_CONFIG.blockDurationMs / 1000) } }
@@ -296,13 +297,14 @@ export async function withAdminProtection(
     const isAuthorized = verifyAdminToken(request)
 
     if (!isAuthorized) {
-        await logSecurityEvent({
+        // Fire-and-forget: don't block API response on log write
+        logSecurityEvent({
             type: 'UNAUTHORIZED_ACCESS',
             severity: 'critical',
             ip, userAgent: ua, path, method,
             details: `Unauthorized ${method} attempt to ${path}`,
             blocked: true,
-        })
+        }).catch(() => { })
         return NextResponse.json(
             { error: 'Unauthorized. Admin access required.' },
             { status: 401 }
@@ -320,25 +322,26 @@ export async function withAdminProtection(
         eventType = 'SETTINGS_MODIFY'
     }
 
-    await logSecurityEvent({
+    // Fire-and-forget: don't block API response on log write
+    logSecurityEvent({
         type: eventType,
         severity: 'low',
         ip, userAgent: ua, path, method,
         details: `Authorized admin action: ${method} ${path}`,
         blocked: false,
-    })
+    }).catch(() => { })
 
     // 4. Execute the handler
     try {
         return await handler()
     } catch (error: any) {
-        await logSecurityEvent({
+        logSecurityEvent({
             type: 'API_ERROR',
             severity: 'medium',
             ip, userAgent: ua, path, method,
             details: `API error: ${error.message}`,
             blocked: false,
-        })
+        }).catch(() => { })
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
