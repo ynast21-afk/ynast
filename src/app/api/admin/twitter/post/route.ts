@@ -100,35 +100,42 @@ export async function POST(request: NextRequest) {
         if (mediaIds.length === 0) {
             console.log('[Twitter] 🔄 Entering server-side fallback chain...')
 
-            // Extract B2 base filename from videoUrl for constructing preview/thumbnail URLs
-            const b2BaseName = extractB2BaseName(videoUrl)
-            console.log(`[Twitter]   b2BaseName=${b2BaseName || 'none'}`)
+            // Fallback 1: Try to find preview images via B2 file listing
+            // videoUrl is like: /api/b2-proxy?file=videos/1234_filename.mp4
+            // previews are like: previews/5678_filename_0.jpg (different timestamp!)
+            // So we search B2 for preview files matching the base name
+            const videoBaseName = extractBaseNameFromProxyUrl(videoUrl)
+            console.log(`[Twitter]   videoBaseName=${videoBaseName || 'none'}, videoUrl=${(videoUrl || '').substring(0, 80)}`)
 
-            // Fallback 1: Auto-construct B2 preview URLs from videoUrl filename (3 images!)
-            if (b2BaseName) {
+            if (videoBaseName) {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 1: auto-construct B2 preview URLs`)
-                    const b2BucketUrl = getB2BucketUrl(videoUrl)
-                    const previewCandidates = [0, 1, 2].map(i =>
-                        `${b2BucketUrl}/previews/${b2BaseName}_${i}.jpg`
-                    )
-                    console.log(`[Twitter]   Trying preview URLs: ${previewCandidates.map(u => u.substring(u.lastIndexOf('/') + 1)).join(', ')}`)
-                    const previewIds = await uploadMediaFromUrls(previewCandidates, creds)
-                    if (previewIds.length > 0) {
-                        mediaIds = previewIds
-                        console.log(`[Twitter] ✅ Fallback 1 succeeded: ${previewIds.length} preview images uploaded`)
+                    console.log(`[Twitter] 🔄 Fallback 1: searching B2 for preview images matching "${videoBaseName}"`)
+                    const previewFiles = await listB2Files(`previews/`, videoBaseName)
+                    if (previewFiles.length > 0) {
+                        // Sort and take up to 3
+                        const previewProxyUrls = previewFiles.slice(0, 3).map(f =>
+                            `/api/b2-proxy?file=${encodeURIComponent(f)}`
+                        )
+                        console.log(`[Twitter]   Found ${previewFiles.length} preview files, using ${previewProxyUrls.length}`)
+                        const previewIds = await uploadMediaFromUrls(previewProxyUrls, creds)
+                        if (previewIds.length > 0) {
+                            mediaIds = previewIds
+                            console.log(`[Twitter] ✅ Fallback 1 succeeded: ${previewIds.length} preview images uploaded`)
+                        }
+                    } else {
+                        console.log(`[Twitter]   No preview files found in B2 for "${videoBaseName}"`)
                     }
                 } catch (err: any) {
                     console.warn(`[Twitter] ❌ Fallback 1 failed:`, err?.message)
                 }
             } else {
-                console.log(`[Twitter] ⏭️ Fallback 1 skipped: cannot extract B2 base name`)
+                console.log(`[Twitter] ⏭️ Fallback 1 skipped: cannot extract base name from videoUrl`)
             }
 
-            // Fallback 2: thumbnailUrl (direct from DB)
+            // Fallback 2: thumbnailUrl (direct from DB — could be proxy URL)
             if (mediaIds.length === 0 && thumbnailUrl && typeof thumbnailUrl === 'string') {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 2: thumbnailUrl from DB`)
+                    console.log(`[Twitter] 🔄 Fallback 2: thumbnailUrl from DB: ${thumbnailUrl.substring(0, 80)}`)
                     const thumbIds = await uploadMediaFromUrls([thumbnailUrl], creds)
                     if (thumbIds.length > 0) {
                         mediaIds = thumbIds
@@ -141,23 +148,24 @@ export async function POST(request: NextRequest) {
                 console.log(`[Twitter] ⏭️ Fallback 2 skipped: no thumbnailUrl`)
             }
 
-            // Fallback 3: Auto-construct B2 thumbnail URL from videoUrl filename
-            if (mediaIds.length === 0 && b2BaseName) {
+            // Fallback 3: Search B2 for thumbnail matching base name
+            if (mediaIds.length === 0 && videoBaseName) {
                 try {
-                    console.log(`[Twitter] 🔄 Fallback 3: auto-construct B2 thumbnail URL`)
-                    const b2BucketUrl = getB2BucketUrl(videoUrl)
-                    const thumbUrl = `${b2BucketUrl}/thumbnails/${b2BaseName}.jpg`
-                    console.log(`[Twitter]   Trying thumbnail: ${thumbUrl.substring(thumbUrl.lastIndexOf('/') + 1)}`)
-                    const thumbIds = await uploadMediaFromUrls([thumbUrl], creds)
-                    if (thumbIds.length > 0) {
-                        mediaIds = thumbIds
-                        console.log(`[Twitter] ✅ Fallback 3 succeeded: auto-constructed thumbnail uploaded`)
+                    console.log(`[Twitter] 🔄 Fallback 3: searching B2 for thumbnail matching "${videoBaseName}"`)
+                    const thumbFiles = await listB2Files(`thumbnails/`, videoBaseName)
+                    if (thumbFiles.length > 0) {
+                        const thumbProxyUrl = `/api/b2-proxy?file=${encodeURIComponent(thumbFiles[0])}`
+                        const thumbIds = await uploadMediaFromUrls([thumbProxyUrl], creds)
+                        if (thumbIds.length > 0) {
+                            mediaIds = thumbIds
+                            console.log(`[Twitter] ✅ Fallback 3 succeeded: B2 thumbnail uploaded`)
+                        }
                     }
                 } catch (err: any) {
                     console.warn(`[Twitter] ❌ Fallback 3 failed:`, err?.message)
                 }
             } else if (mediaIds.length === 0) {
-                console.log(`[Twitter] ⏭️ Fallback 3 skipped: ${b2BaseName ? 'already have media' : 'no b2BaseName'}`)
+                console.log(`[Twitter] ⏭️ Fallback 3 skipped: ${videoBaseName ? 'already have media' : 'no videoBaseName'}`)
             }
 
             // Fallback 4: Generate branded card image (guaranteed to work on Vercel)
@@ -240,7 +248,98 @@ interface TwitterCredentials {
     accessTokenSecret: string
 }
 
+// Resolve a /api/b2-proxy?file=xxx URL to a real B2 download URL
+async function resolveToRealB2Url(url: string): Promise<{ downloadUrl: string; authToken: string } | null> {
+    if (!url.includes('/api/b2-proxy') && !url.includes('b2-proxy')) return null
+    try {
+        const parsed = new URL(url, 'http://dummy')
+        const filePath = parsed.searchParams.get('file')
+        if (!filePath) return null
+
+        const auth = await authorizeB2()
+        const bucketName = auth.allowed?.bucketName || process.env.B2_BUCKET_NAME || ''
+        const realUrl = `${auth.downloadUrl}/file/${bucketName}/${filePath}`
+        return { downloadUrl: realUrl, authToken: auth.authorizationToken }
+    } catch {
+        return null
+    }
+}
+
+// Extract the base video filename from a proxy URL (without timestamp prefix and extension)
+// Input: /api/b2-proxy?file=videos/1234567890_2024_10_31_moonwol.mp4
+// Output: 2024_10_31_moonwol
+function extractBaseNameFromProxyUrl(proxyUrl: string | undefined): string | null {
+    if (!proxyUrl || typeof proxyUrl !== 'string') return null
+    try {
+        let filePath = ''
+        if (proxyUrl.includes('/api/b2-proxy') || proxyUrl.includes('b2-proxy')) {
+            const parsed = new URL(proxyUrl, 'http://dummy')
+            filePath = parsed.searchParams.get('file') || ''
+        } else if (proxyUrl.includes('backblazeb2.com')) {
+            const parsed = new URL(proxyUrl)
+            // Path: /file/bucket/videos/filename.ext
+            const parts = parsed.pathname.split('/')
+            filePath = parts.slice(3).join('/') // e.g., videos/filename.ext
+        } else {
+            return null
+        }
+
+        // filePath is like: videos/1234567890_2024_10_31_moonwol.mp4
+        const fileName = filePath.split('/').pop() || ''
+        if (!fileName) return null
+
+        // Remove extension
+        const nameNoExt = fileName.replace(/\.[^.]+$/, '')
+
+        // Remove leading timestamp (digits followed by _)
+        // Pattern: 1234567890_restOfName → restOfName
+        const withoutTimestamp = nameNoExt.replace(/^\d+_/, '')
+
+        return decodeURIComponent(withoutTimestamp) || null
+    } catch {
+        return null
+    }
+}
+
+// List B2 files matching a prefix and optional name filter
+async function listB2Files(prefix: string, nameContains?: string): Promise<string[]> {
+    try {
+        const auth = await authorizeB2()
+        const bucketId = auth.allowed?.bucketId || process.env.B2_BUCKET_ID || ''
+
+        const res = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_file_names`, {
+            method: 'POST',
+            headers: {
+                'Authorization': auth.authorizationToken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                bucketId,
+                prefix,
+                maxFileCount: 100,
+            }),
+        })
+
+        if (!res.ok) {
+            console.warn(`[B2] File listing failed: ${res.status}`)
+            return []
+        }
+
+        const data = await res.json()
+        const files: string[] = (data.files || []).map((f: any) => f.fileName)
+
+        if (nameContains) {
+            return files.filter(f => f.includes(nameContains))
+        }
+        return files
+    } catch (err: any) {
+        console.warn(`[B2] File listing error:`, err?.message)
+        return []
+    }
+}
+
 // Download images from URLs and upload them to Twitter, returning media_ids
+// Supports: direct B2 URLs, /api/b2-proxy URLs, and regular HTTP URLs
 async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): Promise<string[]> {
     const client = new TwitterApi({
         appKey: creds.apiKey,
@@ -251,28 +350,31 @@ async function uploadMediaFromUrls(urls: string[], creds: TwitterCredentials): P
 
     const mediaIds: string[] = []
 
-    // Authorize with B2 for downloading images (B2 URLs require auth)
-    let b2AuthToken = ''
-    try {
-        const b2Auth = await authorizeB2()
-        b2AuthToken = b2Auth.authorizationToken
-    } catch (err: any) {
-        console.error('B2 auth failed for media download:', err?.message)
-    }
-
     for (const url of urls) {
         try {
-            // Add B2 auth token if this is a B2 URL
-            const isB2Url = url.includes('backblazeb2.com')
+            let downloadUrl = url
             const headers: Record<string, string> = {}
-            if (isB2Url && b2AuthToken) {
-                headers['Authorization'] = b2AuthToken
+
+            // Resolve proxy URLs to real B2 URLs
+            const resolved = await resolveToRealB2Url(url)
+            if (resolved) {
+                downloadUrl = resolved.downloadUrl
+                headers['Authorization'] = resolved.authToken
+                console.log(`[Twitter] Resolved proxy URL → ${downloadUrl.substring(0, 80)}...`)
+            } else if (url.includes('backblazeb2.com')) {
+                // Direct B2 URL — needs auth
+                try {
+                    const b2Auth = await authorizeB2()
+                    headers['Authorization'] = b2Auth.authorizationToken
+                } catch (err: any) {
+                    console.warn('B2 auth failed:', err?.message)
+                }
             }
 
-            console.log(`[Twitter] Downloading image: ${url.substring(0, 80)}...`)
-            const response = await fetch(url, { headers })
+            console.log(`[Twitter] Downloading image: ${downloadUrl.substring(0, 100)}...`)
+            const response = await fetch(downloadUrl, { headers })
             if (!response.ok) {
-                console.error(`Failed to download image: ${url} (${response.status} ${response.statusText})`)
+                console.error(`Failed to download image: ${downloadUrl} (${response.status} ${response.statusText})`)
                 continue
             }
 
@@ -547,58 +649,8 @@ async function extractAndUploadFrameFromVideo(url: string, creds: TwitterCredent
     }
 }
 
-// Extract B2 base filename from a B2 URL (without extension)
-// e.g., "https://f005.backblazeb2.com/file/kbjkbj/videos/1234_some_video.mp4" → "1234_some_video"
-function extractB2BaseName(videoUrl: string | undefined): string | null {
-    if (!videoUrl || typeof videoUrl !== 'string') return null
-    try {
-        // Handle B2 URLs: https://f005.backblazeb2.com/file/bucket/videos/filename.ext
-        // Also handle /api/b2-proxy?file=videos/filename.ext
-        let filePath = ''
-
-        if (videoUrl.includes('backblazeb2.com')) {
-            const url = new URL(videoUrl)
-            // Path is like /file/bucket/videos/filename.ext
-            const parts = url.pathname.split('/')
-            filePath = parts[parts.length - 1] // filename.ext
-        } else if (videoUrl.includes('/api/b2-proxy')) {
-            const url = new URL(videoUrl, 'http://dummy')
-            const file = url.searchParams.get('file') || ''
-            filePath = file.split('/').pop() || '' // filename.ext
-        } else {
-            // Generic URL: just get the last path segment
-            filePath = videoUrl.split('/').pop() || ''
-        }
-
-        if (!filePath) return null
-
-        // Remove extension
-        const baseName = filePath.replace(/\.[^.]+$/, '')
-
-        // URL decode
-        return decodeURIComponent(baseName) || null
-    } catch {
-        return null
-    }
-}
-
-// Get B2 bucket base URL from a videoUrl
-// e.g., "https://f005.backblazeb2.com/file/kbjkbj/videos/filename.mp4" → "https://f005.backblazeb2.com/file/kbjkbj"
-function getB2BucketUrl(videoUrl: string | undefined): string {
-    if (!videoUrl || typeof videoUrl !== 'string') return ''
-    try {
-        if (videoUrl.includes('backblazeb2.com')) {
-            const url = new URL(videoUrl)
-            // Path: /file/bucket/videos/filename.ext → extract /file/bucket
-            const pathParts = url.pathname.split('/')
-            // pathParts = ['', 'file', 'bucket', 'videos', 'filename.ext']
-            if (pathParts.length >= 3) {
-                return `${url.origin}/file/${pathParts[2]}`
-            }
-        }
-    } catch { }
-    return ''
-}
+// (Helper functions resolveToRealB2Url, extractBaseNameFromProxyUrl, and listB2Files
+// are defined above near uploadMediaFromUrls)
 
 // Generate a branded card image and upload to Twitter (no ffmpeg/resvg needed, works on Vercel)
 async function generateAndUploadBrandedImage(
