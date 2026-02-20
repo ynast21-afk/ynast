@@ -338,7 +338,13 @@ export default function VideoCard({
                     </h3>
                     <div className="flex items-center justify-between opacity-70 group-hover:opacity-100 transition-opacity">
                         <p className="text-[11px] text-text-tertiary">@{creator}</p>
-                        {uploadedAt && <span className="text-[10px] text-text-tertiary">{uploadedAt}</span>}
+                        {uploadedAt && <span className="text-[10px] text-text-tertiary">{(() => {
+                            try {
+                                const d = new Date(uploadedAt)
+                                if (isNaN(d.getTime())) return uploadedAt
+                                return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}.`
+                            } catch { return uploadedAt }
+                        })()}</span>}
                     </div>
                 </div>
             </div>

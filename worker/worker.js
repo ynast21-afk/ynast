@@ -861,8 +861,18 @@ async function processJob(job) {
 
             // Derive title from filename
             rawSlug = path.basename(localPath, path.extname(localPath))
-            const cleanedSlug = rawSlug
-                .replace(/[_-]+/g, ' ')
+            // Format dates in filename as YYYY_MM__DD
+            let cleanedSlug = rawSlug
+                // Convert YYYYMMDD (8 digits) → YYYY_MM__DD
+                .replace(/(\d{4})(\d{2})(\d{2})/g, '$1_$2__$3')
+                // Convert YYYY-MM-DD → YYYY_MM__DD
+                .replace(/(\d{4})-(\d{2})-(\d{2})/g, '$1_$2__$3')
+                // Convert YYYY_MM_DD (single underscores) → YYYY_MM__DD (double before DD)
+                .replace(/(\d{4})_(\d{2})_(\d{2})/g, '$1_$2__$3')
+            // Clean remaining separators (preserve underscores in date pattern)
+            // Replace dashes/underscores NOT part of YYYY_MM__DD with spaces
+            cleanedSlug = cleanedSlug
+                .replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, ' ')
                 .trim()
             title = job.title || cleanedSlug || 'Untitled'
             console.log(`   📋 파일명에서 제목 추출: "${title}"`)
@@ -889,8 +899,15 @@ async function processJob(job) {
             const urlPath = new URL(job.sourceUrl).pathname
             rawSlug = (urlPath.split('/').pop() || '').replace(/\.[^.]+$/, '')
             // URL slug를 사람이 읽을 수 있는 제목으로 변환
-            const cleanedSlug = rawSlug
-                .replace(/[_-]+/g, ' ')  // underscores, dashes → spaces
+            let cleanedSlug = rawSlug
+                // Convert YYYYMMDD (8 digits) → YYYY_MM__DD
+                .replace(/(\d{4})(\d{2})(\d{2})/g, '$1_$2__$3')
+                // Convert YYYY-MM-DD → YYYY_MM__DD
+                .replace(/(\d{4})-(\d{2})-(\d{2})/g, '$1_$2__$3')
+                // Convert YYYY_MM_DD → YYYY_MM__DD
+                .replace(/(\d{4})_(\d{2})_(\d{2})/g, '$1_$2__$3')
+            cleanedSlug = cleanedSlug
+                .replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, ' ')
                 .replace(/\b\w/g, c => c.toUpperCase())  // 각 단어 첫글자 대문자
                 .trim()
 
