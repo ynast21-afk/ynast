@@ -841,6 +841,8 @@ async function processJob(job) {
         let rawSlug = ''
         let fileName = 'video.mp4'
         let extractedTitle = ''
+        let extractedDate = ''
+        let remainder = ''
 
         if (isLocalFile) {
             // ============================================
@@ -861,21 +863,26 @@ async function processJob(job) {
 
             // Derive title from filename
             rawSlug = path.basename(localPath, path.extname(localPath))
-            // Format dates in filename as YYYY_MM__DD
-            let cleanedSlug = rawSlug
-                // Convert YYYYMMDD (8 digits) → YYYY_MM__DD
-                .replace(/(\d{4})(\d{2})(\d{2})/g, '$1_$2__$3')
-                // Convert YYYY-MM-DD → YYYY_MM__DD
-                .replace(/(\d{4})-(\d{2})-(\d{2})/g, '$1_$2__$3')
-                // Convert YYYY_MM_DD (single underscores) → YYYY_MM__DD (double before DD)
-                .replace(/(\d{4})_(\d{2})_(\d{2})/g, '$1_$2__$3')
-            // Clean remaining separators (preserve underscores in date pattern)
-            // Replace dashes/underscores NOT part of YYYY_MM__DD with spaces
-            cleanedSlug = cleanedSlug
-                .replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, ' ')
-                .trim()
-            title = job.title || cleanedSlug || 'Untitled'
-            console.log(`   📋 파일명에서 제목 추출: "${title}"`)
+            // Extract date (YYYY_MM_DD) from filename
+            extractedDate = ''
+            remainder = rawSlug
+            // Try YYYYMMDD (8 digits at start or after separator)
+            const dateMatch8 = rawSlug.match(/(\d{4})(\d{2})(\d{2})/)
+            if (dateMatch8) {
+                extractedDate = `${dateMatch8[1]}_${dateMatch8[2]}_${dateMatch8[3]}`
+                remainder = rawSlug.replace(dateMatch8[0], '')
+            } else {
+                // Try YYYY-MM-DD or YYYY_MM_DD
+                const dateMatchSep = rawSlug.match(/(\d{4})[-_](\d{2})[-_](\d{2})/)
+                if (dateMatchSep) {
+                    extractedDate = `${dateMatchSep[1]}_${dateMatchSep[2]}_${dateMatchSep[3]}`
+                    remainder = rawSlug.replace(dateMatchSep[0], '')
+                }
+            }
+            // Clean remainder: replace separators with spaces, trim
+            remainder = remainder.replace(/[_\-]+/g, ' ').trim()
+            title = job.title || remainder || 'Untitled'
+            console.log(`   📋 파일명에서 추출 — 날짜: "${extractedDate}", 나머지: "${remainder}"`)
 
             await updateJob(job.id, {
                 progress: 40,
@@ -898,18 +905,25 @@ async function processJob(job) {
             extractedTitle = result.pageTitle || ''
             const urlPath = new URL(job.sourceUrl).pathname
             rawSlug = (urlPath.split('/').pop() || '').replace(/\.[^.]+$/, '')
-            // URL slug를 사람이 읽을 수 있는 제목으로 변환
-            let cleanedSlug = rawSlug
-                // Convert YYYYMMDD (8 digits) → YYYY_MM__DD
-                .replace(/(\d{4})(\d{2})(\d{2})/g, '$1_$2__$3')
-                // Convert YYYY-MM-DD → YYYY_MM__DD
-                .replace(/(\d{4})-(\d{2})-(\d{2})/g, '$1_$2__$3')
-                // Convert YYYY_MM_DD → YYYY_MM__DD
-                .replace(/(\d{4})_(\d{2})_(\d{2})/g, '$1_$2__$3')
-            cleanedSlug = cleanedSlug
-                .replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, ' ')
-                .replace(/\b\w/g, c => c.toUpperCase())  // 각 단어 첫글자 대문자
+            // URL slug에서 날짜 추출 및 나머지 분리
+            extractedDate = ''
+            let urlRemainder = rawSlug
+            const urlDateMatch8 = rawSlug.match(/(\d{4})(\d{2})(\d{2})/)
+            if (urlDateMatch8) {
+                extractedDate = `${urlDateMatch8[1]}_${urlDateMatch8[2]}_${urlDateMatch8[3]}`
+                urlRemainder = rawSlug.replace(urlDateMatch8[0], '')
+            } else {
+                const urlDateMatchSep = rawSlug.match(/(\d{4})[-_](\d{2})[-_](\d{2})/)
+                if (urlDateMatchSep) {
+                    extractedDate = `${urlDateMatchSep[1]}_${urlDateMatchSep[2]}_${urlDateMatchSep[3]}`
+                    urlRemainder = rawSlug.replace(urlDateMatchSep[0], '')
+                }
+            }
+            const cleanedSlug = urlRemainder
+                .replace(/[_\-]+/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase())
                 .trim()
+            remainder = cleanedSlug
 
             if (job.titleSource === 'fileName') {
                 title = cleanedSlug || extractedTitle || job.title || 'Untitled'
@@ -987,6 +1001,7 @@ async function processJob(job) {
             // Determine streamer: prefer job-provided values, fallback to smart matching
             let streamerName = job.streamerName || null
             let streamerId = job.streamerId || null
+            let streamerKoreanName = ''
 
             // Extract slug from URL for matching
             const slug = rawSlug.toLowerCase()
@@ -1049,6 +1064,7 @@ async function processJob(job) {
                         if (matched) {
                             streamerId = matched.id
                             streamerName = matched.name
+                            streamerKoreanName = matched.koreanName || ''
                         }
                     }
                 } catch { }
@@ -1189,7 +1205,25 @@ async function processJob(job) {
             const gradient = gradients[Math.floor(Math.random() * gradients.length)]
 
             const video = {
-                title: finalTitle || `${slug}`,
+                title: (() => {
+                    // Construct title: YYYY_MM_DD_한글닉_영어ID_나머지 (skip empty parts)
+                    const parts = []
+                    if (typeof extractedDate !== 'undefined' && extractedDate) parts.push(extractedDate)
+                    if (streamerKoreanName) parts.push(streamerKoreanName)
+                    if (streamerName && streamerName !== streamerKoreanName) parts.push(streamerName)
+                    // Add remainder (cleaned from date/streamer info)
+                    let rem = remainder || ''
+                    // Remove streamer name/id/korean from remainder to avoid duplication
+                    const escRx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    if (streamerName) rem = rem.replace(new RegExp(escRx(streamerName), 'gi'), '').trim()
+                    if (streamerKoreanName) rem = rem.replace(new RegExp(escRx(streamerKoreanName), 'gi'), '').trim()
+                    if (streamerId && streamerId !== streamerName) rem = rem.replace(new RegExp(escRx(streamerId), 'gi'), '').trim()
+                    rem = rem.replace(/^[\s_-]+|[\s_-]+$/g, '').trim()
+                    if (rem) parts.push(rem)
+                    const constructed = parts.join('_')
+                    console.log(`   📝 최종 제목 조합: "${constructed}"`)
+                    return constructed || title || 'Untitled'
+                })(),
                 streamerId,
                 streamerName,
                 views: 0,
