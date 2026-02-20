@@ -339,11 +339,17 @@ let isLoggedIn = false
 async function getBrowser() {
     if (!browser || !browser.connected) {
         console.log('🌐 Launching browser...')
+        // Close old crashed browser if exists
+        if (browser) {
+            try { await browser.close() } catch { }
+            browser = null
+        }
         browser = await puppeteer.launch({
             headless: 'new',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         })
         isLoggedIn = false
+        console.log('   ✅ Browser launched')
     }
     return browser
 }
@@ -351,8 +357,9 @@ async function getBrowser() {
 // ============================================
 // Login to skbj.tv
 // ============================================
-async function loginToSkbj() {
-    if (isLoggedIn) return
+async function loginToSkbj(forceRelogin = false) {
+    if (isLoggedIn && !forceRelogin) return
+    isLoggedIn = false // Reset before attempting
 
     const b = await getBrowser()
     const page = await b.newPage()
@@ -412,6 +419,7 @@ async function loginToSkbj() {
 
         await page.close()
     } catch (err) {
+        isLoggedIn = false // Ensure flag is reset on failure
         try { await page.close() } catch { }
         throw err
     }
@@ -419,8 +427,20 @@ async function loginToSkbj() {
 
 // ============================================
 // Extract video URL + title + streamer hint
+// With overall 120-second timeout safety net
 // ============================================
 async function extractVideoUrl(pageUrl) {
+    // Overall timeout wrapper — if extraction takes > 120s, abort entirely
+    return Promise.race([
+        _extractVideoUrlInner(pageUrl),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`extractVideoUrl timed out after 120s for: ${pageUrl}`)), 120000)
+        )
+    ])
+}
+
+async function _extractVideoUrlInner(pageUrl) {
+    console.log(`   [${new Date().toLocaleTimeString()}] 🔍 extractVideoUrl 시작: ${pageUrl}`)
     await loginToSkbj()
 
     const b = await getBrowser()
@@ -442,8 +462,11 @@ async function extractVideoUrl(pageUrl) {
             req.continue()
         })
 
-        console.log(`   🔍 Navigating to: ${pageUrl}`)
-        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 })
+        console.log(`   [${new Date().toLocaleTimeString()}] 🔍 Navigating to: ${pageUrl}`)
+        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 45000 }).catch(() => {
+            console.warn('   ⚠️ Navigation networkidle2 timed out, continuing with domcontentloaded...')
+            return page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => { })
+        })
 
         // Cloudflare 대기 — 최대 30초, 2초 간격 재확인
         for (let retry = 0; retry < 15; retry++) {
@@ -606,7 +629,12 @@ async function extractVideoUrl(pageUrl) {
             cookieString,
         }
     } catch (err) {
+        console.error(`   [${new Date().toLocaleTimeString()}] ❌ extractVideoUrl 실패:`, err.message)
         try { await page.close() } catch { }
+        // If login might have expired, force re-login next time
+        if (err.message?.includes('Login') || err.message?.includes('timeout')) {
+            isLoggedIn = false
+        }
         throw err
     }
 }
@@ -614,19 +642,31 @@ async function extractVideoUrl(pageUrl) {
 // ============================================
 // API Request (for queue management only)
 // ============================================
-async function apiRequest(endpoint, method = 'GET', body = null) {
+async function apiRequest(endpoint, method = 'GET', body = null, timeoutMs = 15000) {
     const url = `${SITE_URL}${endpoint}`
-    const options = {
-        method,
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+        const options = {
+            method,
+            headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
+            signal: controller.signal,
+        }
+        if (body) options.body = JSON.stringify(body)
+        const res = await fetch(url, options)
+        if (!res.ok) {
+            const text = await res.text()
+            throw new Error(`API ${method} ${endpoint} failed (${res.status}): ${text}`)
+        }
+        return res.json()
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            throw new Error(`API ${method} ${endpoint} timed out after ${timeoutMs}ms`)
+        }
+        throw err
+    } finally {
+        clearTimeout(timer)
     }
-    if (body) options.body = JSON.stringify(body)
-    const res = await fetch(url, options)
-    if (!res.ok) {
-        const text = await res.text()
-        throw new Error(`API ${method} ${endpoint} failed (${res.status}): ${text}`)
-    }
-    return res.json()
 }
 
 // Check if job was cancelled by user
@@ -766,7 +806,11 @@ async function processJob(job) {
     let activeFile = tempFile // Points to the file we'll actually upload (original or transcoded)
 
     try {
-        await apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress: 5 })
+        console.log(`   [${new Date().toLocaleTimeString()}] ▶ 작업 시작`)
+        // Progress 5 update — non-blocking, don't fail job if this fails
+        apiRequest('/api/queue/update', 'POST', { jobId: job.id, progress: 5 }).catch(e => {
+            console.warn(`   ⚠️ progress 5 업데이트 실패 (무시):`, e.message)
+        })
 
         // Extract video URL
         console.log('   🔍 영상 URL 추출 중...')
@@ -1110,22 +1154,49 @@ async function processJob(job) {
 }
 
 // ============================================
-// Main polling loop
+// Main polling loop (with crash recovery)
 // ============================================
+let consecutiveErrors = 0
+const MAX_CONSECUTIVE_ERRORS = 5
+
 async function pollLoop() {
     console.log(`🔄 작업 대기 중... (${POLL_INTERVAL_MS / 1000}초 간격)`)
 
-    try { await loginToSkbj() } catch (err) {
-        console.error('⚠️ 초기 로그인 실패:', err.message)
+    try {
+        await loginToSkbj()
+        console.log('✅ 초기 로그인 완료')
+    } catch (err) {
+        console.error('⚠️ 초기 로그인 실패 (계속 진행):', err.message)
     }
 
     while (true) {
         try {
             const result = await apiRequest('/api/queue/claim', 'POST', { workerId: WORKER_ID })
-            if (result.job) await processJob(result.job)
-            else process.stdout.write('.')
+            if (result.job) {
+                consecutiveErrors = 0 // Reset on successful claim
+                console.log(`\n[${new Date().toLocaleTimeString()}] 📦 작업 수신: ${result.job.sourceUrl}`)
+                await processJob(result.job)
+            } else {
+                process.stdout.write('.')
+            }
+            consecutiveErrors = 0
         } catch (error) {
-            console.error(`\n⚠️ 폴링 오류:`, error.message)
+            consecutiveErrors++
+            console.error(`\n[${new Date().toLocaleTimeString()}] ⚠️ 폴링 오류 (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error.message)
+
+            // If too many consecutive errors, restart browser
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                console.log('🔄 연속 오류 한계 도달 — 브라우저 재시작...')
+                try {
+                    if (browser) { await browser.close(); browser = null }
+                } catch { browser = null }
+                isLoggedIn = false
+                consecutiveErrors = 0
+
+                // Wait longer before next attempt
+                await new Promise(r => setTimeout(r, POLL_INTERVAL_MS * 3))
+                continue
+            }
         }
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
     }
