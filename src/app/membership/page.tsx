@@ -149,8 +149,8 @@ export default function MembershipPage() {
                                     Subscribe with Gumroad
                                 </button>
 
-                                {/* 2. Paddle Card Payment */}
-                                <PaddleCheckoutButton
+                                {/* 2. Paddle Card Payment - temporarily hidden, set true to restore */}
+                                {false && <PaddleCheckoutButton
                                     userEmail={user?.email}
                                     userId={user?.id}
                                     onSuccess={() => {
@@ -158,7 +158,7 @@ export default function MembershipPage() {
                                         alert('🎉 VIP 멤버십이 성공적으로 활성화되었습니다!')
                                         window.location.href = '/membership/success?provider=paddle'
                                     }}
-                                />
+                                />}
 
                                 {/* 3. PayPal Subscription */}
                                 {!showPayPal ? (
@@ -207,7 +207,11 @@ export default function MembershipPage() {
                             </div>
 
                             <p className="text-center text-text-secondary text-sm mt-4">
-                                🔒 Secure payment via Gumroad, Paddle, or PayPal · Cancel anytime
+                                🔒 Secure payment via Gumroad or PayPal · Cancel anytime
+                            </p>
+                            <p className="text-center text-text-secondary text-xs mt-2 leading-relaxed">
+                                PayPal 결제가 안되면, Gumroad로 VIP 결제하시면 됩니다.<br />
+                                If PayPal doesn't work, you can subscribe via Gumroad.
                             </p>
                         </div>
                     </div>
