@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json()
-        const { sourceUrl, manualTitle, titleSource, streamerId: reqStreamerId, streamerName: reqStreamerName } = body
+        const { sourceUrl, manualTitle, titleSource, streamerId: reqStreamerId, streamerName: reqStreamerName, videoId: reqVideoId } = body
 
         if (!sourceUrl) {
             return NextResponse.json({ error: 'sourceUrl is required' }, { status: 400 })
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
             createdAt: now,
             updatedAt: now,
             retryCount: 0,
+            videoId: reqVideoId || null,
         }
 
         // Single document add (not batch rewrite)

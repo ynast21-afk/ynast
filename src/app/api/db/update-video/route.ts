@@ -29,20 +29,10 @@ async function handleUpdateVideo(request: NextRequest) {
 
     try {
         const body = await request.json()
-        const { videoId, duration } = body
+        const { videoId, duration, videoUrl } = body
 
         if (!videoId || typeof videoId !== 'string') {
             return NextResponse.json({ error: 'videoId required' }, { status: 400 })
-        }
-
-        // Only allow duration updates (safe field)
-        if (!duration || typeof duration !== 'string') {
-            return NextResponse.json({ error: 'duration required' }, { status: 400 })
-        }
-
-        // Validate duration format (M:SS or H:MM:SS)
-        if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(duration)) {
-            return NextResponse.json({ error: 'Invalid duration format' }, { status: 400 })
         }
 
         const db = await getDatabase()
@@ -50,6 +40,26 @@ async function handleUpdateVideo(request: NextRequest) {
 
         if (idx < 0) {
             return NextResponse.json({ error: 'Video not found' }, { status: 404 })
+        }
+
+        // Admin-only: update videoUrl (used by remux worker)
+        if (videoUrl && typeof videoUrl === 'string') {
+            const adminCheck = await withAdminProtection(request, async () => {
+                db.videos[idx].videoUrl = videoUrl
+                await saveDatabase(db)
+                return NextResponse.json({ success: true, videoUrl })
+            })
+            return adminCheck
+        }
+
+        // Public: duration-only update
+        if (!duration || typeof duration !== 'string') {
+            return NextResponse.json({ error: 'duration or videoUrl required' }, { status: 400 })
+        }
+
+        // Validate duration format (M:SS or H:MM:SS)
+        if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(duration)) {
+            return NextResponse.json({ error: 'Invalid duration format' }, { status: 400 })
         }
 
         // Only update if current duration is 0:00 (don't overwrite valid durations)

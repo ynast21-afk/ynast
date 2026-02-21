@@ -35,7 +35,7 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { execSync } = require('child_process')
-const { claimJob, updateJob, getQueue, checkJobCancelled, getStreamers, getStreamer, addVideo, updateStreamer, setDocument } = require('./firebase-direct')
+const { claimJob, updateJob, getQueue, checkJobCancelled, getStreamers, getStreamer, addVideo, updateStreamer, setDocument, updateVideoUrl } = require('./firebase-direct')
 
 // ============================================
 // Configuration
@@ -937,12 +937,120 @@ async function processJob(job) {
         })
 
         const isLocalFile = job.sourceUrl.startsWith('local://')
+        const isB2Remux = job.sourceUrl.startsWith('b2://')
         let title = ''
         let rawSlug = ''
         let fileName = 'video.mp4'
         let extractedTitle = ''
         let extractedDate = ''
         let remainder = ''
+
+        // ============================================
+        // B2 Remux 모드: 웹 업로드 후 remux 처리
+        // ============================================
+        if (isB2Remux) {
+            const b2Key = job.sourceUrl.replace('b2://', '') // e.g. "videos/filename.mp4"
+            const videoId = job.videoId // set by admin page when creating remux job
+            console.log(`   🔄 B2 Remux 모드: ${b2Key}`)
+            console.log(`   📋 Video ID: ${videoId || '(없음)'}`)
+
+            try {
+                // 1. Download from B2
+                await updateJob(job.id, { progress: 10, updatedAt: new Date().toISOString() })
+                const auth = await authorizeB2()
+                const downloadUrl = `${auth.downloadUrl}/file/${B2_BUCKET_NAME}/${b2Key}`
+                console.log(`   📥 B2에서 다운로드: ${downloadUrl}`)
+
+                const response = await fetch(downloadUrl, {
+                    headers: { 'Authorization': auth.authorizationToken }
+                })
+                if (!response.ok) {
+                    throw new Error(`B2 다운로드 실패: ${response.status} ${response.statusText}`)
+                }
+                const arrayBuffer = await response.arrayBuffer()
+                fs.writeFileSync(tempFile, Buffer.from(arrayBuffer))
+                const fileSize = (fs.statSync(tempFile).size / 1024 / 1024).toFixed(1)
+                console.log(`   ✅ 다운로드 완료: ${fileSize}MB`)
+
+                // 2. Check codec & web optimization
+                await updateJob(job.id, { progress: 30, updatedAt: new Date().toISOString() })
+                const codec = detectCodec(tempFile)
+                console.log(`   📋 코덱: ${codec}`)
+
+                let needsReupload = false
+
+                if (codec === 'hevc' || codec === 'h265') {
+                    // HEVC → transcode to H.264
+                    console.log(`   🔄 HEVC → H.264 트랜스코딩`)
+                    const success = transcodeToH264(tempFile, transcodedFile, job.id)
+                    if (success && fs.existsSync(transcodedFile) && fs.statSync(transcodedFile).size > 0) {
+                        activeFile = transcodedFile
+                        needsReupload = true
+                    }
+                } else {
+                    // H.264 or other → check web optimization
+                    const webCheck = checkWebOptimized(tempFile)
+                    if (!webCheck.optimized) {
+                        console.log(`   🔄 Remux 필요 (${webCheck.reason})`)
+                        const success = remuxForFaststart(tempFile, remuxedFile)
+                        if (success && fs.existsSync(remuxedFile) && fs.statSync(remuxedFile).size > 0) {
+                            activeFile = remuxedFile
+                            needsReupload = true
+                        }
+                    } else {
+                        console.log(`   ✅ 이미 web-optimized — remux 불필요`)
+                    }
+                }
+
+                if (needsReupload) {
+                    // 3. Re-upload to B2 with same key
+                    await updateJob(job.id, { progress: 60, updatedAt: new Date().toISOString() })
+                    fileName = path.basename(b2Key)
+                    const newB2Url = await uploadToB2(activeFile, fileName, job.id)
+                    console.log(`   ✅ 재업로드 완료: ${newB2Url}`)
+
+                    // 4. Update video URL in database
+                    if (videoId) {
+                        await updateJob(job.id, { progress: 90, updatedAt: new Date().toISOString() })
+                        const updated = await updateVideoUrl(videoId, newB2Url)
+                        if (updated) {
+                            console.log(`   ✅ DB 영상 URL 업데이트 완료`)
+                        } else {
+                            console.warn(`   ⚠️ DB 영상 URL 업데이트 실패 (무시)`)
+                        }
+                    }
+
+                    await updateJob(job.id, {
+                        status: 'done', progress: 100,
+                        b2Url: newB2Url,
+                        title: job.title || fileName,
+                        updatedAt: new Date().toISOString(),
+                    })
+                } else {
+                    // Already optimized, just mark done
+                    await updateJob(job.id, {
+                        status: 'done', progress: 100,
+                        title: job.title || path.basename(b2Key),
+                        updatedAt: new Date().toISOString(),
+                    })
+                }
+
+                console.log(`   🎉 B2 Remux 작업 완료!`)
+                jobSuccess = true
+            } catch (error) {
+                console.error(`   ❌ B2 Remux 실패:`, error.message)
+                await updateJob(job.id, {
+                    status: 'failed',
+                    error: error.message?.substring(0, 500) || 'Remux failed',
+                    updatedAt: new Date().toISOString(),
+                }).catch(e => console.error('상태 업데이트 실패:', e))
+            } finally {
+                if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
+                if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
+                if (fs.existsSync(remuxedFile)) fs.unlinkSync(remuxedFile)
+            }
+            return // B2 remux jobs don't continue to the normal flow
+        }
 
         if (isLocalFile) {
             // ============================================

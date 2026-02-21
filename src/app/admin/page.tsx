@@ -1345,7 +1345,7 @@ export default function AdminPage() {
                     videoUrl = `${creds.downloadUrl}/file/${creds.bucketName}/${fileName}`
                 }
 
-                await addVideo({
+                const atomicResult = await addVideoAtomic({
                     title: newVideo.title.trim(),
                     streamerId: newVideo.streamerId,
                     streamerName: streamer.name,
@@ -1363,6 +1363,30 @@ export default function AdminPage() {
                     tags: newVideo.tags.split(/[,\#]+/).map(t => t.trim()).filter(Boolean),
                     gradient: '' // Set empty gradient as we are moving away from it
                 } as any)
+
+                // Auto-queue remux job for web-uploaded videos
+                if (atomicResult.success && atomicResult.video && videoUrl) {
+                    try {
+                        // Extract B2 key from the videoUrl (everything after /file/{bucketName}/)
+                        const fileMatch = videoUrl.match(/\/file\/[^/]+\/(.+)$/)
+                        if (fileMatch) {
+                            const b2Key = decodeURIComponent(fileMatch[1])
+                            console.log(`🔄 Auto-queuing remux job for: b2://${b2Key}`)
+                            await fetchWithAuth('/api/queue/jobs', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    sourceUrl: `b2://${b2Key}`,
+                                    manualTitle: `[Remux] ${newVideo.title.trim()}`,
+                                    videoId: atomicResult.video.id,
+                                }),
+                            })
+                        }
+                    } catch (remuxErr) {
+                        console.warn('Failed to queue remux job (video saved OK):', remuxErr)
+                        // Don't fail the upload — video is already saved
+                    }
+                }
 
                 setUploadProgress(100)
             } catch (error) {

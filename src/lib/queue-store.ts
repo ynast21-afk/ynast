@@ -35,6 +35,7 @@ export interface UploadJob {
     createdAt: string
     updatedAt: string
     retryCount: number
+    videoId?: string | null  // Used for remux jobs to update existing video URL
 }
 
 export interface QueueSettings {

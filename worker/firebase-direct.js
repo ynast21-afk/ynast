@@ -218,9 +218,20 @@ async function setDocument(collectionPath, docId, data) {
     return true
 }
 
+/**
+ * Update a video's URL in the database (used after remux)
+ */
+async function updateVideoUrl(videoId, newVideoUrl) {
+    const result = await apiRequestWithRetry('/api/db/update-video', 'POST', {
+        videoId,
+        videoUrl: newVideoUrl,
+    })
+    return result.success || false
+}
+
 module.exports = {
     getQueue, addJob, updateJob, updateJobAsync, claimJob, checkJobCancelled,
-    getStreamers, getStreamer, addVideo, updateStreamer, setDocument,
+    getStreamers, getStreamer, addVideo, updateStreamer, setDocument, updateVideoUrl,
     apiRequest: apiRequestWithRetry,
     SITE_URL, ADMIN_TOKEN,
 }
