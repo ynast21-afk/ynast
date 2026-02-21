@@ -1534,10 +1534,14 @@ async function processJob(job) {
             console.log(`   📺 DB에 영상 등록 완료: "${video.title}" (${duration})`)
             jobSuccess = true
         } catch (regError) {
-            console.warn(`   ⚠️ DB 등록 오류:`, regError.message)
-            // B2 업로드는 성공했으므로 done 처리
-            jobSuccess = true
-            // Don't fail the job - the video is already uploaded to B2
+            console.error(`   ❌ DB 등록 실패:`, regError.message)
+            // DB 등록 실패 → failed 폴더로 이동하여 재시도 가능하게 처리
+            jobSuccess = false
+            await updateJob(job.id, {
+                status: 'failed',
+                error: `DB 등록 실패 (B2 업로드 성공): ${regError.message?.substring(0, 300) || 'Unknown'}`,
+                updatedAt: new Date().toISOString(),
+            }).catch(e => console.error('상태 업데이트 실패:', e))
         }
 
         console.log(`   🎉 작업 완료!`)

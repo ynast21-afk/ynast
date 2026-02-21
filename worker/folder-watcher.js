@@ -46,6 +46,12 @@ if (!fs.existsSync(DONE_DIR)) {
     fs.mkdirSync(DONE_DIR, { recursive: true })
 }
 
+// Create failed subfolder (for automatic retries)
+const FAILED_DIR = path.join(WATCH_DIR, 'failed')
+if (!fs.existsSync(FAILED_DIR)) {
+    fs.mkdirSync(FAILED_DIR, { recursive: true })
+}
+
 // Track files being processed to avoid duplicates
 const processingFiles = new Set()
 const processedFiles = new Set()
@@ -240,18 +246,17 @@ async function scanExistingFiles() {
 const RETRY_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 async function retryFailedFiles() {
-    const failedDir = path.join(WATCH_DIR, 'failed')
-    if (!fs.existsSync(failedDir)) return
+    if (!fs.existsSync(FAILED_DIR)) return
 
     try {
-        const files = fs.readdirSync(failedDir)
+        const files = fs.readdirSync(FAILED_DIR)
         const videoFiles = files.filter(f => VIDEO_EXTENSIONS.includes(path.extname(f).toLowerCase()))
 
         if (videoFiles.length === 0) return
 
         console.log(`\n🔄 failed/ 폴더에서 ${videoFiles.length}개 파일 재시도 중...`)
         for (const file of videoFiles) {
-            const failedPath = path.join(failedDir, file)
+            const failedPath = path.join(FAILED_DIR, file)
             const retryPath = path.join(WATCH_DIR, file)
 
             // Skip if a file with same name is already in watch dir or being processed
