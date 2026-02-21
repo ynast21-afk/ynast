@@ -254,7 +254,7 @@ export default function AdminPage() {
     // Video list filter/sort/search states (v3.1)
     const [videoSearch, setVideoSearch] = useState('')
     const [videoStreamerFilter, setVideoStreamerFilter] = useState('')
-    const [videoSortOrder, setVideoSortOrder] = useState<'newest' | 'oldest'>('newest')
+    const [videoSortOrder, setVideoSortOrder] = useState<'newest' | 'oldest' | 'likes' | 'views' | 'horizontal' | 'vertical' | 'title'>('newest')
     const [videoDisplayCount, setVideoDisplayCount] = useState(6)
 
     // Bulk orientation change states (v3.5)
@@ -3030,10 +3030,31 @@ export default function AdminPage() {
                                                 }
                                                 return true
                                             })
+                                            .filter(v => {
+                                                if (videoSortOrder === 'horizontal') return (v.orientation || 'horizontal') === 'horizontal'
+                                                if (videoSortOrder === 'vertical') return v.orientation === 'vertical'
+                                                return true
+                                            })
                                             .sort((a, b) => {
-                                                const da = new Date(a.createdAt || '1970-01-01').getTime()
-                                                const db = new Date(b.createdAt || '1970-01-01').getTime()
-                                                return videoSortOrder === 'newest' ? db - da : da - db
+                                                switch (videoSortOrder) {
+                                                    case 'oldest': {
+                                                        const da = new Date(a.createdAt || '1970-01-01').getTime()
+                                                        const db = new Date(b.createdAt || '1970-01-01').getTime()
+                                                        return da - db
+                                                    }
+                                                    case 'likes':
+                                                        return (b.likes || 0) - (a.likes || 0)
+                                                    case 'views':
+                                                        return (b.views || 0) - (a.views || 0)
+                                                    case 'title':
+                                                        return (a.title || '').localeCompare(b.title || '', 'ko')
+                                                    case 'newest':
+                                                    default: {
+                                                        const da2 = new Date(a.createdAt || '1970-01-01').getTime()
+                                                        const db2 = new Date(b.createdAt || '1970-01-01').getTime()
+                                                        return db2 - da2
+                                                    }
+                                                }
                                             })
 
                                         return (
@@ -3069,12 +3090,19 @@ export default function AdminPage() {
                                                         </select>
 
                                                         {/* Sort Order */}
-                                                        <button
-                                                            onClick={() => setVideoSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-                                                            className="px-4 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white hover:border-accent-primary transition-colors flex items-center gap-2 whitespace-nowrap"
+                                                        <select
+                                                            value={videoSortOrder}
+                                                            onChange={e => { setVideoSortOrder(e.target.value as any); setVideoDisplayCount(6) }}
+                                                            className="px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-accent-primary min-w-[140px]"
                                                         >
-                                                            {videoSortOrder === 'newest' ? '⬇️ 최신순' : '⬆️ 오래된순'}
-                                                        </button>
+                                                            <option value="newest">⬇️ 최신순</option>
+                                                            <option value="oldest">⬆️ 오래된순</option>
+                                                            <option value="views">👁️ 조회수순</option>
+                                                            <option value="likes">❤️ 좋아요순</option>
+                                                            <option value="title">🔤 제목순</option>
+                                                            <option value="horizontal">📺 가로만</option>
+                                                            <option value="vertical">📱 세로만</option>
+                                                        </select>
                                                     </div>
                                                     {/* Result count + Select All + Bulk Actions */}
                                                     <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
