@@ -12,6 +12,20 @@ async function getActorsData() {
         if (db && db.streamers && Array.isArray(db.streamers)) {
             // B2 data available — use B2 streamers only, no demo merge
             const validStreamers = db.streamers.filter((s: any) => s && s.id)
+
+            // 미분류 스트리머 자동 주입
+            if (!validStreamers.find((s: any) => s.id === 'uncategorized')) {
+                validStreamers.push({
+                    id: 'uncategorized',
+                    name: 'uncategorized',
+                    koreanName: '미분류',
+                    gradient: 'from-gray-800 to-gray-900',
+                    videoCount: 0,
+                    followers: 0,
+                    createdAt: new Date().toISOString().split('T')[0],
+                })
+            }
+
             return {
                 streamers: validStreamers,
                 downloadToken: db.downloadToken || null,

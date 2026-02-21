@@ -23,8 +23,21 @@ export default function ActorsClient({ streamers, downloadToken: serverToken, do
     const downloadUrl = serverDownloadUrl || clientDownloadUrl
     const activeBucketName = serverBucketName || clientBucketName
     const [sortBy, setSortBy] = useState<SortOption>('popular')
+    const [searchQuery, setSearchQuery] = useState('')
 
-    const sortedStreamers = [...streamers].sort((a, b) => {
+    // 검색 필터 (영어 이름, 한글 이름, ID 모두 검색)
+    const filteredStreamers = searchQuery.trim()
+        ? streamers.filter(s => {
+            const q = searchQuery.toLowerCase().trim()
+            return (
+                (s.name || '').toLowerCase().includes(q) ||
+                (s.koreanName || '').toLowerCase().includes(q) ||
+                (s.id || '').toLowerCase().includes(q)
+            )
+        })
+        : streamers
+
+    const sortedStreamers = [...filteredStreamers].sort((a, b) => {
         switch (sortBy) {
             case 'name':
                 return (a.name || '').localeCompare(b.name || '')
@@ -56,14 +69,16 @@ export default function ActorsClient({ streamers, downloadToken: serverToken, do
                     </nav>
 
                     {/* Title */}
-                    <div className="flex items-center justify-between mb-8">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center text-2xl">
                                 👥
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold text-white">Actors</h1>
-                                <p className="text-text-secondary text-sm">{streamers.length} actors</p>
+                                <p className="text-text-secondary text-sm">
+                                    {searchQuery ? `${filteredStreamers.length} / ${streamers.length} actors` : `${streamers.length} actors`}
+                                </p>
                             </div>
                         </div>
 
@@ -82,6 +97,28 @@ export default function ActorsClient({ streamers, downloadToken: serverToken, do
                                     {icon} {label}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6 relative">
+                        <div className="relative max-w-md">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary text-lg">🔍</span>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search by name / 이름으로 검색..."
+                                className="w-full pl-11 pr-10 py-3 bg-bg-secondary border border-border-primary rounded-xl text-white placeholder-text-secondary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors text-lg"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                     </div>
 
