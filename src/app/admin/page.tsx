@@ -2892,10 +2892,10 @@ export default function AdminPage() {
                                                                             >
                                                                                 <option value="">
                                                                                     {batchStreamerId
-                                                                                        ? `(기본: ${streamers.find(s => s.id === batchStreamerId)?.name})`
+                                                                                        ? `(기본: ${(() => { const bs = streamers.find(s => s.id === batchStreamerId); return bs?.koreanName ? `${bs.name} (${bs.koreanName})` : bs?.name })()})`
                                                                                         : '⚠️ 스트리머 선택 필수'}
                                                                                 </option>
-                                                                                {streamers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                                {streamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
                                                                             </select>
                                                                         </div>
                                                                         <div>
