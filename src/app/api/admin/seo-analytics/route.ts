@@ -41,12 +41,18 @@ function getCountryName(code: string): string {
     return COUNTRY_NAMES[code] || code
 }
 
-// Generate date strings for a range
+// Get current date/time in KST (UTC+9)
+function getKSTDate(): Date {
+    const now = new Date()
+    return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+}
+
+// Generate date strings for a range (KST-based)
 function getDateRange(days: number): string[] {
     const dates: string[] = []
-    const now = new Date()
+    const kstNow = getKSTDate()
     for (let i = 0; i < days; i++) {
-        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+        const d = new Date(kstNow.getTime() - i * 24 * 60 * 60 * 1000)
         dates.push(d.toISOString().slice(0, 10))
     }
     return dates
@@ -375,7 +381,7 @@ export async function GET(request: NextRequest) {
         const monthlyVisits = last30Days.reduce((sum, d) => sum + d.visits, 0)
 
         // Today
-        const todayKey = new Date().toISOString().slice(0, 10)
+        const todayKey = getKSTDate().toISOString().slice(0, 10) // KST today
         const todayData = dailyData.find(d => d.date === todayKey)
         const todayVisits = todayData?.visits?.length || 0
         const todayBots = todayData?.botVisits?.length || 0

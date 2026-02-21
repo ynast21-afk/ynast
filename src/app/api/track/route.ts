@@ -43,8 +43,14 @@ function getCountry(request: NextRequest): string {
     return 'XX' // Unknown
 }
 
+// Get current date/time in KST (UTC+9)
+function getKSTDate(): Date {
+    const now = new Date()
+    return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+}
+
 function getDateKey(): string {
-    return new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    return getKSTDate().toISOString().slice(0, 10) // YYYY-MM-DD in KST
 }
 
 interface VisitRecord {
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
         const country = getCountry(request)
         const dateKey = getDateKey()
         const now = Math.floor(Date.now() / 1000)
-        const hour = new Date().getUTCHours()
+        const hour = getKSTDate().getUTCHours() // KST hour (0-23)
 
         const filePath = `data/analytics/${dateKey}.json`
 
