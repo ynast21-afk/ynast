@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 import Image from 'next/image'
@@ -192,6 +192,11 @@ export default function AdminPage() {
     }
     const { streamers, videos, addStreamer, removeStreamer, addVideo, addVideoAtomic, removeVideo, importData, downloadToken, migrateToB2, isServerSynced, updateStreamer, updateVideo } = useStreamers()
     const { settings, users, stats, inquiries, updateTexts, updateTheme, updateBanner, updateAnalytics, updatePopup, updatePricing, updateNavMenu, toggleNavItem, updateSocialLinks, toggleSocialLink, updateVideoDisplay, updateUserMembership, toggleUserBan, deleteInquiry } = useSiteSettings()
+
+    // Streamers sorted by Korean nickname (가나다순) for admin dropdowns
+    const sortedStreamers = useMemo(() =>
+        [...streamers].sort((a, b) => (a.koreanName || a.name).localeCompare(b.koreanName || b.name, 'ko'))
+        , [streamers])
 
     const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
     const [deleteModal, setDeleteModal] = useState<{ type: 'streamer' | 'video', id: string, name: string } | null>(null)
@@ -2751,7 +2756,7 @@ export default function AdminPage() {
                                                         disabled={isBatchUploading}
                                                     >
                                                         <option value="">(선택 안함 - 개별 지정)</option>
-                                                        {streamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
+                                                        {sortedStreamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
                                                     </select>
                                                 </div>
                                                 <div>
@@ -2895,7 +2900,7 @@ export default function AdminPage() {
                                                                                         ? `(기본: ${(() => { const bs = streamers.find(s => s.id === batchStreamerId); return bs?.koreanName ? `${bs.name} (${bs.koreanName})` : bs?.name })()})`
                                                                                         : '⚠️ 스트리머 선택 필수'}
                                                                                 </option>
-                                                                                {streamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
+                                                                                {sortedStreamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
                                                                             </select>
                                                                         </div>
                                                                         <div>
@@ -3084,7 +3089,7 @@ export default function AdminPage() {
                                                             className="px-3 py-2 bg-bg-secondary border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-accent-primary min-w-[160px]"
                                                         >
                                                             <option value="">전체 스트리머</option>
-                                                            {streamers.map(s => (
+                                                            {sortedStreamers.map(s => (
                                                                 <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>
                                                             ))}
                                                         </select>
@@ -3301,7 +3306,7 @@ export default function AdminPage() {
                                                             onChange={(e) => setEditingVideo((prev: any) => prev ? { ...prev, streamerId: e.target.value } : null)}
                                                             className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-accent-primary outline-none"
                                                         >
-                                                            {streamers.map(s => (
+                                                            {sortedStreamers.map(s => (
                                                                 <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>
                                                             ))}
                                                         </select>
@@ -3416,7 +3421,7 @@ export default function AdminPage() {
                                                         disabled={isBatchUploading}
                                                     >
                                                         <option value="">스트리머 선택</option>
-                                                        {streamers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.koreanName || s.name})</option>)}
+                                                        {sortedStreamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
                                                     </select>
                                                 </div>
                                                 <div>
@@ -3485,7 +3490,7 @@ export default function AdminPage() {
                                                                             disabled={item.status !== 'pending'}
                                                                         >
                                                                             <option value="">(기본값: {(() => { const bs = streamers.find(s => s.id === batchStreamerId); return bs ? (bs.koreanName ? `${bs.name} (${bs.koreanName})` : bs.name) : '선택'; })()})</option>
-                                                                            {streamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
+                                                                            {sortedStreamers.map(s => <option key={s.id} value={s.id}>{s.koreanName ? `${s.name} (${s.koreanName})` : s.name}</option>)}
                                                                         </select>
                                                                         {/* Tag Input for individual item */}
                                                                         <input
