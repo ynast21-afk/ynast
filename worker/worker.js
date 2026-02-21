@@ -133,23 +133,11 @@ async function getB2UploadUrl(auth) {
     return res.json()
 }
 
-// Upload a single part of a large file
+// Upload a single part of a large file (with retry)
 async function uploadSinglePart(auth, fileId, filePath, partNum, offset, length, fileSize) {
-    // Get upload URL for this part
-    const partUrlRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
-        method: 'POST',
-        headers: {
-            'Authorization': auth.authorizationToken,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileId })
-    })
-    if (!partUrlRes.ok) {
-        throw new Error(`Failed to get part upload URL: ${await partUrlRes.text()}`)
-    }
-    const partUrlData = await partUrlRes.json()
+    const MAX_RETRIES = 2
 
-    // Read part from file
+    // Read part from file once (reuse across retries)
     const buffer = Buffer.alloc(length)
     const fd = fs.openSync(filePath, 'r')
     fs.readSync(fd, buffer, 0, length, offset)
@@ -157,21 +145,46 @@ async function uploadSinglePart(auth, fileId, filePath, partNum, offset, length,
 
     const sha1 = crypto.createHash('sha1').update(buffer).digest('hex')
 
-    const uploadRes = await fetch(partUrlData.uploadUrl, {
-        method: 'POST',
-        headers: {
-            'Authorization': partUrlData.authorizationToken,
-            'Content-Length': length.toString(),
-            'X-Bz-Part-Number': partNum.toString(),
-            'X-Bz-Content-Sha1': sha1,
-        },
-        body: buffer,
-    })
-    if (!uploadRes.ok) {
-        const errText = await uploadRes.text()
-        throw new Error(`Part ${partNum} upload failed: ${errText}`)
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            // Get upload URL for this part (fresh URL each attempt)
+            const partUrlRes = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_part_url`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': auth.authorizationToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ fileId })
+            })
+            if (!partUrlRes.ok) {
+                throw new Error(`Failed to get part upload URL: ${await partUrlRes.text()}`)
+            }
+            const partUrlData = await partUrlRes.json()
+
+            const uploadRes = await fetch(partUrlData.uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': partUrlData.authorizationToken,
+                    'Content-Length': length.toString(),
+                    'X-Bz-Part-Number': partNum.toString(),
+                    'X-Bz-Content-Sha1': sha1,
+                },
+                body: buffer,
+            })
+            if (!uploadRes.ok) {
+                const errText = await uploadRes.text()
+                throw new Error(`Part ${partNum} upload failed: ${errText}`)
+            }
+            return { partNum, sha1 }
+        } catch (err) {
+            if (attempt < MAX_RETRIES) {
+                console.warn(`   ⚠️ Part ${partNum} 실패 (재시도 ${attempt + 1}/${MAX_RETRIES}): ${err.message}`)
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1))) // Backoff
+            } else {
+                throw err
+            }
+        }
     }
-    return { partNum, sha1 }
 }
 
 // Large file upload (for files > 100MB) — parallel part uploads (2 at a time)
@@ -806,6 +819,101 @@ function transcodeToH264(inputPath, outputPath, jobId = null) {
 }
 
 // ============================================
+// Check if video is web-optimized (faststart / moov atom at front)
+// ============================================
+function checkWebOptimized(filePath) {
+    try {
+        // Cross-platform approach: read first portion of file and look for atoms
+        // MP4 atoms have format: [4-byte size][4-byte type], e.g. "moov" or "mdat"
+        const SCAN_SIZE = 128 * 1024 // Read first 128KB
+        const fileSize = fs.statSync(filePath).size
+        const readSize = Math.min(SCAN_SIZE, fileSize)
+        const fd = fs.openSync(filePath, 'r')
+        const buffer = Buffer.alloc(readSize)
+        fs.readSync(fd, buffer, 0, readSize, 0)
+        fs.closeSync(fd)
+
+        let moovOffset = -1
+        let mdatOffset = -1
+
+        // Scan for top-level atoms by walking the atom structure
+        let offset = 0
+        while (offset < readSize - 8) {
+            const atomSize = buffer.readUInt32BE(offset)
+            const atomType = buffer.toString('ascii', offset + 4, offset + 8)
+
+            if (atomType === 'moov' && moovOffset === -1) moovOffset = offset
+            if (atomType === 'mdat' && mdatOffset === -1) mdatOffset = offset
+
+            // Both found, no need to continue
+            if (moovOffset >= 0 && mdatOffset >= 0) break
+
+            // Move to next atom
+            if (atomSize === 0) break // atom extends to end of file
+            if (atomSize === 1) {
+                // 64-bit size (extended)
+                if (offset + 16 > readSize) break
+                // Just skip — too complex for top-level scanning
+                break
+            }
+            if (atomSize < 8) break // invalid
+
+            offset += atomSize
+        }
+
+        if (moovOffset >= 0 && mdatOffset >= 0 && moovOffset < mdatOffset) {
+            console.log(`   ✅ moov atom이 mdat 앞에 위치 (web-optimized)`)
+            return { optimized: true, reason: 'faststart' }
+        } else if (moovOffset >= 0 && mdatOffset >= 0) {
+            console.log(`   ⚠️ moov atom이 mdat 뒤에 위치 → remux 필요`)
+            return { optimized: false, reason: 'moov_after_mdat' }
+        } else if (mdatOffset >= 0 && moovOffset === -1) {
+            // mdat found but moov not in first 128KB — moov is likely at end
+            console.log(`   ⚠️ moov atom을 파일 앞부분에서 찾을 수 없음 → remux 필요`)
+            return { optimized: false, reason: 'moov_at_end' }
+        } else {
+            // Check for fragmented MP4
+            const formatInfo = execSync(
+                `ffprobe -v error -show_entries format=format_long_name -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+                { encoding: 'utf8', timeout: 15000 }
+            ).trim()
+
+            if (formatInfo.toLowerCase().includes('fragment')) {
+                console.log(`   📋 Fragmented MP4 감지 → remux 필요`)
+                return { optimized: false, reason: 'fragmented' }
+            }
+
+            // Can't determine — assume needs remux for safety
+            console.log(`   📋 atom 구조 확인 불가 → remux 적용`)
+            return { optimized: false, reason: 'unknown' }
+        }
+    } catch (e) {
+        console.log(`   📋 web-optimized 검사 실패 (${e.message}) → remux 적용`)
+        return { optimized: false, reason: 'check_failed' }
+    }
+}
+
+// ============================================
+// Remux video with faststart (no re-encoding, very fast)
+// ============================================
+function remuxForFaststart(inputPath, outputPath) {
+    console.log(`   🔄 Faststart remux 시작 (재인코딩 없음)...`)
+    try {
+        execSync(
+            `ffmpeg -y -i "${inputPath}" -c copy -movflags +faststart "${outputPath}"`,
+            { timeout: 600000, stdio: 'pipe' } // 10 min timeout (copy is fast)
+        )
+        const inputSize = (fs.statSync(inputPath).size / 1024 / 1024).toFixed(1)
+        const outputSize = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(1)
+        console.log(`   ✅ Remux 완료: ${inputSize}MB → ${outputSize}MB`)
+        return true
+    } catch (e) {
+        console.error(`   ❌ Remux 실패:`, e.message)
+        return false
+    }
+}
+
+// ============================================
 // Process a single job
 // ============================================
 async function processJob(job) {
@@ -817,6 +925,7 @@ async function processJob(job) {
 
     const tempFile = path.join(TEMP_DIR, `dl_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp4`)
     const transcodedFile = tempFile.replace('.mp4', '_h264.mp4')
+    const remuxedFile = tempFile.replace('.mp4', '_remux.mp4')
     let activeFile = tempFile // Points to the file we'll actually upload (original or transcoded)
     let jobSuccess = false // Track whether upload + DB registration succeeded
 
@@ -946,12 +1055,13 @@ async function processJob(job) {
         }
 
         // ============================================
-        // HEVC Detection & Auto-Transcoding
+        // Codec Detection & Auto-Transcoding / Remux
         // ============================================
         const codec = detectCodec(tempFile)
         console.log(`   🎬 감지된 코덱: ${codec}`)
 
         if (codec === 'hevc' || codec === 'h265') {
+            // HEVC → full transcode to H.264
             console.log(`   ⚠️ HEVC 코덱 감지 → H.264로 트랜스코딩 필요`)
             await updateJob(job.id, {
                 progress: 45,
@@ -965,6 +1075,34 @@ async function processJob(job) {
             } else {
                 console.warn(`   ⚠️ 트랜스코딩 실패, 원본 파일 그대로 업로드`)
                 activeFile = tempFile
+            }
+        } else if (codec === 'h264') {
+            // H.264 — check if web-optimized (faststart), remux if not
+            const { optimized, reason } = checkWebOptimized(tempFile)
+            if (!optimized) {
+                console.log(`   ⚠️ H.264이지만 web-optimized 아님 (${reason}) → faststart remux`)
+                await updateJob(job.id, {
+                    progress: 45,
+                    updatedAt: new Date().toISOString(),
+                })
+
+                const success = remuxForFaststart(tempFile, remuxedFile)
+                if (success && fs.existsSync(remuxedFile) && fs.statSync(remuxedFile).size > 0) {
+                    activeFile = remuxedFile
+                    console.log(`   ✅ Remux 완료, 최적화된 파일 사용`)
+                } else {
+                    console.warn(`   ⚠️ Remux 실패, 원본 파일 그대로 업로드`)
+                    activeFile = tempFile
+                }
+            } else {
+                console.log(`   ✅ H.264 + web-optimized — 변환 불필요`)
+            }
+        } else if (codec !== 'unknown') {
+            // Other codecs (vp9, av1, etc.) — try remux for faststart at minimum
+            console.log(`   📋 기타 코덱 (${codec}) → faststart remux 시도`)
+            const success = remuxForFaststart(tempFile, remuxedFile)
+            if (success && fs.existsSync(remuxedFile) && fs.statSync(remuxedFile).size > 0) {
+                activeFile = remuxedFile
             }
         }
 
@@ -1303,9 +1441,10 @@ async function processJob(job) {
             updatedAt: new Date().toISOString(),
         }).catch(e => console.error('상태 업데이트 실패:', e))
     } finally {
-        // Clean up both original and transcoded files
+        // Clean up original, transcoded, and remuxed files
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
         if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
+        if (fs.existsSync(remuxedFile)) fs.unlinkSync(remuxedFile)
 
         // Move processed local file based on success/failure
         if (job.sourceUrl.startsWith('local://')) {

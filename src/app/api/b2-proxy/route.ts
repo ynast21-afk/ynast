@@ -51,13 +51,21 @@ export async function GET(request: NextRequest) {
         const auth = await getB2Auth()
         const downloadUrl = `${auth.downloadUrl}/file/${B2_BUCKET_NAME}/${filePath}`
 
+        // Build headers for the B2 request — forward Range header if present
+        const b2Headers: Record<string, string> = {
+            'Authorization': auth.authorizationToken,
+        }
+
+        const rangeHeader = request.headers.get('Range')
+        if (rangeHeader) {
+            b2Headers['Range'] = rangeHeader
+        }
+
         const b2Res = await fetch(downloadUrl, {
-            headers: {
-                'Authorization': auth.authorizationToken,
-            },
+            headers: b2Headers,
         })
 
-        if (!b2Res.ok) {
+        if (!b2Res.ok && b2Res.status !== 206) {
             return NextResponse.json(
                 { error: `B2 download failed: ${b2Res.status}` },
                 { status: b2Res.status }
@@ -66,15 +74,18 @@ export async function GET(request: NextRequest) {
 
         const contentType = b2Res.headers.get('content-type') || 'video/mp4'
         const contentLength = b2Res.headers.get('content-length')
+        const contentRange = b2Res.headers.get('content-range')
 
         const headers: Record<string, string> = {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=86400', // 24 hour cache
+            'Accept-Ranges': 'bytes',
         }
         if (contentLength) headers['Content-Length'] = contentLength
+        if (contentRange) headers['Content-Range'] = contentRange
 
-        // Stream the response
-        return new Response(b2Res.body, { status: 200, headers })
+        // Stream the response with correct status (200 for full, 206 for partial)
+        return new Response(b2Res.body, { status: b2Res.status, headers })
     } catch (err: any) {
         console.error('[B2 Proxy] Error:', err.message)
         return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
