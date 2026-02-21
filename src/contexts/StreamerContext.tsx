@@ -66,9 +66,39 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
                     const dbData = await res.json()
                     if (dbData && dbData.streamers && dbData.videos) {
                         console.log(`✅ Loaded from B2: ${dbData.streamers.length} streamers, ${dbData.videos.length} videos`)
-                        setStreamers(dbData.streamers)
+
+                        // 미분류 스트리머 자동 생성 (없으면)
+                        let loadedStreamers = dbData.streamers
+                        let needsSave = false
+                        if (!loadedStreamers.find((s: any) => s.id === 'uncategorized')) {
+                            loadedStreamers = [...loadedStreamers, {
+                                id: 'uncategorized',
+                                name: 'uncategorized',
+                                koreanName: '미분류',
+                                gradient: 'from-gray-800 to-gray-900',
+                                videoCount: 0,
+                                followers: 0,
+                                createdAt: new Date().toISOString().split('T')[0],
+                            }]
+                            needsSave = true
+                            console.log('📂 미분류 스트리머 자동 생성됨')
+                        }
+
+                        setStreamers(loadedStreamers)
                         setVideos(dbData.videos)
                         setLastError(null)
+
+                        // 미분류 스트리머 B2에 저장 (fire-and-forget)
+                        if (needsSave) {
+                            fetch('/api/db', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...(headers as Record<string, string>) },
+                                body: JSON.stringify({ streamers: loadedStreamers, videos: dbData.videos })
+                            }).then(r => {
+                                if (r.ok) console.log('✅ 미분류 스트리머 B2에 저장 완료')
+                                else console.warn('⚠️ 미분류 스트리머 B2 저장 실패')
+                            }).catch(() => console.warn('⚠️ 미분류 스트리머 B2 저장 실패'))
+                        }
                     } else {
                         console.log('⚠️ B2 returned empty/null data (fresh setup)')
                         setStreamers([])
@@ -236,9 +266,24 @@ export function StreamerProvider({ children }: { children: ReactNode }) {
 
     const updateVideo = useCallback(async (id: string, data: Partial<Video>): Promise<boolean> => {
         const newVideos = videos.map(v => v.id === id ? { ...v, ...data } : v)
-        const saved = await saveToServer(streamers, newVideos)
+
+        // 스트리머 변경 시 videoCount 조정
+        let newStreamers = streamers
+        if (data.streamerId) {
+            const oldVideo = videos.find(v => v.id === id)
+            if (oldVideo && oldVideo.streamerId !== data.streamerId) {
+                newStreamers = streamers.map(s => {
+                    if (s.id === oldVideo.streamerId) return { ...s, videoCount: Math.max(0, s.videoCount - 1) }
+                    if (s.id === data.streamerId) return { ...s, videoCount: s.videoCount + 1 }
+                    return s
+                })
+            }
+        }
+
+        const saved = await saveToServer(newStreamers, newVideos)
         if (saved) {
             setVideos(newVideos)
+            if (newStreamers !== streamers) setStreamers(newStreamers)
         }
         return saved
     }, [streamers, videos, saveToServer])
