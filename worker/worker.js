@@ -1306,11 +1306,11 @@ async function processJob(job) {
                     }
                 } catch { }
 
-                // Fallback: URL slug에서 마지막 세그먼트 추출
+                // Fallback: 스트리머 미감지 → '미분류' 카테고리로 분류
                 if (!streamerName) {
-                    const parts = slug.split('-').filter(p => p.length > 1)
-                    streamerName = parts[parts.length - 1] || 'unknown'
-                    console.log(`   👤 URL 끝부분에서 스트리머 추출(폴백): ${streamerName}`)
+                    streamerId = 'uncategorized'
+                    streamerName = '미분류'
+                    console.log(`   👤 스트리머 미감지 → 미분류 카테고리로 분류`)
                 }
             }
 
@@ -1522,6 +1522,7 @@ async function processJob(job) {
                 await setDocument('streamers', streamerId, {
                     id: streamerId,
                     name: streamerName || streamerId,
+                    koreanName: streamerKoreanName || (streamerId === 'uncategorized' ? '미분류' : ''),
                     videoCount: 0,
                     createdAt: new Date().toISOString(),
                 })

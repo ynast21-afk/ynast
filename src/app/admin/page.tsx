@@ -1486,7 +1486,7 @@ export default function AdminPage() {
                 id: Math.random().toString(36).substr(2, 9),
                 file,
                 title: formattedTitle,
-                streamerId: matchedStreamer?.id || '',
+                streamerId: matchedStreamer?.id || 'uncategorized',
                 tags: '',
                 minStreamingLevel: 'vip',
                 minDownloadLevel: 'vip',
