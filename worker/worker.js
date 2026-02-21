@@ -44,7 +44,7 @@ const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'ht
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.env.ADMIN_API_SECRET
 const WORKER_ID = process.env.WORKER_ID || `worker-${crypto.randomBytes(3).toString('hex')}`
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000')
-const MAX_CONCURRENT_JOBS = parseInt(process.env.MAX_CONCURRENT_JOBS || '3')
+const MAX_CONCURRENT_JOBS = parseInt(process.env.MAX_CONCURRENT_JOBS || '4')
 const TEMP_DIR = path.join(__dirname, 'temp')
 
 const SKBJ_EMAIL = process.env.SKBJ_EMAIL
@@ -1693,28 +1693,49 @@ async function pollLoop() {
 }
 
 // ============================================
-// Watchdog Timer — 30초마다 폴링 루프 감시
-// 활성 업로드에는 영향 없이, 멈춘 폴링만 복구
+// 30초 주기 자동 새로고침 (껐다 켠 효과)
+// 활성 업로드(다운로드/트랜스코딩/B2전송)에는 영향 없음
+// 완료된 작업만 정리하여 멈춘 폴링 루프를 자동 해소
 // ============================================
-setInterval(() => {
+setInterval(async () => {
     const elapsed = Date.now() - lastHeartbeat
-    if (elapsed > WATCHDOG_INTERVAL_MS * 2) {
-        // 폴링 루프가 60초 이상 무응답 → 심각한 교착 상태
-        console.error(`\n🚨 [Watchdog] 폴링 루프 ${Math.round(elapsed / 1000)}초 동안 무응답 — 프로세스 재시작`)
-        // activeJobs에 남은 작업이 없으면 안전하게 재시작
-        if (activeJobs.size === 0) {
-            process.exit(1) // pm2/supervisor가 자동 재시작
-        } else {
-            console.warn(`   ⚠️ 활성 작업 ${activeJobs.size}개 있어 재시작 보류 — 강제 정리 시도`)
-            // 완료된 것으로 추정되는 오래된 작업 정리 (하트비트가 갱신되지 않으면 Promise.race가 실패한 것)
-            for (const [id] of activeJobs.entries()) {
+    const now = new Date().toLocaleTimeString()
+
+    // 1) 완료된 작업 강제 정리 (stuck 방지)
+    let cleaned = 0
+    for (const [id, promise] of activeJobs.entries()) {
+        try {
+            const settled = await Promise.race([
+                promise.then(() => true, () => true),
+                new Promise(r => setTimeout(() => r(false), 500))
+            ])
+            if (settled) {
                 activeJobs.delete(id)
+                cleaned++
             }
-            lastHeartbeat = Date.now() // 리셋
-            console.log(`   🧹 activeJobs 강제 정리 완료 — 폴링 재개 예상`)
+        } catch {
+            activeJobs.delete(id)
+            cleaned++
         }
-    } else if (elapsed > WATCHDOG_INTERVAL_MS) {
-        console.warn(`\n⏰ [Watchdog] 폴링 루프 ${Math.round(elapsed / 1000)}초 경과 — 감시 중...`)
+    }
+
+    if (cleaned > 0) {
+        console.log(`\n🔄 [Refresh ${now}] 완료 작업 ${cleaned}개 정리 (활성: ${activeJobs.size}/${MAX_CONCURRENT_JOBS})`)
+    }
+
+    // 2) 폴링 루프 교착 감지
+    if (elapsed > WATCHDOG_INTERVAL_MS * 3) {
+        console.error(`\n🚨 [Refresh ${now}] 폴링 루프 ${Math.round(elapsed / 1000)}초 무응답`)
+        if (activeJobs.size === 0) {
+            console.error('   프로세스 재시작...')
+            process.exit(1)
+        } else {
+            console.warn(`   활성 업로드 ${activeJobs.size}개 — activeJobs 전체 정리`)
+            activeJobs.clear()
+            lastHeartbeat = Date.now()
+        }
+    } else if (elapsed > WATCHDOG_INTERVAL_MS * 2) {
+        console.warn(`\n⏰ [Refresh ${now}] 폴링 느림 (${Math.round(elapsed / 1000)}초) — 감시 중`)
     }
 }, WATCHDOG_INTERVAL_MS)
 
