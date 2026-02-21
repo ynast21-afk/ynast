@@ -1588,7 +1588,7 @@ async function processJob(job) {
 }
 
 // ============================================
-// Main polling loop (with crash recovery)
+// Main polling loop (with crash recovery + watchdog)
 // ============================================
 let consecutiveErrors = 0
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -1596,8 +1596,12 @@ const MAX_CONSECUTIVE_ERRORS = 5
 // Track active concurrent jobs
 const activeJobs = new Map() // jobId -> Promise
 
+// Watchdog: 30초 간격으로 폴링 루프 상태 확인
+let lastHeartbeat = Date.now()
+const WATCHDOG_INTERVAL_MS = 30000 // 30초
+
 async function pollLoop() {
-    console.log(`🔄 작업 대기 중... (${POLL_INTERVAL_MS / 1000}초 간격, 동시 ${MAX_CONCURRENT_JOBS}개)`)
+    console.log(`🔄 작업 대기 중... (${POLL_INTERVAL_MS / 1000}초 간격, 동시 ${MAX_CONCURRENT_JOBS}개, watchdog ${WATCHDOG_INTERVAL_MS / 1000}초)`)
 
     try {
         await loginToSkbj()
@@ -1607,20 +1611,39 @@ async function pollLoop() {
     }
 
     while (true) {
+        // 하트비트 업데이트 — watchdog이 감시
+        lastHeartbeat = Date.now()
+
         try {
-            // Clean up completed jobs from tracking map
+            // Clean up completed jobs from tracking map (with timeout safety)
+            const cleanupPromises = []
             for (const [id, promise] of activeJobs.entries()) {
-                // Check if promise is settled by racing with an instant resolve
-                const settled = await Promise.race([
-                    promise.then(() => true, () => true),
-                    Promise.resolve(false)
-                ])
-                if (settled) activeJobs.delete(id)
+                cleanupPromises.push(
+                    Promise.race([
+                        promise.then(() => true, () => true),
+                        new Promise(r => setTimeout(() => r('timeout'), 2000))
+                    ]).then(result => {
+                        if (result === true) activeJobs.delete(id)
+                    })
+                )
             }
+            await Promise.all(cleanupPromises)
 
             // Claim jobs up to concurrency limit
             if (activeJobs.size < MAX_CONCURRENT_JOBS) {
-                const job = await claimJob(WORKER_ID)
+                // claimJob에 타임아웃 보호 — 15초 안에 응답 없으면 스킵
+                let job = null
+                try {
+                    job = await Promise.race([
+                        claimJob(WORKER_ID),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('claimJob timeout')), 15000))
+                    ])
+                } catch (claimErr) {
+                    console.warn(`\n⏱️ claimJob 타임아웃 — 다음 사이클로 스킵`)
+                    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+                    continue
+                }
+
                 if (job) {
                     consecutiveErrors = 0
                     const slotNum = activeJobs.size + 1
@@ -1668,6 +1691,32 @@ async function pollLoop() {
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
     }
 }
+
+// ============================================
+// Watchdog Timer — 30초마다 폴링 루프 감시
+// 활성 업로드에는 영향 없이, 멈춘 폴링만 복구
+// ============================================
+setInterval(() => {
+    const elapsed = Date.now() - lastHeartbeat
+    if (elapsed > WATCHDOG_INTERVAL_MS * 2) {
+        // 폴링 루프가 60초 이상 무응답 → 심각한 교착 상태
+        console.error(`\n🚨 [Watchdog] 폴링 루프 ${Math.round(elapsed / 1000)}초 동안 무응답 — 프로세스 재시작`)
+        // activeJobs에 남은 작업이 없으면 안전하게 재시작
+        if (activeJobs.size === 0) {
+            process.exit(1) // pm2/supervisor가 자동 재시작
+        } else {
+            console.warn(`   ⚠️ 활성 작업 ${activeJobs.size}개 있어 재시작 보류 — 강제 정리 시도`)
+            // 완료된 것으로 추정되는 오래된 작업 정리 (하트비트가 갱신되지 않으면 Promise.race가 실패한 것)
+            for (const [id] of activeJobs.entries()) {
+                activeJobs.delete(id)
+            }
+            lastHeartbeat = Date.now() // 리셋
+            console.log(`   🧹 activeJobs 강제 정리 완료 — 폴링 재개 예상`)
+        }
+    } else if (elapsed > WATCHDOG_INTERVAL_MS) {
+        console.warn(`\n⏰ [Watchdog] 폴링 루프 ${Math.round(elapsed / 1000)}초 경과 — 감시 중...`)
+    }
+}, WATCHDOG_INTERVAL_MS)
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
