@@ -14,13 +14,31 @@ async function getActorData(id: string) {
     // 1. Try B2 Database
     const db = await getDatabase()
     if (db && db.streamers) {
-        const streamer = db.streamers.find((s: any) => s.id === id)
+        let streamer = db.streamers.find((s: any) => s.id === id)
+
+        // 미분류 스트리머 자동 생성 (B2에 없는 경우)
+        if (!streamer && id === 'uncategorized') {
+            streamer = {
+                id: 'uncategorized',
+                name: 'uncategorized',
+                koreanName: '미분류',
+                gradient: 'from-gray-800 to-gray-900',
+                videoCount: 0,
+                followers: 0,
+                createdAt: new Date().toISOString().split('T')[0],
+            }
+        }
+
         if (streamer) {
             // Ensure followers field exists for legacy data
             if (typeof streamer.followers === 'undefined') {
                 streamer.followers = 0
             }
             const videos = db.videos?.filter((v: any) => v.streamerId === id) || []
+            // 미분류 스트리머의 videoCount 실시간 반영
+            if (id === 'uncategorized') {
+                streamer.videoCount = videos.length
+            }
             return { streamer, videos, downloadToken: db.downloadToken || null }
         }
     }
