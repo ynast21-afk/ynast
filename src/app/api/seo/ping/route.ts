@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
         // 1. Ping Google with updated sitemap
         try {
-            const sitemapUrl = `${BASE_URL}/sitemap.xml`
+            const sitemapUrl = `${BASE_URL}/sitemap2.xml`
             const googlePingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`
             const googleRes = await fetch(googlePingUrl, { method: 'GET' })
             results.google = {

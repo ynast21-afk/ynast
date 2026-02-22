@@ -175,7 +175,6 @@ export default async function VideoPage({ params }: PageProps) {
                 thumbnailUrl={thumbnail}
                 uploadDate={safeISODate(video.createdAt) || new Date().toISOString()}
                 duration={isoDuration}
-                embedUrl={`${BASE_URL}/video/${video.id}`}
                 contentUrl={video.isVip ? undefined : video.videoUrl}
                 author={streamerName}
                 authorUrl={streamer ? `${BASE_URL}/actors/${streamer.id}` : undefined}

@@ -81,10 +81,18 @@ export async function POST(req: NextRequest) {
                 // Auto-ping search engines for new video
                 try {
                     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
+                    // Notify search engines about both the new video page AND updated streamer page
+                    const urlsToPing = [`/video/${newVideo.id}`]
+                    if (streamerId) {
+                        urlsToPing.push(`/actors/${streamerId}`)
+                    }
+                    // Also include sitemap URL for comprehensive re-crawl
+                    urlsToPing.push('/sitemap2.xml')
+
                     fetch(`${baseUrl}/api/seo/ping`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ urls: [`/video/${newVideo.id}`], type: 'new_content' }),
+                        body: JSON.stringify({ urls: urlsToPing, type: 'new_content' }),
                     }).catch(e => console.error('SEO ping failed:', e))
                 } catch { /* don't fail main operation */ }
 

@@ -16,6 +16,11 @@ const nextConfig = {
         source: '/sitemap.xml',
         destination: '/sitemap2.xml',
       },
+      {
+        // IndexNow key verification file: /{key}.txt → /api/indexnow-key
+        source: '/:key([a-f0-9]{32}).txt',
+        destination: '/api/indexnow-key',
+      },
     ];
   },
 }

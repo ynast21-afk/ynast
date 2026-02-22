@@ -186,9 +186,10 @@ export async function GET() {
         }
 
         // Video: structured video sitemap entry
-        // ALL videos get <video:video> (both free and VIP)
-        // content_loc only for free videos with actual mp4 URL
-        // VIP videos get thumbnail + title + description (enough for Google Video Search)
+        // ALL videos with a thumbnail get <video:video> (both free and VIP)
+        // - Free videos with http videoUrl → <video:content_loc>
+        // - VIP/no-URL videos → <video:player_loc> pointing to page URL
+        // Google requires at least content_loc OR player_loc
         if (video.thumbnailUrl) {
             const thumbUrl = video.thumbnailUrl.startsWith('http')
                 ? video.thumbnailUrl
@@ -207,18 +208,26 @@ export async function GET() {
             if (isNaN(durationSeconds) || durationSeconds <= 0) durationSeconds = 300
 
             const description = `${displayName} - ${video.title || 'Dance video'}. ${video.duration || ''} dance performance.`
-
-            // Only include <video:video> if we have a real video file URL
-            // Google requires content_loc OR player_loc, and player_loc must NOT equal <loc>
             const hasRealVideoUrl = video.videoUrl && video.videoUrl.startsWith('http')
+            const videoPageUrl = `${BASE_URL}/video/${videoId}`
 
-            if (hasRealVideoUrl) {
-                xml += `
+            xml += `
     <video:video>
       <video:thumbnail_loc>${escapeXmlUrl(thumbUrl)}</video:thumbnail_loc>
       <video:title>${escapeXml(video.title || 'Dance Video')}</video:title>
-      <video:description>${escapeXml(description)}</video:description>
-      <video:content_loc>${escapeXmlUrl(video.videoUrl as string)}</video:content_loc>
+      <video:description>${escapeXml(description)}</video:description>`
+
+            if (hasRealVideoUrl && !video.isVip) {
+                // Free video with direct URL → content_loc (Google can fetch the file)
+                xml += `
+      <video:content_loc>${escapeXmlUrl(video.videoUrl as string)}</video:content_loc>`
+            } else {
+                // VIP or no direct URL → player_loc (Google visits the page)
+                xml += `
+      <video:player_loc allow_embed="no">${escapeXmlUrl(videoPageUrl)}</video:player_loc>`
+            }
+
+            xml += `
       <video:duration>${durationSeconds}</video:duration>
       <video:publication_date>${safePubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
@@ -227,20 +236,19 @@ export async function GET() {
       <video:view_count>${video.views}</video:view_count>` : ''}${streamerName ? `
       <video:uploader info="${escapeXmlUrl(`${BASE_URL}/actors/${encodeURIComponent(String(video.streamerId || ''))}`)}">${escapeXml(displayName)}</video:uploader>` : ''}`
 
-                // INDIVIDUAL <video:tag> elements (Google spec, max 32)
-                const cleanTags = tags
-                    .map((t: string) => t.trim().replace(/^#/, ''))
-                    .filter((t: string) => t.length > 0)
-                    .slice(0, 32)
+            // INDIVIDUAL <video:tag> elements (Google spec, max 32)
+            const cleanTags = tags
+                .map((t: string) => t.trim().replace(/^#/, ''))
+                .filter((t: string) => t.length > 0)
+                .slice(0, 32)
 
-                for (const tag of cleanTags) {
-                    xml += `
-      <video:tag>${escapeXml(tag)}</video:tag>`
-                }
-
+            for (const tag of cleanTags) {
                 xml += `
-    </video:video>`
+      <video:tag>${escapeXml(tag)}</video:tag>`
             }
+
+            xml += `
+    </video:video>`
         }
 
         xml += `

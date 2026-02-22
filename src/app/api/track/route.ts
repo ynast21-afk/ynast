@@ -136,9 +136,22 @@ export async function POST(request: NextRequest) {
         if (!dayData.hourly) dayData.hourly = new Array(24).fill(0)
 
         const botName = isBot(ua)
+        const fromMiddleware = request.headers.get('x-bot-source') === 'middleware'
 
         if (botName) {
             // Bot visit — track separately
+            // Dedup: if this is a client-side bot visit (no x-bot-source header),
+            // check if middleware already recorded the same bot+page within 30 seconds
+            if (!fromMiddleware) {
+                const isDupe = dayData.botVisits.some(
+                    (bv: BotVisitRecord) => bv.p === page && bv.ua === botName && (now - bv.t) < 30
+                )
+                if (isDupe) {
+                    // Already recorded by middleware — skip
+                    return NextResponse.json({ ok: true })
+                }
+            }
+
             dayData.botVisits.push({
                 t: now,
                 ua: botName,

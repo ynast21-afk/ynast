@@ -57,6 +57,8 @@ export function middleware(request: NextRequest) {
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': ua,
+                // Mark this as coming from middleware (for dedup in track API)
+                'x-bot-source': 'middleware',
                 // Forward geo headers for country detection
                 ...(request.headers.get('x-vercel-ip-country')
                     ? { 'x-vercel-ip-country': request.headers.get('x-vercel-ip-country')! }
