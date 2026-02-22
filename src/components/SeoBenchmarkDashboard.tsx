@@ -1074,7 +1074,189 @@ export default function SeoBenchmarkDashboard({ seoAnalytics, totalVideos, total
                 </div>
             </div>
 
-            {/* ───── 8. AI 추천 액션 ───── */}
+            {/* ───── 8. 크롤러 상세 분석 ───── */}
+            <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                <h4 className="text-sm font-semibold text-text-secondary mb-3">🕷️ 크롤러 상세 분석</h4>
+
+                {/* Bot Overview Stats */}
+                {(() => {
+                    const bo = seoAnalytics?.botOverview
+                    const botDist = seoAnalytics?.botDistribution || []
+                    const botDaily = seoAnalytics?.botDailyTrend || []
+                    const botPages = seoAnalytics?.botPageDistribution || []
+
+                    if (!bo || bo.totalCrawls === 0) {
+                        return (
+                            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-lg">🔴</span>
+                                    <span className="text-sm font-bold text-red-400">크롤러 감지 기록 없음</span>
+                                </div>
+                                <p className="text-xs text-text-secondary">
+                                    선택한 기간 동안 크롤러 방문이 감지되지 않았습니다. 이는 다음 원인 중 하나일 수 있습니다:
+                                </p>
+                                <ul className="text-xs text-text-tertiary mt-2 space-y-1 list-disc list-inside">
+                                    <li>사이트가 아직 검색 엔진에 발견되지 않음 (신규 사이트)</li>
+                                    <li>서버사이드 봇 감지 <code className="text-accent-primary">middleware.ts</code>가 최근 배포 후 아직 데이터가 쌓이지 않음</li>
+                                    <li>Google Search Console에서 사이트맵을 제출하지 않았을 수 있음</li>
+                                </ul>
+                                <p className="text-xs text-amber-400 mt-2">
+                                    💡 서버사이드 봇 감지가 활성화되어 있습니다. 배포 후 크롤러 데이터가 쌓이기까지 1~3일 소요될 수 있습니다.
+                                </p>
+                            </div>
+                        )
+                    }
+
+                    return (
+                        <div className="space-y-4">
+                            {/* Summary cards */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="bg-white/5 rounded-lg p-3 text-center">
+                                    <p className="text-lg font-bold text-cyan-400 font-mono">{bo.totalCrawls}</p>
+                                    <p className="text-[10px] text-text-tertiary mt-1">총 크롤 횟수</p>
+                                </div>
+                                <div className="bg-white/5 rounded-lg p-3 text-center">
+                                    <p className="text-lg font-bold text-purple-400 font-mono">{bo.uniqueBots}</p>
+                                    <p className="text-[10px] text-text-tertiary mt-1">봇 종류</p>
+                                </div>
+                                <div className="bg-white/5 rounded-lg p-3 text-center">
+                                    <p className="text-lg font-bold text-green-400 font-mono">{bo.avgDailyCrawls}</p>
+                                    <p className="text-[10px] text-text-tertiary mt-1">일 평균 크롤</p>
+                                </div>
+                                <div className="bg-white/5 rounded-lg p-3 text-center">
+                                    <p className="text-lg font-bold text-amber-400 font-mono">{bo.daysWithBots}<span className="text-text-tertiary text-xs">/{bo.daysWithBots + bo.daysWithoutBots}</span></p>
+                                    <p className="text-[10px] text-text-tertiary mt-1">방문 날짜</p>
+                                </div>
+                            </div>
+
+                            {/* Most active bot */}
+                            <div className="p-3 bg-white/5 rounded-lg flex items-center justify-between">
+                                <div>
+                                    <span className="text-xs text-text-tertiary">가장 활발한 봇</span>
+                                    <p className="text-sm font-semibold text-white mt-0.5">{bo.mostActiveBot}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-lg font-bold text-accent-primary font-mono">{bo.mostActiveBotCount}회</span>
+                                    <p className="text-[10px] text-text-tertiary">
+                                        ({bo.totalCrawls > 0 ? Math.round(bo.mostActiveBotCount / bo.totalCrawls * 100) : 0}% 비중)
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Bot type distribution */}
+                            {botDist.length > 0 && (
+                                <div>
+                                    <h5 className="text-xs font-semibold text-text-tertiary mb-2">🤖 봇 유형 분포</h5>
+                                    <div className="space-y-1.5">
+                                        {botDist.map((b: any, i: number) => {
+                                            const maxCount = botDist[0]?.count || 1
+                                            const pct = Math.round((b.count / bo.totalCrawls) * 100)
+                                            const barW = Math.max(4, (b.count / maxCount) * 100)
+
+                                            // Color coding based on bot type
+                                            const isSearchBot = ['googlebot', 'bingbot', 'yandexbot', 'duckduckbot', 'naverbot', 'applebot'].some(s =>
+                                                b.name.toLowerCase().includes(s)
+                                            )
+                                            const isSocialBot = ['facebot', 'twitterbot', 'linkedinbot', 'discordbot', 'telegrambot'].some(s =>
+                                                b.name.toLowerCase().includes(s)
+                                            )
+                                            const barColor = isSearchBot ? 'bg-green-500' : isSocialBot ? 'bg-blue-500' : 'bg-gray-500'
+                                            const labelColor = isSearchBot ? 'text-green-400' : isSocialBot ? 'text-blue-400' : 'text-text-secondary'
+
+                                            return (
+                                                <div key={i} className="flex items-center gap-2 group">
+                                                    <span className={`text-xs w-28 truncate shrink-0 ${labelColor}`} title={b.name}>
+                                                        {isSearchBot ? '🔍' : isSocialBot ? '💬' : '🤖'} {b.name}
+                                                    </span>
+                                                    <div className="flex-1 bg-white/5 rounded-full h-2">
+                                                        <div
+                                                            className={`rounded-full h-2 transition-all ${barColor}`}
+                                                            style={{ width: `${barW}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-[10px] font-mono text-text-tertiary w-14 text-right shrink-0">{b.count}회 ({pct}%)</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="mt-2 flex gap-4 text-[10px] text-text-tertiary">
+                                        <span>🔍 <span className="text-green-400">검색엔진</span></span>
+                                        <span>💬 <span className="text-blue-400">소셜봇</span></span>
+                                        <span>🤖 <span className="text-text-secondary">기타</span></span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Bot daily trend */}
+                            {botDaily.length > 0 && (
+                                <div>
+                                    <h5 className="text-xs font-semibold text-text-tertiary mb-2">📅 일별 크롤러 추이</h5>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-white/10">
+                                                    <th className="py-1.5 px-2 text-[10px] text-text-tertiary font-medium">날짜</th>
+                                                    <th className="py-1.5 px-2 text-[10px] text-text-tertiary font-medium text-right">총 크롤</th>
+                                                    <th className="py-1.5 px-2 text-[10px] text-text-tertiary font-medium">주요 봇</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {botDaily.slice(-14).map((d: any, i: number) => (
+                                                    <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                                                        <td className="py-1.5 px-2 text-xs text-text-secondary font-mono">{d.date}</td>
+                                                        <td className="py-1.5 px-2 text-xs text-right font-mono text-cyan-400 font-semibold">{d.total}</td>
+                                                        <td className="py-1.5 px-2">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {d.bots.slice(0, 4).map((b: any, j: number) => (
+                                                                    <span key={j} className="text-[9px] px-1.5 py-0.5 bg-white/5 rounded text-text-tertiary">
+                                                                        {b.name}: {b.count}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Pages crawled by bots */}
+                            {botPages.length > 0 && (
+                                <div>
+                                    <h5 className="text-xs font-semibold text-text-tertiary mb-2">📄 봇이 자주 크롤한 페이지</h5>
+                                    <div className="space-y-1">
+                                        {botPages.slice(0, 10).map((p: any, i: number) => {
+                                            const maxC = botPages[0]?.count || 1
+                                            const barW = Math.max(4, (p.count / maxC) * 100)
+                                            return (
+                                                <div key={i} className="flex items-center gap-2">
+                                                    <span className="text-xs text-text-secondary w-40 truncate shrink-0 font-mono" title={p.path}>{p.path}</span>
+                                                    <div className="flex-1 bg-white/5 rounded-full h-1.5">
+                                                        <div className="rounded-full h-1.5 bg-cyan-500" style={{ width: `${barW}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-mono text-text-tertiary w-10 text-right">{p.count}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Date info */}
+                            {(bo.firstSeen || bo.lastSeen) && (
+                                <div className="flex gap-4 text-[10px] text-text-tertiary p-2 bg-white/5 rounded-lg">
+                                    {bo.firstSeen && <span>📅 최초 감지: <span className="text-white font-mono">{bo.firstSeen}</span></span>}
+                                    {bo.lastSeen && <span>📅 최근 감지: <span className="text-white font-mono">{bo.lastSeen}</span></span>}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })()}
+            </div>
+
+            {/* ───── 9. AI 추천 액션 ───── */}
             <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                 <h4 className="text-sm font-semibold text-text-secondary mb-3">💡 추천 우선순위 (AI 분석)</h4>
                 <div className="space-y-3">

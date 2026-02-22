@@ -140,6 +140,12 @@ export async function GET(request: NextRequest) {
         const botTypes: Record<string, number> = {}
         const dailyVisitors: { date: string; visits: number; bots: number }[] = []
 
+        // New: Bot daily trend and page distribution
+        const botDailyMap: Record<string, Record<string, number>> = {} // date -> botName -> count
+        const botPageMap: Record<string, number> = {} // page -> count (pages crawled by bots)
+        let botFirstSeen: string | null = null
+        let botLastSeen: string | null = null
+
         // New detailed tracking
         // referrer → { countries: { code: count }, landingPages: { path: count } }
         const referrerDetails: Record<string, { countries: Record<string, number>; landingPages: Record<string, number>; fullUrls: Record<string, number> }> = {}
@@ -168,12 +174,20 @@ export async function GET(request: NextRequest) {
                 })
             }
 
-            // Bot type distribution
-            if (day.botVisits) {
+            // Bot type distribution + daily trend + page distribution
+            if (day.botVisits && day.botVisits.length > 0) {
+                if (!botDailyMap[day.date]) botDailyMap[day.date] = {}
                 day.botVisits.forEach((bv: any) => {
                     const name = bv.ua || 'unknown'
                     botTypes[name] = (botTypes[name] || 0) + 1
+                    botDailyMap[day.date][name] = (botDailyMap[day.date][name] || 0) + 1
+                    if (bv.p) {
+                        botPageMap[bv.p] = (botPageMap[bv.p] || 0) + 1
+                    }
                 })
+                // Track first/last seen dates with bot activity
+                if (!botFirstSeen || day.date < botFirstSeen) botFirstSeen = day.date
+                if (!botLastSeen || day.date > botLastSeen) botLastSeen = day.date
             }
 
             // Build referrer details from individual visit records
@@ -245,6 +259,24 @@ export async function GET(request: NextRequest) {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 15)
             .map(([name, count]) => ({ name, count }))
+
+        // Bot daily trend — for each day, which bots visited
+        const botDailyTrend = dailyVisitors
+            .filter(d => botDailyMap[d.date])
+            .map(d => ({
+                date: d.date,
+                total: d.bots,
+                bots: Object.entries(botDailyMap[d.date] || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10)
+                    .map(([name, count]) => ({ name, count }))
+            }))
+
+        // Bot page distribution — which pages bots crawl most
+        const botPageDistribution = Object.entries(botPageMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 15)
+            .map(([path, count]) => ({ path, count }))
 
         // Daily visitors sorted by date (oldest first)
         dailyVisitors.sort((a, b) => a.date.localeCompare(b.date))
@@ -368,9 +400,23 @@ export async function GET(request: NextRequest) {
                     .map(([code, count]) => ({ code, name: getCountryName(code), count }))
             }))
 
-        // Calculate averages
         const activeDays = dailyData.length || 1
         const avgDailyVisits = Math.round(totalVisits / activeDays)
+
+        // Bot overview stats (must be after activeDays)
+        const uniqueBotCount = Object.keys(botTypes).length
+        const mostActiveBot = botDistribution.length > 0 ? botDistribution[0] : null
+        const botOverview = {
+            uniqueBots: uniqueBotCount,
+            totalCrawls: totalBotVisits,
+            avgDailyCrawls: activeDays > 0 ? Math.round(totalBotVisits / activeDays * 10) / 10 : 0,
+            mostActiveBot: mostActiveBot?.name || 'N/A',
+            mostActiveBotCount: mostActiveBot?.count || 0,
+            firstSeen: botFirstSeen,
+            lastSeen: botLastSeen,
+            daysWithBots: Object.keys(botDailyMap).length,
+            daysWithoutBots: activeDays - Object.keys(botDailyMap).length,
+        }
 
         // Weekly stats (last 7 days)
         const last7Days = dailyVisitors.slice(-7)
@@ -417,6 +463,9 @@ export async function GET(request: NextRequest) {
             countryTrend,
             top5CountryCodes: top5CountryCodes.map(c => ({ code: c, name: getCountryName(c) })),
             botDistribution,
+            botDailyTrend,
+            botPageDistribution,
+            botOverview,
             hourlyDistribution: allHourly,
             seoHealth,
             referrersByPeriod,
