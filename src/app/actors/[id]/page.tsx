@@ -11,42 +11,53 @@ interface PageProps {
 const BASE_URL = 'https://kdance.xyz'
 
 async function getActorData(id: string) {
-    // 1. Try B2 Database
-    const db = await getDatabase()
-    if (db && db.streamers) {
-        let streamer = db.streamers.find((s: any) => s.id === id)
+    try {
+        // 1. Try B2 Database
+        const db = await getDatabase()
+        if (db && db.streamers) {
+            // ID로 먼저 검색, 없으면 이름(name)으로 fallback 검색
+            let streamer = db.streamers.find((s: any) => s.id === id)
+                || db.streamers.find((s: any) => s.name === id || s.name?.toLowerCase() === id.toLowerCase())
 
-        // 미분류 스트리머 자동 생성 (B2에 없는 경우)
-        if (!streamer && id === 'uncategorized') {
-            streamer = {
-                id: 'uncategorized',
-                name: 'uncategorized',
-                koreanName: '미분류',
-                gradient: 'from-gray-800 to-gray-900',
-                videoCount: 0,
-                followers: 0,
-                createdAt: new Date().toISOString().split('T')[0],
+            // 미분류 스트리머 자동 생성 (B2에 없는 경우)
+            if (!streamer && id === 'uncategorized') {
+                streamer = {
+                    id: 'uncategorized',
+                    name: 'uncategorized',
+                    koreanName: '미분류',
+                    gradient: 'from-gray-800 to-gray-900',
+                    videoCount: 0,
+                    followers: 0,
+                    createdAt: new Date().toISOString().split('T')[0],
+                }
+            }
+
+            if (streamer) {
+                // Ensure followers field exists for legacy data
+                if (typeof streamer.followers === 'undefined') {
+                    streamer.followers = 0
+                }
+                // 실제 스트리머 ID로 비디오 필터링 (이름 fallback으로 찾았을 때도 정확하게)
+                const realId = streamer.id
+                const videos = db.videos?.filter((v: any) => v.streamerId === realId) || []
+                // 미분류 스트리머의 videoCount 실시간 반영
+                if (realId === 'uncategorized') {
+                    streamer.videoCount = videos.length
+                }
+                return { streamer, videos, downloadToken: db.downloadToken || null }
             }
         }
 
-        if (streamer) {
-            // Ensure followers field exists for legacy data
-            if (typeof streamer.followers === 'undefined') {
-                streamer.followers = 0
-            }
-            const videos = db.videos?.filter((v: any) => v.streamerId === id) || []
-            // 미분류 스트리머의 videoCount 실시간 반영
-            if (id === 'uncategorized') {
-                streamer.videoCount = videos.length
-            }
-            return { streamer, videos, downloadToken: db.downloadToken || null }
-        }
+        // 2. Fallback to Initial Data (ID 또는 이름으로 검색)
+        const streamer = initialStreamers.find((s) => s.id === id)
+            || initialStreamers.find((s) => s.name === id || s.name?.toLowerCase() === id.toLowerCase())
+        const realId = streamer?.id || id
+        const videos = initialVideos.filter((v) => v.streamerId === realId)
+        return { streamer, videos, downloadToken: null }
+    } catch (error) {
+        console.error(`[getActorData] Error fetching actor data for id='${id}':`, error)
+        return { streamer: undefined, videos: [], downloadToken: null }
     }
-
-    // 2. Fallback to Initial Data
-    const streamer = initialStreamers.find((s) => s.id === id)
-    const videos = initialVideos.filter((v) => v.streamerId === id)
-    return { streamer, videos, downloadToken: null }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
