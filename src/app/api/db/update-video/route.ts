@@ -52,6 +52,27 @@ async function handleUpdateVideo(request: NextRequest) {
             return adminCheck
         }
 
+        // Admin-only: reset views/likes
+        if (body.resetViews !== undefined || body.views !== undefined || body.likes !== undefined) {
+            const adminCheck = await withAdminProtection(request, async () => {
+                if (body.resetViews === true) {
+                    db.videos[idx].views = 0
+                    db.videos[idx].likes = 0
+                } else {
+                    if (body.views !== undefined) db.videos[idx].views = Number(body.views)
+                    if (body.likes !== undefined) db.videos[idx].likes = Number(body.likes)
+                }
+                await saveDatabase(db)
+                return NextResponse.json({
+                    success: true,
+                    videoId,
+                    views: db.videos[idx].views,
+                    likes: db.videos[idx].likes,
+                })
+            })
+            return adminCheck
+        }
+
         // Public: duration-only update
         if (!duration || typeof duration !== 'string') {
             return NextResponse.json({ error: 'duration or videoUrl required' }, { status: 400 })
