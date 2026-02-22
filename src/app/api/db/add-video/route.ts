@@ -90,6 +90,27 @@ export async function POST(req: NextRequest) {
 
                 console.log(`✅ [add-video] Atomically added video "${newVideo.title || newVideo.id}" (total: ${database.videos.length})`)
 
+                // Auto-queue remux job for video validation & re-encoding
+                // This ensures concatenated/broken videos are automatically fixed by the worker
+                if (newVideo.videoUrl) {
+                    try {
+                        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://kdance.xyz'
+                        fetch(`${baseUrl}/api/queue/fix-video`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                videoUrl: newVideo.videoUrl,
+                                videoId: newVideo.id,
+                                title: newVideo.title || 'Auto-fix'
+                            }),
+                        }).then(r => {
+                            if (r.ok) console.log(`🔧 [add-video] Auto-queued remux job for "${newVideo.title || newVideo.id}"`)
+                            else if (r.status === 409) console.log(`⏳ [add-video] Remux job already exists for "${newVideo.title || newVideo.id}"`)
+                            else console.warn(`⚠️ [add-video] Failed to queue remux job (${r.status})`)
+                        }).catch(e => console.error('Auto remux queue failed:', e))
+                    } catch { /* don't fail main operation */ }
+                }
+
                 return NextResponse.json({
                     success: true,
                     video: newVideo,
