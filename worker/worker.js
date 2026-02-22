@@ -819,6 +819,85 @@ function transcodeToH264(inputPath, outputPath, jobId = null) {
 }
 
 // ============================================
+// Validate video stream integrity (catches broken concatenated videos)
+// ============================================
+function validateVideoStream(filePath) {
+    try {
+        // 1. Check that ffprobe can read all streams without error
+        const streamInfo = execSync(
+            `ffprobe -v error -analyzeduration 100M -probesize 100M -show_entries stream=codec_type,codec_name,duration,nb_frames -of json "${filePath}"`,
+            { encoding: 'utf8', timeout: 60000 }
+        )
+        const info = JSON.parse(streamInfo)
+        const streams = info.streams || []
+
+        const videoStream = streams.find(s => s.codec_type === 'video')
+        const audioStream = streams.find(s => s.codec_type === 'audio')
+
+        if (!videoStream) {
+            console.log(`   ❌ 비디오 스트림 없음`)
+            return { valid: false, reason: 'no_video_stream' }
+        }
+
+        // 2. Try to decode one frame to verify the file is actually playable
+        try {
+            execSync(
+                `ffmpeg -v error -i "${filePath}" -vframes 1 -f null -`,
+                { timeout: 30000, stdio: 'pipe' }
+            )
+        } catch (decodeErr) {
+            console.log(`   ❌ 첫 프레임 디코딩 실패 → 컨테이너 손상 가능`)
+            return { valid: false, reason: 'decode_failed' }
+        }
+
+        // 3. Check for multiple video streams (sign of bad concatenation)
+        const videoStreams = streams.filter(s => s.codec_type === 'video')
+        if (videoStreams.length > 1) {
+            console.log(`   ⚠️ 비디오 스트림 ${videoStreams.length}개 감지 → 이어붙인 영상 의심`)
+            return { valid: false, reason: 'multiple_video_streams' }
+        }
+
+        // 4. Check audio codec is web-compatible (AAC, opus, mp3)
+        if (audioStream) {
+            const audioCodec = (audioStream.codec_name || '').toLowerCase()
+            const webAudioCodecs = ['aac', 'opus', 'mp3', 'vorbis']
+            if (!webAudioCodecs.includes(audioCodec)) {
+                console.log(`   ⚠️ 오디오 코덱 "${audioCodec}" → 웹 비호환, AAC로 변환 필요`)
+                return { valid: false, reason: `audio_codec_${audioCodec}` }
+            }
+        }
+
+        console.log(`   ✅ 영상 스트림 검증 통과`)
+        return { valid: true }
+    } catch (e) {
+        console.log(`   ❌ 영상 검증 실패 (${e.message})`)
+        return { valid: false, reason: 'validation_error' }
+    }
+}
+
+// ============================================
+// Full re-encode for web (H.264 + AAC + faststart)
+// Used when remux alone can't fix broken containers (e.g. concatenated videos)
+// ============================================
+function reencodeForWeb(inputPath, outputPath, jobId = null) {
+    console.log(`   🔧 웹 호환 재인코딩 시작 (H.264 + AAC + faststart)...`)
+    try {
+        // Use high quality CRF 20 to preserve quality, medium preset for balance
+        execSync(
+            `ffmpeg -y -i "${inputPath}" -c:v libx264 -crf 20 -preset medium -pix_fmt yuv420p -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart -max_muxing_queue_size 9999 "${outputPath}"`,
+            { timeout: 7200000, stdio: 'pipe' } // 2 hour timeout
+        )
+        const inputSize = (fs.statSync(inputPath).size / 1024 / 1024).toFixed(1)
+        const outputSize = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(1)
+        console.log(`   ✅ 웹 재인코딩 완료: ${inputSize}MB → ${outputSize}MB`)
+        return true
+    } catch (e) {
+        console.error(`   ❌ 웹 재인코딩 실패:`, e.message)
+        return false
+    }
+}
+
+// ============================================
 // Check if video is web-optimized (faststart / moov atom at front)
 // ============================================
 function checkWebOptimized(filePath) {
@@ -926,6 +1005,7 @@ async function processJob(job) {
     const tempFile = path.join(TEMP_DIR, `dl_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp4`)
     const transcodedFile = tempFile.replace('.mp4', '_h264.mp4')
     const remuxedFile = tempFile.replace('.mp4', '_remux.mp4')
+    const reencodedFile = tempFile.replace('.mp4', '_reencode.mp4')
     let activeFile = tempFile // Points to the file we'll actually upload (original or transcoded)
     let jobSuccess = false // Track whether upload + DB registration succeeded
 
@@ -999,6 +1079,18 @@ async function processJob(job) {
                         }
                     } else {
                         console.log(`   ✅ 이미 web-optimized — remux 불필요`)
+                    }
+                }
+
+                // B2 remux에서도 스트림 검증 (이어붙인 영상 처리)
+                const b2Validation = validateVideoStream(activeFile)
+                if (!b2Validation.valid) {
+                    console.log(`   🔧 B2 영상 검증 실패 (${b2Validation.reason}) → 웹 재인코딩`)
+                    const reencSuccess = reencodeForWeb(tempFile, reencodedFile, job.id)
+                    if (reencSuccess && fs.existsSync(reencodedFile) && fs.statSync(reencodedFile).size > 0) {
+                        activeFile = reencodedFile
+                        needsReupload = true
+                        console.log(`   ✅ B2 웹 재인코딩 완료`)
                     }
                 }
 
@@ -1211,6 +1303,27 @@ async function processJob(job) {
             const success = remuxForFaststart(tempFile, remuxedFile)
             if (success && fs.existsSync(remuxedFile) && fs.statSync(remuxedFile).size > 0) {
                 activeFile = remuxedFile
+            }
+        }
+
+        // ============================================
+        // 영상 스트림 검증 (이어붙인 영상 등 컨테이너 문제 감지)
+        // remux/transcode 후에도 재생 안 되는 경우 → 풀 재인코딩
+        // ============================================
+        const validation = validateVideoStream(activeFile)
+        if (!validation.valid) {
+            console.log(`   🔧 영상 검증 실패 (${validation.reason}) → 웹 호환 재인코딩 시도`)
+            await updateJob(job.id, {
+                progress: 45,
+                updatedAt: new Date().toISOString(),
+            })
+
+            const reencodeSuccess = reencodeForWeb(tempFile, reencodedFile, job.id)
+            if (reencodeSuccess && fs.existsSync(reencodedFile) && fs.statSync(reencodedFile).size > 0) {
+                activeFile = reencodedFile
+                console.log(`   ✅ 웹 재인코딩 완료, 재인코딩된 파일 사용`)
+            } else {
+                console.warn(`   ⚠️ 재인코딩 실패, 현재 파일 그대로 업로드 시도`)
             }
         }
 
@@ -1554,10 +1667,11 @@ async function processJob(job) {
             updatedAt: new Date().toISOString(),
         }).catch(e => console.error('상태 업데이트 실패:', e))
     } finally {
-        // Clean up original, transcoded, and remuxed files
+        // Clean up original, transcoded, remuxed, and re-encoded files
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
         if (fs.existsSync(transcodedFile)) fs.unlinkSync(transcodedFile)
         if (fs.existsSync(remuxedFile)) fs.unlinkSync(remuxedFile)
+        if (fs.existsSync(reencodedFile)) fs.unlinkSync(reencodedFile)
 
         // Move processed local file based on success/failure
         if (job.sourceUrl.startsWith('local://')) {
