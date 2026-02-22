@@ -37,6 +37,8 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     const [video, setVideo] = useState<Video | undefined>(initialVideo)
     const [streamer, setStreamer] = useState<Streamer | undefined>(initialStreamer)
     const [videoPlayError, setVideoPlayError] = useState(false)
+    const [fixRequested, setFixRequested] = useState(false)
+    const [fixMessage, setFixMessage] = useState('')
 
     const id = (video?.id || fallbackId) as string
     const { user } = useAuth()
@@ -91,7 +93,39 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
     // Reset video error state when video changes
     useEffect(() => {
         setVideoPlayError(false)
+        setFixRequested(false)
+        setFixMessage('')
     }, [id])
+
+    // Handle fix video request
+    const handleFixVideo = async () => {
+        if (!video?.videoUrl || fixRequested) return
+        setFixRequested(true)
+        setFixMessage('수정 요청 중...')
+        try {
+            const res = await fetch('/api/queue/fix-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    videoUrl: video.videoUrl,
+                    videoId: video.id,
+                    title: video.title
+                })
+            })
+            const data = await res.json()
+            if (res.ok) {
+                setFixMessage('✅ 수정 요청 완료! 잠시 후 자동으로 수정됩니다.')
+            } else if (res.status === 409) {
+                setFixMessage('⏳ 이미 수정 대기 중입니다.')
+            } else {
+                setFixMessage(`❌ 요청 실패: ${data.error || '알 수 없는 오류'}`)
+                setFixRequested(false)
+            }
+        } catch (err) {
+            setFixMessage('❌ 네트워크 오류')
+            setFixRequested(false)
+        }
+    }
 
 
     // Fallback logic for videos not found on server
@@ -416,7 +450,20 @@ export default function VideoClient({ video: initialVideo, streamer: initialStre
                                         <p className="text-text-tertiary max-w-md mb-6 text-xs">
                                             💡 Chrome, Edge 또는 Safari 최신 버전을 사용해 보세요. 또는 다운로드 후 VLC, PotPlayer 등의 미디어 플레이어로 감상하실 수 있습니다.
                                         </p>
-                                        <div className="flex gap-3">
+                                        {fixMessage && (
+                                            <p className="text-sm mb-4 text-accent-primary">{fixMessage}</p>
+                                        )}
+                                        <div className="flex gap-3 flex-wrap justify-center">
+                                            <button
+                                                onClick={handleFixVideo}
+                                                disabled={fixRequested}
+                                                className={`px-6 py-2.5 rounded-full font-bold transition-all ${fixRequested
+                                                        ? 'bg-white/10 text-text-secondary cursor-not-allowed'
+                                                        : 'bg-blue-500 text-white hover:bg-blue-400 hover:scale-105'
+                                                    }`}
+                                            >
+                                                🔧 영상 자동 수정
+                                            </button>
                                             {!isDownloadLocked && (
                                                 <button
                                                     onClick={handleDownload}
