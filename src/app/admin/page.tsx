@@ -248,6 +248,22 @@ export default function AdminPage() {
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
     const securityIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+    // Analytics-based accurate visitor counts
+    const [analyticsVisitors, setAnalyticsVisitors] = useState<{ total: number; today: number }>({ total: 0, today: 0 })
+    useEffect(() => {
+        fetch('/api/admin/dashboard-stats')
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (d?.summary) {
+                    setAnalyticsVisitors({
+                        total: d.summary.totalVisitors || 0,
+                        today: d.summary.todayVisitors || 0,
+                    })
+                }
+            })
+            .catch(() => { })
+    }, [])
+
     // SEO Analytics states
     const [seoAnalytics, setSeoAnalytics] = useState<any>(null)
     const [seoAnalyticsLoading, setSeoAnalyticsLoading] = useState(false)
@@ -2368,12 +2384,12 @@ export default function AdminPage() {
                                     <h1 className="text-2xl font-bold mb-6">📊 대시보드</h1>
                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                                         <div className="bg-gradient-to-br from-blue-900/50 to-blue-600/30 rounded-xl p-5 border border-blue-500/20">
-                                            <p className="text-blue-300 text-sm mb-1">총 방문자</p>
-                                            <p className="text-3xl font-bold">{stats.totalVisits.toLocaleString()}</p>
+                                            <p className="text-blue-300 text-sm mb-1">총 방문자 <span className="text-xs opacity-60">(90일)</span></p>
+                                            <p className="text-3xl font-bold">{analyticsVisitors.total.toLocaleString()}</p>
                                         </div>
                                         <div className="bg-gradient-to-br from-green-900/50 to-green-600/30 rounded-xl p-5 border border-green-500/20">
                                             <p className="text-green-300 text-sm mb-1">오늘 방문</p>
-                                            <p className="text-3xl font-bold">{stats.todayVisits}</p>
+                                            <p className="text-3xl font-bold">{analyticsVisitors.today.toLocaleString()}</p>
                                         </div>
                                         <div className="bg-gradient-to-br from-purple-900/50 to-purple-600/30 rounded-xl p-5 border border-purple-500/20">
                                             <p className="text-purple-300 text-sm mb-1">총 영상</p>

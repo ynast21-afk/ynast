@@ -3,6 +3,14 @@ import { getDatabase, getJsonFile } from '@/lib/b2'
 
 export const dynamic = 'force-dynamic'
 
+// KST date key helper
+function getKSTDateKey(offsetDays = 0): string {
+    const now = new Date()
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+    if (offsetDays) kst.setDate(kst.getDate() - offsetDays)
+    return kst.toISOString().slice(0, 10)
+}
+
 // GET - Fetch aggregated dashboard statistics from B2
 export async function GET(request: NextRequest) {
     try {
@@ -12,6 +20,39 @@ export async function GET(request: NextRequest) {
             getJsonFile('data/comments.json').catch(() => []),
             getJsonFile('data/admin-notifications.json').catch(() => []),
         ])
+
+        // --- Analytics-based visitor counts (accurate) ---
+        const todayKey = getKSTDateKey(0)
+        let analyticsTotal = 0
+        let analyticsTodayVisits = 0
+
+        // Load today's analytics
+        try {
+            const todayData = await getJsonFile(`data/analytics/${todayKey}.json`)
+            if (todayData?.visits) {
+                analyticsTodayVisits = todayData.visits.length
+            }
+        } catch { /* no data for today yet */ }
+
+        // Load last 90 days for total count (in batches of 10)
+        const dateKeys: string[] = []
+        for (let i = 0; i < 90; i++) {
+            dateKeys.push(getKSTDateKey(i))
+        }
+
+        for (let b = 0; b < dateKeys.length; b += 10) {
+            const batch = dateKeys.slice(b, b + 10)
+            const results = await Promise.all(
+                batch.map(async (dk) => {
+                    try {
+                        return await getJsonFile(`data/analytics/${dk}.json`)
+                    } catch { return null }
+                })
+            )
+            for (const r of results) {
+                if (r?.visits) analyticsTotal += r.visits.length
+            }
+        }
 
         const videos = database?.videos || []
         const streamers = database?.streamers || []
@@ -162,6 +203,9 @@ export async function GET(request: NextRequest) {
                 totalUsers: usersData.length,
                 vipVideoCount,
                 freeVideoCount,
+                // Analytics-based accurate visitor counts (봇 제외, 서버 track 기반)
+                totalVisitors: analyticsTotal,
+                todayVisitors: analyticsTodayVisits,
             },
             topVideosByViews,
             topVideosByLikes,
