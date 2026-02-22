@@ -4692,12 +4692,12 @@ export default function AdminPage() {
                                                         <input
                                                             type="text"
                                                             readOnly
-                                                            value="https://kdance.xyz/sitemap.xml"
+                                                            value="https://kdance.xyz/sitemap2.xml"
                                                             className="flex-1 px-4 py-3 bg-bg-secondary border border-white/10 rounded-xl text-text-secondary font-mono text-sm"
                                                         />
                                                         <button
                                                             onClick={() => {
-                                                                navigator.clipboard.writeText('https://kdance.xyz/sitemap.xml')
+                                                                navigator.clipboard.writeText('https://kdance.xyz/sitemap2.xml')
                                                                 alert('복사되었습니다!')
                                                             }}
                                                             className="px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
